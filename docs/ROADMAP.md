@@ -30,7 +30,7 @@
 - [x] Clean up orphaned funding Vue components
 - [x] Fix stale docs (commands.md, sandbox.md, getting-started.md)
 - [x] Upgrade `@modelcontextprotocol/sdk` from 0.5.0 to ^1.26.0
-- [x] Raise minimum Node.js from 16 to 18, update CI matrix
+- [x] Raise minimum Node.js to 20 (LTS only), update CI matrix to test 20, 22
 - [x] Clean orphaned dist/ files from deleted sources
 - [x] Fix deprecated `-p` flag → `--` separator + positional prompt
 - [x] Windows spawn compat (`shell: true` on win32)
@@ -39,3 +39,4 @@
 - [x] Logger rewrite: level filtering, fix all inconsistencies, remove dead `log()` method
 - [x] Remove broken `@` quoting, dead exports, sendStatusMessage placeholder
 - [x] Add cache shape validation, truncate error output, fix changeModeTranslator text
+- [x] Rename project from `claude-ask-gemini-mcp` to `ask-gemini-mcp` (ADR-012)

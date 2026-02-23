@@ -82,3 +82,10 @@
 - **Context:** The npm package was named `claude-ask-gemini-mcp` and the GitHub repo was `Lykhoyda/claude-ask-gemini-mcp`. The "claude-" prefix is misleading — the tool works with any MCP client (Warp, Copilot, Cursor, etc.), not just Claude. The shorter name `ask-gemini-mcp` was available on npm and better describes what the tool does: ask Gemini via MCP.
 - **Decision:** Rename the npm package to `ask-gemini-mcp` and the GitHub repo to `Lykhoyda/ask-gemini-mcp`. Update all references in package.json, README, docs, deploy scripts, and VitePress config. Keep the `gemini-mcp` CLI binary name unchanged (short and works well). Preserve historical references to old names in CHANGELOG and prior ADRs.
 - **Consequences:** Users installing via `npx -y ask-gemini-mcp` get the correct package. The old `claude-ask-gemini-mcp` name will no longer resolve on npm. GitHub will auto-redirect the old repo URL. Documentation and badges all point to the new name.
+
+## ADR-013: Raise Minimum Node.js to 20 (LTS Only)
+- **Date:** 2026-02-23
+- **Status:** Accepted
+- **Context:** Node.js 18 reached End-of-Life in April 2025. The project previously required >=18.0.0. Active LTS versions are Node.js 20 (LTS until April 2026) and Node.js 22 (LTS until April 2027). Supporting EOL runtimes increases maintenance burden and security risk with no benefit — users on Node 18 are already past its support window.
+- **Decision:** Raise `engines.node` to `>=20.0.0`. Update CI matrix to test only Node 20 and 22 (drop 18). Update all documentation references. Adopt an LTS-only policy going forward.
+- **Consequences:** Users on Node.js 18 will see an engine compatibility warning from npm. CI runs faster with fewer matrix entries. The project stays on supported, security-patched runtimes.

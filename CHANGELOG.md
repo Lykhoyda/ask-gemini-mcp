@@ -13,8 +13,8 @@
 - Updated LICENSE copyright to Lykhoyda
 - Upgraded `@modelcontextprotocol/sdk` from 0.5.0 to ^1.26.0
 - Upgraded `@types/node` from ^20.0.0 to ^22.0.0
-- Raised minimum Node.js version from 16 to 18 (Node 16 is EOL)
-- Updated CI matrix to test Node 18, 20, 22 (dropped Node 16)
+- Raised minimum Node.js version to 20 (Node 18 reached EOL April 2025, LTS only policy)
+- Updated CI matrix to test Node 20, 22
 
 ### Fixed (utils/ audit)
 - **Critical:** Replaced deprecated `-p` CLI flag with `--` separator + positional prompt (Gemini CLI v0.23+)

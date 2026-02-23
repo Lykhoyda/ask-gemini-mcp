@@ -4,7 +4,7 @@ Multiple ways to install Gemini MCP Tool, depending on your needs.
 
 ## Prerequisites
 
-- Node.js v18.0.0 or higher
+- Node.js v20.0.0 or higher (LTS)
 - Claude Desktop or Claude Code with MCP support
 - Gemini CLI installed (`npm install -g @google/gemini-cli`)
 

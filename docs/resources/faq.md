@@ -32,7 +32,7 @@ Then, run "gemini" and complete auth.
 Yes! It works with both Claude Desktop and Claude Code.
 
 ### What Node.js version do I need?
-Node.js v18.0.0 or higher.
+Node.js v20.0.0 or higher (LTS).
 
 ## Usage
 

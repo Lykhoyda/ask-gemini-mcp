@@ -60,10 +60,8 @@ Restart Claude Desktop after updating the config.
 | Tool | Purpose |
 |------|---------|
 | `ask-gemini` | Core tool: sends prompts to Gemini CLI. Supports `@` file syntax, model selection, sandbox mode, and changeMode for structured edits |
-| `brainstorm` | Structured ideation with methodology selection (divergent, convergent, scamper, design-thinking, lateral) |
 | `fetch-chunk` | Retrieves subsequent chunks from cached large responses |
-| `ping` | Connection test |
-| `help` | Shows Gemini CLI help |
+| `ping` | Connection test — verifies MCP setup without using Gemini tokens |
 
 ### Usage Examples
 

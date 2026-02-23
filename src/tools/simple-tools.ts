@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { UnifiedTool } from './registry.js';
+import type { UnifiedTool } from './registry.js';
 import { executeCommand } from '../utils/commandExecutor.js';
 
 const pingArgsSchema = z.object({

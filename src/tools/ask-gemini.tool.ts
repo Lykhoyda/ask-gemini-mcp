@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { UnifiedTool } from './registry.js';
+import type { UnifiedTool } from './registry.js';
 import { executeGeminiCLI, processChangeModeOutput } from '../utils/geminiExecutor.js';
 import { 
   ERROR_MESSAGES, 

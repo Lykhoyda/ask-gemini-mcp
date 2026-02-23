@@ -2,16 +2,17 @@
 
 ## Known Bugs (inherited from upstream)
 
-### Deprecated `-p` flag causes error
+### ~~Deprecated `-p` flag causes error~~ FIXED
 - **Severity:** Critical
 - **Upstream:** Issue #48, PRs #56, #43
 - **Description:** Gemini CLI v0.23+ deprecated the `-p`/`--prompt` flag. Using it now produces "Cannot use both positional prompt and --prompt flag" error.
-- **Fix:** Replace `-p` flag with positional argument (`-- <prompt>`)
+- **Fix:** Replaced `-p` flag with `--` separator + positional argument in `geminiExecutor.ts`
 
-### Windows ENOENT spawn errors
+### ~~Windows ENOENT spawn errors~~ FIXED
 - **Severity:** High
 - **Upstream:** Issues #28, #30, #40; PRs #23, #27, #41, #43
 - **Description:** `child_process.spawn()` fails on Windows because `gemini` resolves to `gemini.cmd`. Needs `shell: true` option and proper argument escaping.
+- **Fix:** Added `shell: process.platform === "win32"` in `commandExecutor.ts`
 
 ### Excessive token responses
 - **Severity:** Medium
@@ -22,3 +23,17 @@
 - **Severity:** Low
 - **Upstream:** Issue #39
 - **Description:** Published version has no release notes or changelog entry.
+
+## ~~Code Quality Issues (from utils/ audit)~~ ALL FIXED
+
+All 10 code quality issues identified in the utils/ audit have been resolved:
+
+- ~~No child process timeout~~ → Added 5min default timeout with SIGTERM→SIGKILL, configurable via `GMCPT_TIMEOUT_MS`
+- ~~O(n^2) string concatenation~~ → Replaced with `Buffer[]` + `Buffer.concat()`
+- ~~Broken @ symbol quoting~~ → Removed unnecessary quoting logic (`shell: false` means no shell expansion)
+- ~~Raw Gemini output in error response~~ → Truncated to 2000 chars via `EXECUTION.ERROR_TRUNCATE_LENGTH`
+- ~~Logger inconsistencies~~ → Removed `log()`, added level filtering, fixed `formatMessage`, `toolInvocation`, `toolParsedArgs`
+- ~~Console.warn in changeModeParser~~ → Replaced with `Logger.warn`
+- ~~Dead exported functions~~ → Deleted `summarizeChunking`, `getCacheStats`, `clearCache`
+- ~~sendStatusMessage no-op~~ → Deleted, replaced call sites with `Logger.debug()`
+- ~~processChangeModeOutput unnecessarily async~~ → Removed `async` keyword

@@ -7,6 +7,8 @@ import {
   ListToolsRequestSchema,
   ListPromptsRequestSchema,
   GetPromptRequestSchema,
+} from "@modelcontextprotocol/sdk/types.js";
+import type {
   CallToolRequest,
   ListToolsRequest,
   ListPromptsRequest,
@@ -17,7 +19,8 @@ import {
   CallToolResult,
 } from "@modelcontextprotocol/sdk/types.js";
 import { Logger } from "./utils/logger.js";
-import { PROTOCOL, ToolArguments } from "./constants.js";
+import { PROTOCOL } from "./constants.js";
+import type { ToolArguments } from "./constants.js";
 
 import { 
   getToolDefinitions, 

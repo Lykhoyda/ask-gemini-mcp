@@ -1,5 +1,5 @@
 import { createHash } from 'crypto';
-import { EditChunk } from './changeModeChunker.js';
+import type { EditChunk } from './changeModeChunker.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -67,16 +67,28 @@ export function getChunks(cacheKey: string): EditChunk[] | null {
     }
     
     const fileContent = fs.readFileSync(filePath, 'utf-8');
-    const data: CacheEntry = JSON.parse(fileContent);
-    
-    if (Date.now() - data.timestamp > CACHE_TTL) {
+    const data: unknown = JSON.parse(fileContent);
+
+    if (
+      typeof data !== 'object' || data === null ||
+      !Array.isArray((data as CacheEntry).chunks) ||
+      typeof (data as CacheEntry).timestamp !== 'number'
+    ) {
+      Logger.debug(`Cache file for ${cacheKey} has invalid shape, deleting`);
+      fs.unlinkSync(filePath);
+      return null;
+    }
+
+    const entry = data as CacheEntry;
+
+    if (Date.now() - entry.timestamp > CACHE_TTL) {
       fs.unlinkSync(filePath);
       Logger.debug(`Cache expired for ${cacheKey}, deleted file`);
       return null;
     }
     
-    Logger.debug(`Cache hit for ${cacheKey}, returning ${data.chunks.length} chunks`);
-    return data.chunks;
+    Logger.debug(`Cache hit for ${cacheKey}, returning ${entry.chunks.length} chunks`);
+    return entry.chunks;
   } catch (error) {
     Logger.debug(`Cache read error for ${cacheKey}: ${error}`);
     try {
@@ -119,8 +131,6 @@ function cleanExpiredFiles(): void {
 }
 
 
- // maximum file count limit (FIFO) --> LRU?
-
 function enforceFileLimits(): void {
   try {
     const files = fs.readdirSync(CACHE_DIR)
@@ -147,36 +157,3 @@ function enforceFileLimits(): void {
   }
 }
 
-export function getCacheStats(): { size: number; ttl: number; maxSize: number; cacheDir: string } {
-  ensureCacheDir();
-  let size = 0;
-  
-  try {
-    const files = fs.readdirSync(CACHE_DIR);
-    size = files.filter(f => f.endsWith('.json')).length;
-  } catch {}
-  
-  return {
-    size,
-    ttl: CACHE_TTL,
-    maxSize: MAX_CACHE_FILES,
-    cacheDir: CACHE_DIR
-  };
-}
-
-export function clearCache(): void { // !
-  try {
-    ensureCacheDir();
-    const files = fs.readdirSync(CACHE_DIR);
-    
-    for (const file of files) {
-      if (file.endsWith('.json')) {
-        fs.unlinkSync(path.join(CACHE_DIR, file));
-      }
-    }
-    
-    Logger.debug('Cache emptied');
-  } catch (error) {
-    Logger.error(`Failed to empty cache: ${error}`);
-  }
-}

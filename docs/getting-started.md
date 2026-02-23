@@ -125,7 +125,7 @@ Gemini MCP Tool works with 40+ MCP clients! Here are the common configuration pa
 1. **Install Prerequisites**: Ensure [Gemini CLI](https://github.com/google-gemini/gemini-cli) is installed
 2. **Add Server Config**: Use the STDIO transport pattern above
 3. **Restart Client**: Most clients require restart after config changes
-4. **Test Connection**: Try `/gemini-cli:ping` or natural language commands
+4. **Test Connection**: Try `ping` via MCP or use natural language commands
 
 ## Verify Your Setup
 
@@ -134,7 +134,7 @@ Once configured, test that everything is working:
 ### 1. Basic Connectivity Test
 Type in Claude:
 ```
-/gemini-cli:ping "Hello from Gemini MCP!"
+use gemini ping to test the connection
 ```
 
 ### 2. Test File Analysis
@@ -149,7 +149,7 @@ ask gemini in sandbox mode to create a simple Python hello world script
 
 ## Quick Command Reference
 
-Once installed, you can use natural language or slash commands:
+Once installed, use natural language to interact with Gemini:
 
 ### Natural Language Examples
 - "use gemini to explain index.html"
@@ -159,9 +159,8 @@ Once installed, you can use natural language or slash commands:
 ### Available Tools
 These tools are registered via MCP and can be used through natural language:
 - `ask-gemini` - Analyze files, ask questions, get code reviews
-- `brainstorm` - Structured ideation with methodology selection
+- `fetch-chunk` - Retrieve paginated chunks from large responses
 - `ping` - Test connectivity
-- `help` - Show Gemini CLI help
 
 ## Need a Different Client?
 

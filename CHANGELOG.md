@@ -13,7 +13,28 @@
 - Raised minimum Node.js version from 16 to 18 (Node 16 is EOL)
 - Updated CI matrix to test Node 18, 20, 22 (dropped Node 16)
 
+### Fixed (utils/ audit)
+- **Critical:** Replaced deprecated `-p` CLI flag with `--` separator + positional prompt (Gemini CLI v0.23+)
+- **High:** Added configurable process timeout (5min default, `GMCPT_TIMEOUT_MS` env var) with SIGTERM→SIGKILL
+- **High:** Added Windows compatibility (`shell: true` on win32) in `commandExecutor.ts`
+- **Medium:** Fixed O(n^2) string concatenation in stdout capture — now uses `Buffer[]` + `Buffer.concat()`
+- **Medium:** Removed broken `@` symbol quoting logic in `geminiExecutor.ts` (unnecessary with `shell: false`)
+- **Medium:** Truncated raw Gemini output in error messages to 2000 chars
+- **Low:** Added log level filtering via `GMCPT_LOG_LEVEL` env var (debug/info/warn/error, default: warn)
+- **Low:** Fixed `Logger.toolInvocation` to include tool name; `toolParsedArgs` to include model/sandbox
+- **Low:** Fixed `Logger.formatMessage` trailing `\n` causing double-newlines
+- **Low:** Replaced `console.warn` with `Logger.warn` in `changeModeParser.ts`
+- **Low:** Fixed `chunkChangeModeEdits` returning misleading single-element array for empty input
+- **Low:** Added runtime shape validation after `JSON.parse` in `chunkCache.getChunks`
+- **Low:** Replaced CLI-style `fetch-chunk` instructions with MCP tool description format
+- **Low:** Removed `async` from `processChangeModeOutput` (no await calls)
+- Removed dead code: `Logger.log()`, `summarizeChunking`, `getCacheStats`, `clearCache`, `sendStatusMessage`
+- Replaced `Logger._commandStartTimes` Map keyed by `Date.now()` with incrementing counter to avoid key collisions
+
 ### Removed
+- Removed non-core tools: `brainstorm`, `help`, `timeout-test` (ADR-004). Server now exposes only `ask-gemini`, `fetch-chunk`, and `ping`
+- Deleted orphaned tool source files (`brainstorm.tool.ts`, `timeout-test.tool.ts`, `test-tool.example.ts`)
+- Removed dead brainstorm-related properties from `ToolArguments` interface
 - Removed unused dependencies: `ai`, `chalk`, `d3-shape`, `inquirer`, `archiver`, `@types/inquirer`
 - Moved `prismjs` from dependencies to devDependencies (only used in docs)
 - Deleted empty `src/utils/timeoutManager.ts`
@@ -22,6 +43,7 @@
 - Removed stale `notifications` capability from MCP server init (removed in SDK v1.x)
 
 ### Fixed
+- Converted all type-only imports to explicit `import type` syntax across the codebase
 - Updated `docs/usage/commands.md` to document actual tools instead of non-existent slash commands
 - Updated `docs/concepts/sandbox.md` to accurately describe sandbox mode behavior
 - Fixed `docs/getting-started.md` stale slash command references

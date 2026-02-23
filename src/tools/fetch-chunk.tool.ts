@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { UnifiedTool } from './registry.js';
+import type { UnifiedTool } from './registry.js';
 import { getChunks } from '../utils/chunkCache.js';
 import { formatChangeModeResponse, summarizeChangeModeEdits } from '../utils/changeModeTranslator.js';
 import { Logger } from '../utils/logger.js';

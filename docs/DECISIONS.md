@@ -19,7 +19,7 @@
 - **Status:** Accepted
 - **Context:** The forked codebase included several npm dependencies (`ai`, `chalk`, `d3-shape`, `inquirer`, `archiver`) that are not imported or used anywhere in the source code. Additionally, `src/utils/timeoutManager.ts` was an empty file, and `package.json` referenced a `contribute` script targeting a non-existent file. Documentation referenced non-existent slash commands (`/gemini-cli:analyze`, `/gemini-cli:sandbox`) and fabricated sandbox capabilities.
 - **Decision:** Remove all unused production dependencies. Move `prismjs` to devDependencies (only used in VitePress docs). Delete empty/orphaned files. Update documentation to accurately reflect the actual tools and their behavior.
-- **Consequences:** Smaller install footprint. Fewer security audit warnings. Documentation now accurately reflects the codebase. The `test-tool.example.ts` template file was intentionally kept as developer reference.
+- **Consequences:** Smaller install footprint. Fewer security audit warnings. Documentation now accurately reflects the codebase.
 
 ## ADR-004: Remove Non-Core Tools (Brainstorm, Sandbox, Help)
 - **Date:** 2026-02-23
@@ -27,9 +27,37 @@
 - **Context:** The original MCP server design included multiple specialized tools (e.g., `brainstorm`) and diagnostic tools (`timeout-test`, `help`). These added unnecessary constraints and codebase complexity, as models like Claude can execute advanced brainstorms or system evaluations perfectly fine using just the standard `ask-gemini` tool.
 - **Decision:** Delete all non-core tool implementations (`brainstorm.tool.ts`, `timeout-test.tool.ts`, `test-tool.example.ts`) and strip the `help` tool. Restrict the MCP server to exposing exclusively `ask-gemini` (the primary read/write bridge), `fetch-chunk` (for paginating large cached responses), and `ping` (retained specifically as a fast UX diagnostic tool to verify the MCP setup without using Gemini tokens).
 - **Consequences:** The registry is vastly simplified. Hallucinated or low-value interactions are removed from the tool schema, improving context utilization and reducing the risk of tool usage errors when LLMs explore the configuration.
-## ADR-004: Upgrade MCP SDK to v1.x and Raise Node.js Minimum to 18
+## ADR-005: Upgrade MCP SDK to v1.x and Raise Node.js Minimum to 18
 - **Date:** 2026-02-23
 - **Status:** Accepted
 - **Context:** The `@modelcontextprotocol/sdk` was pinned at v0.5.0 while v1.26.0 is current. All import paths and APIs used by this project are preserved in v1.x. Node.js 16 reached EOL in September 2023. The `notifications` capability key was removed from `ServerCapabilities` in v1.x.
 - **Decision:** Upgrade SDK to ^1.26.0, raise minimum Node.js to >=18, update CI matrix to test 18/20/22, remove the `notifications: {}` capability from server init. Zod v4 upgrade deferred — the SDK peer dependency is satisfied by current zod v3.25.76. The `Server` class is deprecated in favor of `McpServer` but still functional; migration deferred to avoid a large refactor.
 - **Consequences:** Access to latest MCP protocol features. Larger transitive dependency footprint (SDK v1.x bundles HTTP/OAuth libraries not used by this stdio-only server). Node 16 users will need to upgrade.
+
+## ADR-006: Utils Audit — Replace `-p` Flag with `--` Separator
+- **Date:** 2026-02-23
+- **Status:** Accepted
+- **Context:** Gemini CLI v0.23+ deprecated the `-p`/`--prompt` flag (upstream issue #48, PRs #56, #43). Using it causes "Cannot use both positional prompt and --prompt flag" errors. The `--` separator is the standard POSIX way to pass positional arguments after flags.
+- **Decision:** Replace `CLI.FLAGS.PROMPT = "-p"` with `CLI.FLAGS.SEPARATOR = "--"` in constants. Update both main and fallback code paths in `geminiExecutor.ts`. Remove the broken `@` symbol quoting logic (unnecessary since `shell: false` means no shell expansion).
+- **Consequences:** Fixes the critical CLI compatibility bug. Simplifies argument construction. Users on Gemini CLI v0.23+ can now use the tool without errors.
+
+## ADR-007: Utils Audit — Add Process Timeout and Windows Compatibility
+- **Date:** 2026-02-23
+- **Status:** Accepted
+- **Context:** `executeCommand` had no timeout mechanism — a hung Gemini CLI process would leak indefinitely. On Windows, `spawn("gemini", ...)` fails with ENOENT because it resolves to `gemini.cmd`.
+- **Decision:** Add configurable timeout: 5-minute default, overridable via `GMCPT_TIMEOUT_MS` env var. On timeout, send SIGTERM, then SIGKILL after 5s grace period. Add `shell: process.platform === "win32"` to spawn options. Replace O(n^2) `stdout += data` with `Buffer[]` array + `Buffer.concat()` at process close.
+- **Consequences:** Prevents resource leaks from hung processes. Windows users can now use the tool. Large Gemini responses no longer cause quadratic memory allocation.
+
+## ADR-008: Utils Audit — Logger Rewrite with Level Filtering
+- **Date:** 2026-02-23
+- **Status:** Accepted
+- **Context:** The Logger class had multiple issues: `log()` and `warn()` were identical, `debug()` always printed (no filtering), `toolInvocation` ignored its `toolName` param, `formatMessage` added trailing `\n` causing double-newlines, and `_commandStartTimes` was keyed by `Date.now()` risking key collisions.
+- **Decision:** Add log level filtering via `GMCPT_LOG_LEVEL` env var (debug/info/warn/error, default: warn). Remove `log()` method. Fix `formatMessage` to not add `\n`. Fix `toolInvocation` and `toolParsedArgs` to include all params. Replace timestamp-keyed map with incrementing `_nextCommandId` counter. Change `commandExecution` to return `number` (command ID). Change `...args: any[]` to `...args: unknown[]`.
+- **Consequences:** Debug output is now silent by default, reducing noise. Command tracking is collision-free. All logger methods are type-safe. Users can increase verbosity via env var for debugging.
+
+## ADR-009: Utils Audit — Dead Code Removal and Minor Fixes
+- **Date:** 2026-02-23
+- **Status:** Accepted
+- **Context:** Multiple dead exports existed: `summarizeChunking` (changeModeChunker), `getCacheStats` and `clearCache` (chunkCache), `sendStatusMessage` (geminiExecutor). `changeModeParser` used `console.warn` instead of `Logger`. `chunkChangeModeEdits` returned a misleading single-element array for empty input. `chunkCache.getChunks` had no runtime validation after `JSON.parse`. `changeModeTranslator` used CLI-style syntax for fetch-chunk instructions.
+- **Decision:** Delete all dead exports. Replace `console.warn` with `Logger.warn`. Return `[]` for empty edits. Add shape validation in `getChunks`. Replace CLI-style instructions with bullet-point MCP tool format. Remove `async` from `processChangeModeOutput`. Remove unused `totalChunks` param from `createChunk`. Truncate raw output in error messages to 2000 chars.
+- **Consequences:** Cleaner API surface. Consistent logging. Safer cache deserialization. More accurate instructions for Claude when fetching subsequent chunks.

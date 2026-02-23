@@ -33,7 +33,7 @@ You don't need to call tools directly — use natural language instead:
 - "Use gemini to analyze index.js"
 - "Ask gemini to review my approach"
 - "Have gemini explain this error"
-- "Brainstorm solutions for this problem using gemini"
+- "Brainstorm solutions for this problem with gemini"
 
 ## File Patterns (@ syntax)
 

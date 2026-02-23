@@ -1,8 +1,10 @@
 # Roadmap
 
 ## Priority 1: Critical Fixes
-- [ ] Fix deprecated `-p` flag for Gemini CLI v0.23+ (upstream PRs #56, #43)
-- [ ] Windows compatibility: ENOENT spawn errors, `.cmd` handling (upstream PRs #23, #27, #41, #43)
+- [x] Fix deprecated `-p` flag for Gemini CLI v0.23+ (upstream PRs #56, #43)
+- [x] Windows compatibility: ENOENT spawn errors, `.cmd` handling (upstream PRs #23, #27, #41, #43)
+- [x] Add process timeout to prevent indefinite hangs (5min default, `GMCPT_TIMEOUT_MS` env var)
+- [x] Fix all utils/ audit issues (logger, commandExecutor, geminiExecutor, parsers, cache)
 
 ## Priority 2: Features from Community PRs
 - [ ] Multi-turn session support via session IDs (upstream PR #50)
@@ -17,6 +19,7 @@
 - [ ] Add automated test suite
 
 ## Completed
+- [x] Remove non-core tools (`brainstorm`, `help`, `timeout-test`) per ADR-004
 - [x] Transfer ownership: update all references from `jamubc/gemini-mcp-tool` to `Lykhoyda/claude-ask-gemini-mcp`
 - [x] Rewrite README.md with updated value proposition and accurate tool list
 - [x] Remove previous owner sponsorship/funding content from docs
@@ -28,3 +31,10 @@
 - [x] Upgrade `@modelcontextprotocol/sdk` from 0.5.0 to ^1.26.0
 - [x] Raise minimum Node.js from 16 to 18, update CI matrix
 - [x] Clean orphaned dist/ files from deleted sources
+- [x] Fix deprecated `-p` flag → `--` separator + positional prompt
+- [x] Windows spawn compat (`shell: true` on win32)
+- [x] Process timeout (5min default + SIGTERM/SIGKILL)
+- [x] Fix O(n^2) stdout concatenation → Buffer array
+- [x] Logger rewrite: level filtering, fix all inconsistencies, remove dead `log()` method
+- [x] Remove broken `@` quoting, dead exports, sendStatusMessage placeholder
+- [x] Add cache shape validation, truncate error output, fix changeModeTranslator text

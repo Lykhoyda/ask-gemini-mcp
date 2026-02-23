@@ -68,8 +68,7 @@ export const CLI = {
   FLAGS: {
     MODEL: "-m",
     SANDBOX: "-s",
-    PROMPT: "-p",
-    HELP: "-help",
+    SEPARATOR: "--",
   },
   // Default values
   DEFAULTS: {
@@ -80,6 +79,16 @@ export const CLI = {
 } as const;
 
 
+// Execution limits
+export const EXECUTION = {
+  DEFAULT_TIMEOUT_MS: 300_000,
+  TIMEOUT_ENV_VAR: "GMCPT_TIMEOUT_MS",
+  ERROR_TRUNCATE_LENGTH: 2000,
+} as const;
+
+// Logging
+export const LOG_LEVEL_ENV_VAR = "GMCPT_LOG_LEVEL";
+
 // (merged PromptArguments and ToolArguments)
 export interface ToolArguments {
   prompt?: string;
@@ -88,15 +97,7 @@ export interface ToolArguments {
   changeMode?: boolean | string;
   chunkIndex?: number | string; // Which chunk to return (1-based)
   chunkCacheKey?: string; // Optional cache key for continuation
-  message?: string; // For Ping tool -- Un-used.
-  
-  // --> new tool
-  methodology?: string; // Brainstorming framework to use
-  domain?: string; // Domain context for specialized brainstorming
-  constraints?: string; // Known limitations or requirements
-  existingContext?: string; // Background information to build upon
-  ideaCount?: number; // Target number of ideas to generate
-  includeAnalysis?: boolean; // Include feasibility and impact analysis
-  
-  [key: string]: string | boolean | number | undefined; // Allow additional properties
+  message?: string;
+
+  [key: string]: string | boolean | number | undefined;
 }

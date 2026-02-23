@@ -1,4 +1,4 @@
-import { ChangeModeEdit } from './changeModeParser.js';
+import type { ChangeModeEdit } from './changeModeParser.js';
 export function formatChangeModeResponse(
   edits: ChangeModeEdit[],
   chunkInfo?: { current: number; total: number; cacheKey?: string }
@@ -43,11 +43,9 @@ Apply these edits in order. Each edit uses exact string matching, so the old_str
     footer += `
 
 ---
-**Next Step**: After applying the edits above, retrieve the next chunk (${chunkInfo.current + 1} of ${chunkInfo.total}) using:
-
-\`\`\`
-fetch-chunk cacheKey="${chunkInfo.cacheKey}" chunkIndex=${chunkInfo.current + 1}
-\`\`\`
+**Next Step**: After applying the edits above, retrieve the next chunk (${chunkInfo.current + 1} of ${chunkInfo.total}) by calling the **fetch-chunk** MCP tool with:
+- **cacheKey**: \`${chunkInfo.cacheKey}\`
+- **chunkIndex**: \`${chunkInfo.current + 1}\`
 
 There ${chunkInfo.total - chunkInfo.current === 1 ? 'is' : 'are'} ${chunkInfo.total - chunkInfo.current} more chunk${chunkInfo.total - chunkInfo.current === 1 ? '' : 's'} containing additional edits.
 

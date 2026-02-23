@@ -7,9 +7,9 @@ The gemini-mcp-tool is designed to seamlessly integrate into your natural workfl
 Claude automatically decides when to use `ask-gemini` based on context:
 
 - `🔍 comparative analysis` - different AI perspectives for validation
-- `🛠️ leveraging extra tools` - Gemini's search and memory functions  
+- `🛠️ leveraging extra tools` - Gemini's search and memory functions
 - `📋 code review & big changes` - second opinions on implementation
-- `💡 creative problem solving` - brainstorming and ideation
+- `💡 creative problem solving` - ideation and alternative approaches
 
 This intelligent selection enhances your workflow exactly when Gemini's capabilities add value.
 

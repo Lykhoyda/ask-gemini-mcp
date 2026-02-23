@@ -42,7 +42,7 @@ const props = defineProps({
   },
   githubSponsorsUrl: {
     type: String,
-    default: 'https://github.com/sponsors/jamubc'
+    default: 'https://github.com/Lykhoyda/claude-ask-gemini-mcp'
   },
   dismissible: {
     type: Boolean,

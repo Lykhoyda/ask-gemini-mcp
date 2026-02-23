@@ -202,5 +202,5 @@ Now that you're set up:
 - Join the community for support
 
 ::: info Need Help?
-If you run into issues, [open an issue](https://github.com/jamubc/gemini-mcp-tool/issues) on GitHub.
+If you run into issues, [open an issue](https://github.com/Lykhoyda/claude-ask-gemini-mcp/issues) on GitHub.
 :::

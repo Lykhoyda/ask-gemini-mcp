@@ -3,73 +3,34 @@
 
 <div align="center">
 
-[![GitHub Release](https://img.shields.io/github/v/release/jamubc/gemini-mcp-tool?logo=github&label=GitHub)](https://github.com/jamubc/gemini-mcp-tool/releases)
 [![npm version](https://img.shields.io/npm/v/gemini-mcp-tool)](https://www.npmjs.com/package/gemini-mcp-tool)
 [![npm downloads](https://img.shields.io/npm/dt/gemini-mcp-tool)](https://www.npmjs.com/package/gemini-mcp-tool)
+[![GitHub Release](https://img.shields.io/github/v/release/Lykhoyda/claude-ask-gemini-mcp?logo=github&label=GitHub)](https://github.com/Lykhoyda/claude-ask-gemini-mcp/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Open Source](https://img.shields.io/badge/Open%20Source-❤️-red.svg)](https://github.com/jamubc/gemini-mcp-tool)
 
 </div>
 
-> 📚 **[View Full Documentation](https://jamubc.github.io/gemini-mcp-tool/)** - Search me!, Examples, FAQ, Troubleshooting, Best Practices
+An MCP server that bridges Claude with Google Gemini CLI for AI-to-AI collaboration. **Gemini reads, Claude edits** — leverage Gemini's massive token window (1M-2M tokens) for large file and codebase analysis while Claude handles interaction and code editing.
 
-This is a simple Model Context Protocol (MCP) server that allows AI assistants to interact with the [Gemini CLI](https://github.com/google-gemini/gemini-cli). It enables the AI to leverage the power of Gemini's massive token window for large analysis, especially with large files and codebases using the `@` syntax for direction.
+## Why?
 
-- Ask gemini natural questions, through claude or Brainstorm new ideas in a party of 3!
+- **Get a second opinion** — Ask Gemini to review your coding approach before committing to it
+- **Debate plans** — Send architecture proposals to Gemini for critique and alternative suggestions
+- **Review changes** — Have Gemini analyze diffs or modified files to catch issues Claude might miss
 
-<a href="https://glama.ai/mcp/servers/@jamubc/gemini-mcp-tool">
-  <img width="380" height="200" src="https://glama.ai/mcp/servers/@jamubc/gemini-mcp-tool/badge" alt="Gemini Tool MCP server" />
-</a>
+## Quick Start
 
-## TLDR: [![Claude](https://img.shields.io/badge/Claude-D97757?logo=claude&logoColor=fff)](#) + [![Google Gemini](https://img.shields.io/badge/Google%20Gemini-886FBF?logo=googlegemini&logoColor=fff)](#)
-
-
-**Goal**: Use Gemini's powerful analysis capabilities directly in Claude Code to save tokens and analyze large files.
-
-## Prerequisites
-
-Before using this tool, ensure you have:
-
-1. **[Node.js](https://nodejs.org/)** (v16.0.0 or higher)
-2. **[Google Gemini CLI](https://github.com/google-gemini/gemini-cli)** installed and configured
-
-
-### One-Line Setup
+### One-Line Setup (Claude Code)
 
 ```bash
 claude mcp add gemini-cli -- npx -y gemini-mcp-tool
 ```
 
-### Verify Installation
+Type `/mcp` inside Claude Code to verify the `gemini-cli` MCP is active.
 
-Type `/mcp` inside Claude Code to verify the gemini-cli MCP is active.
+### Claude Desktop
 
----
-
-### Alternative: Import from Claude Desktop
-
-If you already have it configured in Claude Desktop:
-
-1. Add to your Claude Desktop config:
-```json
-"gemini-cli": {
-  "command": "npx",
-  "args": ["-y", "gemini-mcp-tool"]
-}
-```
-
-2. Import to Claude Code:
-```bash
-claude mcp add-from-claude-desktop
-```
-
-## Configuration
-
-Register the MCP server with your MCP client:
-
-### For NPX Usage (Recommended)
-
-Add this configuration to your Claude Desktop config file:
+Add to your Claude Desktop config file:
 
 ```json
 {
@@ -82,86 +43,44 @@ Add this configuration to your Claude Desktop config file:
 }
 ```
 
-### For Global Installation
+**Config file locations:**
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+- **Linux**: `~/.config/claude/claude_desktop_config.json`
 
-If you installed globally, use this configuration instead:
+Restart Claude Desktop after updating the config.
 
-```json
-{
-  "mcpServers": {
-    "gemini-cli": {
-      "command": "gemini-mcp"
-    }
-  }
-}
-```
+## Prerequisites
 
-**Configuration File Locations:**
+- **[Node.js](https://nodejs.org/)** v16.0.0 or higher
+- **[Google Gemini CLI](https://github.com/google-gemini/gemini-cli)** installed and configured
 
-- **Claude Desktop**:
-  - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-  - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
-  - **Linux**: `~/.config/claude/claude_desktop_config.json`
+## Tools
 
-After updating the configuration, restart your terminal session.
+| Tool | Purpose |
+|------|---------|
+| `ask-gemini` | Core tool: sends prompts to Gemini CLI. Supports `@` file syntax, model selection, sandbox mode, and changeMode for structured edits |
+| `brainstorm` | Structured ideation with methodology selection (divergent, convergent, scamper, design-thinking, lateral) |
+| `fetch-chunk` | Retrieves subsequent chunks from cached large responses |
+| `ping` | Connection test |
+| `help` | Shows Gemini CLI help |
 
-## Example Workflow
+### Usage Examples
 
-- **Natural language**: "use gemini to explain index.html", "understand the massive project using gemini", "ask gemini to search for latest news"
-- **Claude Code**: Type `/gemini-cli` and commands will populate in Claude Code's interface.
-
-## Usage Examples
-
-### With File References (using @ syntax)
-
+**With file references (@ syntax):**
 - `ask gemini to analyze @src/main.js and explain what it does`
 - `use gemini to summarize @. the current directory`
-- `analyze @package.json and tell me about dependencies`
 
-### General Questions (without files)
-
-- `ask gemini to search for the latest tech news`
+**General questions:**
+- `ask gemini about best practices for React development`
 - `use gemini to explain div centering`
-- `ask gemini about best practices for React development related to @file_im_confused_about`
 
-### Using Gemini CLI's Sandbox Mode (-s)
-
-The sandbox mode allows you to safely test code changes, run scripts, or execute potentially risky operations in an isolated environment.
-
-- `use gemini sandbox to create and run a Python script that processes data`
-- `ask gemini to safely test @script.py and explain what it does`
-- `use gemini sandbox to install numpy and create a data visualization`
-- `test this code safely: Create a script that makes HTTP requests to an API`
-
-### Tools (for the AI)
-
-These tools are designed to be used by the AI assistant.
-
-- **`ask-gemini`**: Asks Google Gemini for its perspective. Can be used for general questions or complex analysis of files.
-  - **`prompt`** (required): The analysis request. Use the `@` syntax to include file or directory references (e.g., `@src/main.js explain this code`) or ask general questions (e.g., `Please use a web search to find the latest news stories`).
-  - **`model`** (optional): The Gemini model to use. Defaults to `gemini-2.5-pro`.
-  - **`sandbox`** (optional): Set to `true` to run in sandbox mode for safe code execution.
-- **`sandbox-test`**: Safely executes code or commands in Gemini's sandbox environment. Always runs in sandbox mode.
-  - **`prompt`** (required): Code testing request (e.g., `Create and run a Python script that...` or `@script.py Run this safely`).
-  - **`model`** (optional): The Gemini model to use.
-- **`Ping`**: A simple test tool that echoes back a message.
-- **`Help`**: Shows the Gemini CLI help text.
-
-### Slash Commands (for the User)
-
-You can use these commands directly in Claude Code's interface (compatibility with other clients has not been tested).
-
-- **/analyze**: Analyzes files or directories using Gemini, or asks general questions.
-  - **`prompt`** (required): The analysis prompt. Use `@` syntax to include files (e.g., `/analyze prompt:@src/ summarize this directory`) or ask general questions (e.g., `/analyze prompt:Please use a web search to find the latest news stories`).
-- **/sandbox**: Safely tests code or scripts in Gemini's sandbox environment.
-  - **`prompt`** (required): Code testing request (e.g., `/sandbox prompt:Create and run a Python script that processes CSV data` or `/sandbox prompt:@script.py Test this script safely`).
-- **/help**: Displays the Gemini CLI help information.
-- **/ping**: Tests the connection to the server.
-  - **`message`** (optional): A message to echo back.
+**Sandbox mode:**
+- `use gemini sandbox to create and run a Python script`
 
 ## Contributing
 
-Contributions are welcome! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details on how to submit pull requests, report issues, and contribute to the project.
+Contributions are welcome! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
 
 ## License
 

@@ -285,7 +285,7 @@ Enable debug logging:
 
 ## Getting Help
 
-1. Check [GitHub Issues](https://github.com/jamubc/gemini-mcp-tool/issues)
+1. Check [GitHub Issues](https://github.com/Lykhoyda/claude-ask-gemini-mcp/issues)
 2. Enable debug mode
 3. Collect error logs
 4. Open a new issue with details

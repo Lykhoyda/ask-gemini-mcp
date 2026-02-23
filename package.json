@@ -27,16 +27,16 @@
     "ai",
     "llm"
   ],
-  "author": "jamubc",
+  "author": "Lykhoyda",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/jamubc/gemini-mcp-tool.git"
+    "url": "git+https://github.com/Lykhoyda/claude-ask-gemini-mcp.git"
   },
   "bugs": {
-    "url": "https://github.com/jamubc/gemini-mcp-tool/issues"
+    "url": "https://github.com/Lykhoyda/claude-ask-gemini-mcp/issues"
   },
-  "homepage": "https://github.com/jamubc/gemini-mcp-tool#readme",
+  "homepage": "https://github.com/Lykhoyda/claude-ask-gemini-mcp#readme",
   "engines": {
     "node": ">=16.0.0"
   },

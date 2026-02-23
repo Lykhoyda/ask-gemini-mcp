@@ -5,15 +5,15 @@ export default withMermaid(
   defineConfig({
     title: 'Gemini MCP Tool Documentation',
     description: 'Bridge Gemini models with Claude Desktop',
-    base: '/gemini-mcp-tool/',
+    base: '/claude-ask-gemini-mcp/',
     
     // Force dark mode by default
     //appearance: 'dark',
     
     head: [
-      ['link', { rel: 'icon', href: '/gemini-mcp-tool/favicon.ico' }],
-      ['link', { rel: 'icon', type: 'image/png', sizes: '128x128', href: '/gemini-mcp-tool/icon.png' }],
-      ['link', { rel: 'apple-touch-icon', sizes: '128x128', href: '/gemini-mcp-tool/icon.png' }]
+      ['link', { rel: 'icon', href: '/claude-ask-gemini-mcp/favicon.ico' }],
+      ['link', { rel: 'icon', type: 'image/png', sizes: '128x128', href: '/claude-ask-gemini-mcp/icon.png' }],
+      ['link', { rel: 'apple-touch-icon', sizes: '128x128', href: '/claude-ask-gemini-mcp/icon.png' }]
     ],
     
     themeConfig: {
@@ -66,7 +66,7 @@ export default withMermaid(
     ],
 
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/jamubc/gemini-mcp-tool' }
+      { icon: 'github', link: 'https://github.com/Lykhoyda/claude-ask-gemini-mcp' }
     ],
 
     footer: {

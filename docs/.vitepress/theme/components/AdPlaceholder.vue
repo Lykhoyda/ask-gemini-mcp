@@ -10,12 +10,12 @@
       </div>
     </div>
     <a 
-      href="https://github.com/sponsors/jamubc" 
+      href="https://github.com/Lykhoyda/claude-ask-gemini-mcp" 
       class="placeholder-cta"
       target="_blank"
       rel="noopener"
     >
-      Sponsor for ad-free docs →
+      Star on GitHub →
     </a>
   </div>
 </template>

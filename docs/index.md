@@ -11,7 +11,7 @@ hero:
       link: /getting-started
     - theme: alt
       text: Leave a Star ⭐
-      link: https://github.com/jamubc/gemini-mcp-tool
+      link: https://github.com/Lykhoyda/claude-ask-gemini-mcp
 
 features:
   - icon: 📂
@@ -53,6 +53,6 @@ features:
 ## Quick Start
 </div>
 
-For installation and setup instructions, please refer to our [GitHub repository](https://github.com/jamubc/gemini-mcp-tool#readme) which contains the most up-to-date installation guide.
+For installation and setup instructions, please refer to our [GitHub repository](https://github.com/Lykhoyda/claude-ask-gemini-mcp#readme) which contains the most up-to-date installation guide.
 
 

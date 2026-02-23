@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Changed
+- Transferred ownership from `jamubc/gemini-mcp-tool` to `Lykhoyda/claude-ask-gemini-mcp`
+- Rewrote README.md to reflect new repo identity and primary use cases
+- Updated all documentation links to point to the new repository
+- Removed previous owner sponsorship and funding content
+- Updated LICENSE copyright to Lykhoyda
+
 ## [1.1.3]
 - "gemini reads, claude edits"
 - Added `changeMode` parameter to ask-gemini tool for structured edit responses using claude edit diff.

@@ -10,7 +10,7 @@
       </div>
     </div>
     <a 
-      href="https://github.com/Lykhoyda/claude-ask-gemini-mcp" 
+      href="https://github.com/Lykhoyda/ask-gemini-mcp" 
       class="placeholder-cta"
       target="_blank"
       rel="noopener"

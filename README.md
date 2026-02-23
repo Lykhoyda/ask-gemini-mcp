@@ -3,9 +3,9 @@
 
 <div align="center">
 
-[![npm version](https://img.shields.io/npm/v/gemini-mcp-tool)](https://www.npmjs.com/package/gemini-mcp-tool)
-[![npm downloads](https://img.shields.io/npm/dt/gemini-mcp-tool)](https://www.npmjs.com/package/gemini-mcp-tool)
-[![GitHub Release](https://img.shields.io/github/v/release/Lykhoyda/claude-ask-gemini-mcp?logo=github&label=GitHub)](https://github.com/Lykhoyda/claude-ask-gemini-mcp/releases)
+[![npm version](https://img.shields.io/npm/v/ask-gemini-mcp)](https://www.npmjs.com/package/ask-gemini-mcp)
+[![npm downloads](https://img.shields.io/npm/dt/ask-gemini-mcp)](https://www.npmjs.com/package/ask-gemini-mcp)
+[![GitHub Release](https://img.shields.io/github/v/release/Lykhoyda/ask-gemini-mcp?logo=github&label=GitHub)](https://github.com/Lykhoyda/ask-gemini-mcp/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
 </div>
@@ -23,7 +23,7 @@ An MCP server that bridges Claude with Google Gemini CLI for AI-to-AI collaborat
 ### One-Line Setup (Claude Code)
 
 ```bash
-claude mcp add gemini-cli -- npx -y gemini-mcp-tool
+claude mcp add gemini-cli -- npx -y ask-gemini-mcp
 ```
 
 Type `/mcp` inside Claude Code to verify the `gemini-cli` MCP is active.
@@ -37,7 +37,7 @@ Add to your Claude Desktop config file:
   "mcpServers": {
     "gemini-cli": {
       "command": "npx",
-      "args": ["-y", "gemini-mcp-tool"]
+      "args": ["-y", "ask-gemini-mcp"]
     }
   }
 }

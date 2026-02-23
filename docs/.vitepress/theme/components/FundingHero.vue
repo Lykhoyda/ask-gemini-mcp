@@ -23,7 +23,7 @@
       
       <div class="hero-actions">
         <a
-          href="https://github.com/Lykhoyda/claude-ask-gemini-mcp"
+          href="https://github.com/Lykhoyda/ask-gemini-mcp"
           target="_blank"
           rel="noopener"
           class="action-button action-primary"

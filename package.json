@@ -1,5 +1,5 @@
 {
-  "name": "claude-ask-gemini-mcp",
+  "name": "ask-gemini-mcp",
   "version": "0.0.1",
   "description": "MCP server for Gemini CLI integration - for Claude IDE and other IDEs",
   "type": "module",
@@ -33,12 +33,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Lykhoyda/claude-ask-gemini-mcp.git"
+    "url": "git+https://github.com/Lykhoyda/ask-gemini-mcp.git"
   },
   "bugs": {
-    "url": "https://github.com/Lykhoyda/claude-ask-gemini-mcp/issues"
+    "url": "https://github.com/Lykhoyda/ask-gemini-mcp/issues"
   },
-  "homepage": "https://github.com/Lykhoyda/claude-ask-gemini-mcp#readme",
+  "homepage": "https://github.com/Lykhoyda/ask-gemini-mcp#readme",
   "engines": {
     "node": ">=18.0.0"
   },

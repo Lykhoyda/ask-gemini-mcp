@@ -11,11 +11,11 @@
         <div class="support-text">
           <h3 class="support-title">Support Gemini MCP Tool</h3>
           <p class="support-description">
-            Does gemini-mcp-tool help you?<br><br>Your support helps maintain & improve this open source project.
+            Does ask-gemini-mcp help you?<br><br>Your support helps maintain & improve this open source project.
           </p>
         </div>
         <a
-          href="https://github.com/Lykhoyda/claude-ask-gemini-mcp"
+          href="https://github.com/Lykhoyda/ask-gemini-mcp"
           class="transparency-link"
           @mouseenter="handleMouseEnter"
           @mousemove="handleMouseMove"
@@ -28,7 +28,7 @@
       
       <div class="support-options">
         <a
-          href="https://github.com/Lykhoyda/claude-ask-gemini-mcp"
+          href="https://github.com/Lykhoyda/ask-gemini-mcp"
           target="_blank"
           rel="noopener"
           class="support-button support-button--primary"

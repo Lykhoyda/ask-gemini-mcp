@@ -37,13 +37,13 @@ Before installing, ensure you have:
 
 
 ## Claude Code (Recommended)
-::: warning 💡 gemini-mcp-tool is tested extensively with claude code
+::: warning 💡 ask-gemini-mcp is tested extensively with claude code
 :::
 Claude Code offers the smoothest experience.
 
 ```bash
 # install for claude code
-claude mcp add gemini-cli -- npx -y gemini-mcp-tool
+claude mcp add gemini-cli -- npx -y ask-gemini-mcp
 
 # Start Claude Code - it's automatically configured!
 claude
@@ -72,7 +72,7 @@ For Claude Desktop users, add this to your configuration file:
   "mcpServers": {
     "gemini-cli": {
       "command": "npx",
-      "args": ["-y", "gemini-mcp-tool"]
+      "args": ["-y", "ask-gemini-mcp"]
     }
   }
 }
@@ -91,7 +91,7 @@ Gemini MCP Tool works with 40+ MCP clients! Here are the common configuration pa
   "transport": {
     "type": "stdio",
     "command": "npx",
-    "args": ["-y", "gemini-mcp-tool"]
+    "args": ["-y", "ask-gemini-mcp"]
   }
 }
 ```
@@ -109,7 +109,7 @@ Gemini MCP Tool works with 40+ MCP clients! Here are the common configuration pa
     "command": "npx",
     "args": [
       "-y",
-      "gemini-mcp-tool"
+      "ask-gemini-mcp"
     ],
     "env": {},
     "working_directory": null,
@@ -201,5 +201,5 @@ Now that you're set up:
 - Join the community for support
 
 ::: info Need Help?
-If you run into issues, [open an issue](https://github.com/Lykhoyda/claude-ask-gemini-mcp/issues) on GitHub.
+If you run into issues, [open an issue](https://github.com/Lykhoyda/ask-gemini-mcp/issues) on GitHub.
 :::

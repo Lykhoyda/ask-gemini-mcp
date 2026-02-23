@@ -33,7 +33,7 @@ import SupportSection from './components/SupportSection.vue'
 const { Layout } = DefaultTheme
 const route = useRoute()
 
-const isHomePage = computed(() => route.path === '/' || route.path === '/claude-ask-gemini-mcp/')
+const isHomePage = computed(() => route.path === '/' || route.path === '/ask-gemini-mcp/')
 </script>
 
 <style>

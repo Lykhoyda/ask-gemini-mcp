@@ -21,7 +21,7 @@
 
 ## Completed
 - [x] Remove non-core tools (`brainstorm`, `help`, `timeout-test`) per ADR-004
-- [x] Transfer ownership: update all references from `jamubc/gemini-mcp-tool` to `Lykhoyda/claude-ask-gemini-mcp`
+- [x] Transfer ownership: update all references from `jamubc/gemini-mcp-tool` to `Lykhoyda/ask-gemini-mcp`
 - [x] Rewrite README.md with updated value proposition and accurate tool list
 - [x] Remove previous owner sponsorship/funding content from docs
 - [x] Update LICENSE copyright

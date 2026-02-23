@@ -3,6 +3,9 @@
 ## [Unreleased]
 
 ### Changed
+- Renamed npm package from `claude-ask-gemini-mcp` to `ask-gemini-mcp` (ADR-012) — the tool works with any MCP client, not just Claude
+- Renamed GitHub repo from `Lykhoyda/claude-ask-gemini-mcp` to `Lykhoyda/ask-gemini-mcp`
+- Updated all install commands, badges, docs links, and deploy scripts to use new name
 - Transferred ownership from `jamubc/gemini-mcp-tool` to `Lykhoyda/claude-ask-gemini-mcp`
 - Rewrote README.md to reflect new repo identity and primary use cases
 - Updated all documentation links to point to the new repository

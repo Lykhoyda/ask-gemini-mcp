@@ -21,16 +21,16 @@ fi
 # Clone the wiki repository
 echo "📥 Cloning wiki repository..."
 rm -rf .wiki-temp
-git clone https://github.com/Lykhoyda/claude-ask-gemini-mcp.wiki.git .wiki-temp 2>/dev/null || {
+git clone https://github.com/Lykhoyda/ask-gemini-mcp.wiki.git .wiki-temp 2>/dev/null || {
     echo "⚠️  Wiki doesn't exist yet. Creating it through GitHub..."
     # Create initial wiki page through API
-    gh api repos/Lykhoyda/claude-ask-gemini-mcp/wiki/pages \
+    gh api repos/Lykhoyda/ask-gemini-mcp/wiki/pages \
         --method POST \
         -f title="Home" \
         -f body="Initializing wiki..." || true
     
     # Try cloning again
-    git clone https://github.com/Lykhoyda/claude-ask-gemini-mcp.wiki.git .wiki-temp
+    git clone https://github.com/Lykhoyda/ask-gemini-mcp.wiki.git .wiki-temp
 }
 
 cd .wiki-temp
@@ -98,18 +98,18 @@ cat > _Sidebar.md << 'EOF'
 ---
 
 **Quick Links**
-* [📦 NPM Package](https://www.npmjs.com/package/gemini-mcp-tool)
-* [🐙 GitHub Repo](https://github.com/Lykhoyda/claude-ask-gemini-mcp)
-* [📋 Report Issue](https://github.com/Lykhoyda/claude-ask-gemini-mcp/issues/new)
+* [📦 NPM Package](https://www.npmjs.com/package/ask-gemini-mcp)
+* [🐙 GitHub Repo](https://github.com/Lykhoyda/ask-gemini-mcp)
+* [📋 Report Issue](https://github.com/Lykhoyda/ask-gemini-mcp/issues/new)
 EOF
 
 # Create footer
 cat > _Footer.md << 'EOF'
 ---
-📄 [MIT License](https://github.com/Lykhoyda/claude-ask-gemini-mcp/blob/main/LICENSE) | 
-🔧 [Contribute](https://github.com/Lykhoyda/claude-ask-gemini-mcp/blob/main/CONTRIBUTING.md) | 
-📦 [NPM](https://www.npmjs.com/package/gemini-mcp-tool) |
-⭐ [Star on GitHub](https://github.com/Lykhoyda/claude-ask-gemini-mcp)
+📄 [MIT License](https://github.com/Lykhoyda/ask-gemini-mcp/blob/main/LICENSE) | 
+🔧 [Contribute](https://github.com/Lykhoyda/ask-gemini-mcp/blob/main/CONTRIBUTING.md) | 
+📦 [NPM](https://www.npmjs.com/package/ask-gemini-mcp) |
+⭐ [Star on GitHub](https://github.com/Lykhoyda/ask-gemini-mcp)
 EOF
 
 # Commit and push
@@ -129,6 +129,6 @@ cd ..
 rm -rf .wiki-temp
 
 echo "✅ Wiki deployed successfully!"
-echo "🔗 View at: https://github.com/Lykhoyda/claude-ask-gemini-mcp/wiki"
+echo "🔗 View at: https://github.com/Lykhoyda/ask-gemini-mcp/wiki"
 echo ""
 echo "📝 Note: It may take a few seconds for changes to appear on GitHub."

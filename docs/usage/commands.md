@@ -13,18 +13,6 @@ The core tool — sends prompts to Gemini CLI for analysis, code review, or gene
 - `sandbox` (optional): Set to `true` to run in Gemini's sandbox mode (`-s` flag).
 - `changeMode` (optional): Set to `true` for structured edit responses.
 
-### `brainstorm`
-Structured ideation with methodology selection.
-
-**Parameters:**
-- `prompt` (required): The topic or problem to brainstorm.
-- `methodology` (optional): Framework to use (divergent, convergent, scamper, design-thinking, lateral, auto).
-- `domain` (optional): Domain context for specialized brainstorming.
-- `constraints` (optional): Known limitations or requirements.
-- `existingContext` (optional): Background information to build upon.
-- `ideaCount` (optional): Target number of ideas to generate.
-- `includeAnalysis` (optional): Include feasibility and impact analysis.
-
 ### `fetch-chunk`
 Retrieves subsequent chunks from cached large responses.
 
@@ -37,9 +25,6 @@ Tests connectivity with the MCP server.
 
 **Parameters:**
 - `message` (optional): A message to echo back.
-
-### `help`
-Shows Gemini CLI help information.
 
 ## Natural Language Usage
 

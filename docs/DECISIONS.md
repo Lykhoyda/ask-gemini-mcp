@@ -21,6 +21,12 @@
 - **Decision:** Remove all unused production dependencies. Move `prismjs` to devDependencies (only used in VitePress docs). Delete empty/orphaned files. Update documentation to accurately reflect the actual tools and their behavior.
 - **Consequences:** Smaller install footprint. Fewer security audit warnings. Documentation now accurately reflects the codebase. The `test-tool.example.ts` template file was intentionally kept as developer reference.
 
+## ADR-004: Remove Non-Core Tools (Brainstorm, Sandbox, Help)
+- **Date:** 2026-02-23
+- **Status:** Accepted
+- **Context:** The original MCP server design included multiple specialized tools (e.g., `brainstorm`) and diagnostic tools (`timeout-test`, `help`). These added unnecessary constraints and codebase complexity, as models like Claude can execute advanced brainstorms or system evaluations perfectly fine using just the standard `ask-gemini` tool.
+- **Decision:** Delete all non-core tool implementations (`brainstorm.tool.ts`, `timeout-test.tool.ts`, `test-tool.example.ts`) and strip the `help` tool. Restrict the MCP server to exposing exclusively `ask-gemini` (the primary read/write bridge), `fetch-chunk` (for paginating large cached responses), and `ping` (retained specifically as a fast UX diagnostic tool to verify the MCP setup without using Gemini tokens).
+- **Consequences:** The registry is vastly simplified. Hallucinated or low-value interactions are removed from the tool schema, improving context utilization and reducing the risk of tool usage errors when LLMs explore the configuration.
 ## ADR-004: Upgrade MCP SDK to v1.x and Raise Node.js Minimum to 18
 - **Date:** 2026-02-23
 - **Status:** Accepted

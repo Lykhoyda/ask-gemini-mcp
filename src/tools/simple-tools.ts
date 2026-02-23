@@ -3,34 +3,19 @@ import { UnifiedTool } from './registry.js';
 import { executeCommand } from '../utils/commandExecutor.js';
 
 const pingArgsSchema = z.object({
-  prompt: z.string().default('').describe("Message to echo "),
+  message: z.string().optional().describe("A message to echo back to test the connection"),
 });
 
 export const pingTool: UnifiedTool = {
   name: "ping",
-  description: "Echo",
+  description: "Test connectivity with the MCP server",
   zodSchema: pingArgsSchema,
   prompt: {
-    description: "Echo test message with structured response.",
+    description: "Echo test message to verify MCP server is working",
   },
   category: 'simple',
   execute: async (args, onProgress) => {
-    const message = args.prompt || args.message || "Pong!";
-    return executeCommand("echo", [message as string], onProgress);
-  }
-};
-
-const helpArgsSchema = z.object({});
-
-export const helpTool: UnifiedTool = {
-  name: "Help",
-  description: "receive help information",
-  zodSchema: helpArgsSchema,
-  prompt: {
-    description: "receive help information",
-  },
-  category: 'simple',
-  execute: async (args, onProgress) => {
-    return executeCommand("gemini", ["-help"], onProgress);
+    const message = args.message || "Pong from Gemini MCP Server!";
+    return executeCommand("echo", [message], onProgress);
   }
 };

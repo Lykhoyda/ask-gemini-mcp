@@ -52,7 +52,7 @@ Restart Claude Desktop after updating the config.
 
 ## Prerequisites
 
-- **[Node.js](https://nodejs.org/)** v16.0.0 or higher
+- **[Node.js](https://nodejs.org/)** v18.0.0 or higher
 - **[Google Gemini CLI](https://github.com/google-gemini/gemini-cli)** installed and configured
 
 ## Tools

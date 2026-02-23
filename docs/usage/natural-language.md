@@ -9,7 +9,7 @@ Claude Code understands when you want to use Gemini and automatically routes you
 ## Examples
 
 ### File Analysis
-Instead of: `/gemini-cli:analyze @app.js explain`
+Instead of explicitly calling the `ask-gemini` tool:
 
 Say:
 - "Use gemini to explain app.js"
@@ -17,7 +17,7 @@ Say:
 - "Have gemini analyze the main application file"
 
 ### Code Generation
-Instead of: `/gemini-cli:sandbox create a web server`
+Instead of explicitly specifying the `sandbox` parameter:
 
 Say:
 - "Get gemini to create a simple web server"
@@ -25,7 +25,7 @@ Say:
 - "Can gemini show me how to build an Express server?"
 
 ### Debugging
-Instead of: `/gemini-cli:analyze @error.log @app.js debug`
+Instead of explicitly calling the `ask-gemini` tool:
 
 Say:
 - "Help me debug this error using gemini"
@@ -46,7 +46,7 @@ Claude recognizes these patterns:
 
 ### 1. Be Conversational
 ```
-❌ /gemini-cli:analyze @config.json validate
+❌ call ask-gemini with prompt="validate config.json"
 
 ✅ "Hey, can gemini check if my config.json is valid?"
 ```
@@ -87,7 +87,7 @@ Claude recognizes these patterns:
 You can combine both approaches:
 
 ```
-"I need to debug this" → /gemini-cli:analyze @app.js @error.log
+"I need to debug this" → Claude will automatically call `ask-gemini` with the error log and app source
 ```
 
 Claude understands the context and uses the appropriate tool.

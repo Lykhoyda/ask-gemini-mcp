@@ -6,7 +6,7 @@ Practical examples of using Gemini MCP Tool in development workflows.
 
 ### Reviewing a Pull Request
 ```
-/gemini-cli:analyze @feature/new-api/*.js review these changes for:
+ask gemini to review these changes in @feature/new-api/*.js for:
 - Security issues
 - Performance concerns  
 - Code style consistency
@@ -22,8 +22,7 @@ Practical examples of using Gemini MCP Tool in development workflows.
 
 ### Analyzing Error Logs
 ```
-/gemini-cli:analyze @logs/error.log @src/api/handler.js 
-why am I getting "undefined is not a function" errors?
+ask gemini to explain why am I getting "undefined is not a function" errors in @logs/error.log and @src/api/handler.js
 ```
 
 ### Stack Trace Analysis
@@ -35,8 +34,7 @@ why am I getting "undefined is not a function" errors?
 
 ### Understanding a New Codebase
 ```
-/gemini-cli:analyze @package.json @src/**/*.js @README.md
-give me an overview of this project's architecture
+ask gemini to give me an overview of this project's architecture based on @package.json @src/**/*.js @README.md
 ```
 
 ### Dependency Analysis
@@ -48,7 +46,7 @@ give me an overview of this project's architecture
 
 ### Generating API Docs
 ```
-/gemini-cli:analyze @routes/api/*.js generate OpenAPI documentation for these endpoints
+ask gemini to generate OpenAPI documentation for these endpoints in @routes/api/*.js
 ```
 
 ### README Creation
@@ -60,7 +58,7 @@ give me an overview of this project's architecture
 
 ### Writing Tests
 ```
-/gemini-cli:analyze @src/utils/validator.js write comprehensive Jest tests for this module
+ask gemini to write comprehensive Jest tests for this module in @src/utils/validator.js
 ```
 
 ### Test Coverage Analysis
@@ -72,7 +70,7 @@ give me an overview of this project's architecture
 
 ### Code Optimization
 ```
-/gemini-cli:analyze @src/data-processor.js this function is slow, how can I optimize it?
+ask gemini how I can optimize this slow function in @src/data-processor.js
 ```
 
 ### Pattern Implementation
@@ -84,7 +82,7 @@ give me an overview of this project's architecture
 
 ### Understanding Concepts
 ```
-/gemini-cli:sandbox show me how OAuth 2.0 works with a working example
+ask gemini in sandbox mode to show me how OAuth 2.0 works with a working example
 ```
 
 ### Best Practices
@@ -96,8 +94,7 @@ give me an overview of this project's architecture
 
 ### Framework Upgrade
 ```
-/gemini-cli:analyze @package.json @src/**/*.js 
-what changes are needed to upgrade from Express 4 to Express 5?
+ask gemini what changes are needed to upgrade from Express 4 to Express 5 based on @package.json @src/**/*.js
 ```
 
 ### Language Migration
@@ -109,8 +106,7 @@ what changes are needed to upgrade from Express 4 to Express 5?
 
 ### Vulnerability Scan
 ```
-/gemini-cli:analyze @src/**/*.js @package.json 
-perform a security audit and identify potential vulnerabilities
+ask gemini to perform a security audit and identify potential vulnerabilities in @src/**/*.js @package.json
 ```
 
 ### OWASP Check
@@ -122,8 +118,7 @@ perform a security audit and identify potential vulnerabilities
 
 ### Bottleneck Detection
 ```
-/gemini-cli:analyze @src/routes/*.js @src/middleware/*.js
-identify performance bottlenecks in the request pipeline
+ask gemini to identify performance bottlenecks in the request pipeline in @src/routes/*.js @src/middleware/*.js
 ```
 
 ### Memory Leaks
@@ -136,24 +131,19 @@ identify performance bottlenecks in the request pipeline
 ### Full Stack Review
 ```bash
 # 1. Architecture overview
-/gemini-cli:analyze @package.json @src/index.js @client/App.jsx 
-explain how the frontend and backend connect
+ask gemini to explain how the frontend and backend connect based on @package.json @src/index.js @client/App.jsx 
 
 # 2. API Security
-/gemini-cli:analyze @routes/api/*.js @middleware/auth.js 
-review API security implementation
+ask gemini to review API security implementation in @routes/api/*.js @middleware/auth.js 
 
 # 3. Database optimization
-/gemini-cli:analyze @models/*.js @db/queries/*.sql 
-suggest database optimizations
+ask gemini to suggest database optimizations in @models/*.js @db/queries/*.sql 
 
 # 4. Frontend performance
-/gemini-cli:analyze @client/**/*.jsx @client/**/*.css 
-how can I improve frontend performance?
+ask gemini how can I improve frontend performance in @client/**/*.jsx @client/**/*.css 
 
 # 5. Test coverage
-/gemini-cli:analyze @src/**/*.js @test/**/*.test.js 
-what critical paths lack test coverage?
+ask gemini what critical paths lack test coverage in @src/**/*.js @test/**/*.test.js 
 ```
 
 ## Tips for Effective Usage

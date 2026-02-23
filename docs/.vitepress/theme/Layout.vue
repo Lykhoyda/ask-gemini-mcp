@@ -1,6 +1,5 @@
 <template>
-  <FundingLayout v-if="frontmatter.layout === 'funding'" />
-  <Layout v-else>
+  <Layout>
     <template #nav-bar-title-after>
       <span v-if="!isHomePage" class="replacement-title">Documentation</span>
     </template>
@@ -10,38 +9,31 @@
       </div>
     </template>
     <template #sidebar-nav-after>
-      <!-- Sidebar ad placement - most non-intrusive -->
-      <AdBanner 
+      <AdBanner
         v-if="!isHomePage"
-        type="carbon" 
+        type="carbon"
         position="sidebar"
         :dismissible="true"
         :hide-on-paths="['/', '/getting-started']"
       />
     </template>
     <template #doc-footer-before>
-      <!-- Footer support section - shown after users find value -->
-      <SupportSection v-if="!isHomePage && !isFundingPage" />
+      <SupportSection v-if="!isHomePage" />
     </template>
   </Layout>
 </template>
 
 <script setup>
 import { computed } from 'vue'
-import { useRoute, useData } from 'vitepress'
+import { useRoute } from 'vitepress'
 import DefaultTheme from 'vitepress/theme'
 import AdBanner from './components/AdBanner.vue'
 import SupportSection from './components/SupportSection.vue'
-import FundingHero from './components/FundingHero.vue'
-import FundingEffects from './components/FundingEffects.vue'
-import FundingLayout from './FundingLayout.vue'
 
 const { Layout } = DefaultTheme
 const route = useRoute()
-const { frontmatter } = useData()
 
-const isHomePage = computed(() => route.path === '/' || route.path === '/gemini-mcp-tool/')
-const isFundingPage = computed(() => route.path.includes('/funding'))
+const isHomePage = computed(() => route.path === '/' || route.path === '/claude-ask-gemini-mcp/')
 </script>
 
 <style>

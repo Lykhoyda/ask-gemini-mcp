@@ -1,67 +1,61 @@
 # Commands Reference
 
-Complete list of available commands and their usage.
+Complete list of available tools and their usage.
 
-## Slash Commands
+## Tools
 
-### `/gemini-cli:analyze`
-Analyze files or ask questions about code.
+### `ask-gemini`
+The core tool — sends prompts to Gemini CLI for analysis, code review, or general questions.
 
-```
-/gemini-cli:analyze @file.js explain this code
-/gemini-cli:analyze @src/*.ts find security issues
-/gemini-cli:analyze how do I implement authentication?
-```
+**Parameters:**
+- `prompt` (required): The question or analysis request. Use `@` syntax to include files.
+- `model` (optional): Gemini model to use (`gemini-2.5-pro` or `gemini-2.5-flash`).
+- `sandbox` (optional): Set to `true` to run in Gemini's sandbox mode (`-s` flag).
+- `changeMode` (optional): Set to `true` for structured edit responses.
 
-### `/gemini-cli:sandbox`
-Execute code in a safe environment.
+### `brainstorm`
+Structured ideation with methodology selection.
 
-```
-/gemini-cli:sandbox create a Python fibonacci generator
-/gemini-cli:sandbox test this function: [code]
-```
+**Parameters:**
+- `prompt` (required): The topic or problem to brainstorm.
+- `methodology` (optional): Framework to use (divergent, convergent, scamper, design-thinking, lateral, auto).
+- `domain` (optional): Domain context for specialized brainstorming.
+- `constraints` (optional): Known limitations or requirements.
+- `existingContext` (optional): Background information to build upon.
+- `ideaCount` (optional): Target number of ideas to generate.
+- `includeAnalysis` (optional): Include feasibility and impact analysis.
 
-### `/gemini-cli:help`
-Show help information and available tools.
+### `fetch-chunk`
+Retrieves subsequent chunks from cached large responses.
 
-```
-/gemini-cli:help
-/gemini-cli:help analyze
-```
+**Parameters:**
+- `chunkCacheKey` (required): Cache key from a previous chunked response.
+- `chunkIndex` (optional): Which chunk to return (1-based).
 
-### `/gemini-cli:ping`
-Test connectivity with Gemini.
+### `ping`
+Tests connectivity with the MCP server.
 
-```
-/gemini-cli:ping
-/gemini-cli:ping "Custom message"
-```
+**Parameters:**
+- `message` (optional): A message to echo back.
 
-## Command Structure
+### `help`
+Shows Gemini CLI help information.
 
-```
-/gemini-cli:<tool> [options] <arguments>
-```
+## Natural Language Usage
 
-- **tool**: The action to perform (analyze, sandbox, help, ping)
-- **options**: Optional flags (coming soon)
-- **arguments**: Input text, files, or questions
-
-## Natural Language Alternative
-
-Instead of slash commands, you can use natural language:
+You don't need to call tools directly — use natural language instead:
 
 - "Use gemini to analyze index.js"
-- "Ask gemini to create a test file"
+- "Ask gemini to review my approach"
 - "Have gemini explain this error"
+- "Brainstorm solutions for this problem using gemini"
 
-## File Patterns
+## File Patterns (@ syntax)
 
 ### Single File
 ```
 @README.md
 @src/index.js
-@test/unit.test.ts
 ```
 
 ### Multiple Files
@@ -79,29 +73,12 @@ Instead of slash commands, you can use natural language:
 ### Directory
 ```
 @src/             # All files in src
-@test/unit/       # All files in test/unit
-```
-
-## Advanced Usage
-
-### Combining Files and Questions
-```
-/gemini-cli:analyze @package.json @src/index.js is the entry point configured correctly?
-```
-
-### Complex Queries
-```
-/gemini-cli:analyze @src/**/*.js @test/**/*.test.js what's the test coverage?
-```
-
-### Code Generation
-```
-/gemini-cli:analyze @models/user.js generate TypeScript types for this model
+@.                # Current directory
 ```
 
 ## Tips
 
-1. **Start Simple**: Begin with single files before using patterns
-2. **Be Specific**: Clear questions get better answers
-3. **Use Context**: Include relevant files for better analysis
+1. **Start simple**: Begin with single files before using patterns
+2. **Be specific**: Clear questions get better answers
+3. **Use context**: Include relevant files for better analysis
 4. **Iterate**: Refine your queries based on responses

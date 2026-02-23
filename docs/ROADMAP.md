@@ -21,3 +21,10 @@
 - [x] Rewrite README.md with updated value proposition and accurate tool list
 - [x] Remove previous owner sponsorship/funding content from docs
 - [x] Update LICENSE copyright
+- [x] Remove unused dependencies (`ai`, `chalk`, `d3-shape`, `inquirer`, `archiver`)
+- [x] Delete dead code (empty `timeoutManager.ts`, missing `contribute.ts` script)
+- [x] Clean up orphaned funding Vue components
+- [x] Fix stale docs (commands.md, sandbox.md, getting-started.md)
+- [x] Upgrade `@modelcontextprotocol/sdk` from 0.5.0 to ^1.26.0
+- [x] Raise minimum Node.js from 16 to 18, update CI matrix
+- [x] Clean orphaned dist/ files from deleted sources

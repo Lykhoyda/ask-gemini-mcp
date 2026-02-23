@@ -22,24 +22,7 @@ You need use natural language: "...using gemini flash"
 You can also append with '-m' or ask specifically with 
 ```
 
-### In Configuration
-```json
-{
-  "mcpServers": {
-    "gemini-cli": {
-      "command": "gemini-mcp",
-      "env": {
-        "GEMINI_MODEL": "gemini-1.5-flash"
-      }
-    }
-  }
-}
-```
 
-### Per Request (Coming Soon)
-```
-/gemini-cli:analyze --model=flash @file.js quick review
-```
 
 ## Model Comparison
 

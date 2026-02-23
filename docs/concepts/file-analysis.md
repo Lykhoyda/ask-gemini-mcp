@@ -5,7 +5,7 @@ One of the most powerful features of Gemini MCP Tool is the ability to analyze f
 ## Basic Usage
 
 ```
-/gemini-cli:analyze @index.js explain this code
+ask gemini to explain @index.js
 ```
 ```
 ask gemini to analyze the entire codebase and a comment block 
@@ -27,7 +27,7 @@ Ask gemini what the weather is like in new york
 
 Analyze multiple files in one request:
 ```
-/gemini-cli:analyze @src/server.js @src/client.js how do these interact?
+ask gemini to analyze @src/server.js and @src/client.js and explain how they interact
 ```
 ```
 analyze @src/server.js @src/client.js and provide bug fixes
@@ -37,7 +37,7 @@ analyze @src/server.js @src/client.js and provide bug fixes
 
 Analyze whole directories:
 ```
-/gemini-cli:analyze @src/**/*.ts summarize the TypeScript architecture
+ask gemini to summarize the TypeScript architecture in @src/
 ```
 ```
 analyze @main using gemini and determine the top 3 optimizations

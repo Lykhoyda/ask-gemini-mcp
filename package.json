@@ -13,7 +13,6 @@
     "dev": "tsc && node dist/index.js",
     "test": "echo \"No tests yet\" && exit 0",
     "lint": "tsc --noEmit",
-    "contribute": "tsx src/contribute.ts",
     "prepublishOnly": "echo '⚠️  Remember to test locally first!' && npm run build",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
@@ -38,7 +37,7 @@
   },
   "homepage": "https://github.com/Lykhoyda/claude-ask-gemini-mcp#readme",
   "engines": {
-    "node": ">=16.0.0"
+    "node": ">=18.0.0"
   },
   "files": [
     "dist/",
@@ -46,20 +45,14 @@
     "LICENSE"
   ],
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^0.5.0",
-    "ai": "^4.3.17",
-    "chalk": "^5.0.0",
-    "d3-shape": "^3.2.0",
-    "inquirer": "^9.0.0",
-    "prismjs": "^1.30.0",
+    "@modelcontextprotocol/sdk": "^1.26.0",
     "zod": "^3.25.76",
     "zod-to-json-schema": "^3.24.6"
   },
   "devDependencies": {
-    "@types/inquirer": "^9.0.0",
-    "@types/node": "^20.0.0",
-    "archiver": "^7.0.1",
+    "@types/node": "^22.0.0",
     "mermaid": "^11.9.0",
+    "prismjs": "^1.30.0",
     "tsx": "^4.0.0",
     "typescript": "^5.0.0",
     "vitepress": "^1.6.3",

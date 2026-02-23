@@ -76,8 +76,8 @@ Include configuration with implementation:
 ### Save Context Between Sessions
 ```bash
 # Create a context file
-/gemini-cli:analyze @previous-analysis.md @src/new-feature.js 
-continue from our last discussion
+ask gemini to analyze @previous-analysis.md and @src/new-feature.js 
+and continue from our last discussion
 ```
 
 ## Error Handling
@@ -120,7 +120,7 @@ Always include full error messages and stack traces when debugging.
 
 ### Comprehensive Security Checks
 ```bash
-/gemini-cli:analyze @src/**/*.js @package.json @.env.example
+ask gemini to analyze @src/**/*.js @package.json @.env.example
 - Check for hardcoded secrets
 - Review authentication logic
 - Identify OWASP vulnerabilities
@@ -178,7 +178,7 @@ Always include full error messages and stack traces when debugging.
 
 ### Pre-commit Reviews
 ```bash
-alias gemini-review='/gemini-cli:analyze @$(git diff --staged --name-only) review staged changes'
+alias gemini-review='ask gemini to analyze @$(git diff --staged --name-only) review staged changes'
 ```
 
 ### Daily Development

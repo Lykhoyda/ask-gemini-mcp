@@ -18,3 +18,4 @@ docs/.vitepress/dist/
 *.dxt
 extension-build/
 CLAUDE.md
+.claude

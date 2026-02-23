@@ -147,7 +147,7 @@ claude mcp add gemini-cli -- npx gemini-mcp-tool
 
 **Common causes**:
 
-1. **Node.js version compatibility** - Ensure Node.js ≥ v16.0.0
+1. **Node.js version compatibility** - Ensure Node.js ≥ v18.0.0
 2. **Gemini CLI not installed** - Install with `npm install -g @google/gemini-cli`
 3. **API key not configured** - Run `gemini config set api_key YOUR_API_KEY`
 4. **PATH issues** - Restart terminal after installing Node.js/npm

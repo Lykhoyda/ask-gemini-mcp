@@ -1,4 +1,3 @@
-// WIP
 import { LOG_PREFIX } from "../constants.js";
 
 export class Logger {

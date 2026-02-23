@@ -31,7 +31,7 @@
 
 Before installing, ensure you have:
 
-- **[Node.js](https://nodejs.org/)** v16.0.0 or higher
+- **[Node.js](https://nodejs.org/)** v18.0.0 or higher
 - **[Google Gemini CLI](https://github.com/google-gemini/gemini-cli)** installed and configured on your system
 - **[Claude Desktop](https://claude.ai/download)** or **[Claude Code](https://www.anthropic.com/claude-code)** with MCP support
 
@@ -139,12 +139,12 @@ Type in Claude:
 
 ### 2. Test File Analysis
 ```
-/gemini-cli:analyze @README.md summarize this file
+ask gemini to summarize @README.md
 ```
 
 ### 3. Test Sandbox Mode
 ```
-/gemini-cli:sandbox create a simple Python hello world script
+ask gemini in sandbox mode to create a simple Python hello world script
 ```
 
 ## Quick Command Reference
@@ -156,12 +156,12 @@ Once installed, you can use natural language or slash commands:
 - "understand the massive project using gemini"
 - "ask gemini to search for latest news"
 
-### Slash Commands in Claude Code
-Type `/gemini-cli` and these commands will appear:
-- `/gemini-cli:analyze` - Analyze files or ask questions
-- `/gemini-cli:sandbox` - Safe code execution
-- `/gemini-cli:help` - Show help information
-- `/gemini-cli:ping` - Test connectivity
+### Available Tools
+These tools are registered via MCP and can be used through natural language:
+- `ask-gemini` - Analyze files, ask questions, get code reviews
+- `brainstorm` - Structured ideation with methodology selection
+- `ping` - Test connectivity
+- `help` - Show Gemini CLI help
 
 ## Need a Different Client?
 

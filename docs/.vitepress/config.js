@@ -39,19 +39,16 @@ export default withMermaid(
           collapsed: false,
           items: [
             { text: 'How It Works', link: '/concepts/how-it-works' },
-            { text: 'File Analysis (@)', link: '/concepts/file-analysis' },
             { text: 'Model Selection', link: '/concepts/models' },
             { text: 'Sandbox Mode', link: '/concepts/sandbox' }
           ]
         },
         {
-          text: 'Usage',
+          text: 'User Guide',
           collapsed: false,
           items: [
-            { text: 'Commands', link: '/usage/commands' },
-            { text: 'Natural Language', link: '/usage/natural-language' },
-            { text: 'Examples', link: '/usage/examples' },
-            { text: 'Best Practices', link: '/usage/best-practices' }
+            { text: 'How to Ask Gemini', link: '/usage/how-to-ask' },
+            { text: 'Strategies & Examples', link: '/usage/strategies-and-examples' }
           ]
         },
         {

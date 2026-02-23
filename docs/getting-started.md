@@ -1,71 +1,51 @@
-## Getting Started
+# Getting Started
 
-<div align="center">⇣ Find your setup ↴</div>
+Follow these three steps to integrate Gemini deeply inside your favorite AI coding assistant.
 
-<ClientGrid>
-  <div class="client-card client-card--recommended claude-code-card">
-    <h3><span class="snowflake">❋</span> Claude Code</h3>
-    <div class="client-badge">Power Users</div>
-    <p>One-command setup</p>
-    <a href="#claude-code-recommended" class="client-button">Get Started →</a>
-  </div>
-  
-  <div class="client-card">
-    <h3>🖥️ <br>Claude Desktop</h3>
-    <div class="client-badge">Everyday users</div>
-    <p>JSON configuration</p>
-    <a href="#claude-desktop" class="client-button">Setup Guide →</a>
-  </div>
-  
-  <div class="client-card">
-    <h3>📂 Other Clients</h3>
-    <div class="client-badge">40+ Options</div>
-    <p>Warp, Copilot, and More</p>
-    <a href="#other-mcp-clients" class="client-button">More →</a>
-  </div>
-</ClientGrid>
+## Step 1: Install Prerequisites
 
-## Client Setup
+Before configuring your client, ensure your system has the required dependencies.
 
-## Prerequisites
+1. **[Node.js](https://nodejs.org/)**: You must have Node `v20.0.0` or higher installed (LTS versions 20 and 22 are actively supported).
+2. **[Google Gemini CLI](https://github.com/google-gemini/gemini-cli)**: Install the CLI globally.
+   ```bash
+   npm install -g @google/gemini-cli
+   ```
 
-Before installing, ensure you have:
+## Step 2: Authenticate Gemini
 
-- **[Node.js](https://nodejs.org/)** v20.0.0 or higher (LTS)
-- **[Google Gemini CLI](https://github.com/google-gemini/gemini-cli)** installed and configured on your system
-- **[Claude Desktop](https://claude.ai/download)** or **[Claude Code](https://www.anthropic.com/claude-code)** with MCP support
+The MCP server piggybacks entirely off of the official Gemini CLI authentication, meaning you never need to copy, paste, or expose your API keys in config files.
 
+Run the following command in your terminal and follow the browser prompts to log in via OAuth:
+```bash
+gemini login
+```
+*Tip: Verify it works by running `gemini "Hello world"` in your terminal.*
 
-## Claude Code (Recommended)
-::: warning 💡 ask-gemini-mcp is tested extensively with claude code
-:::
-Claude Code offers the smoothest experience.
+---
+
+## Step 3: Configure Your MCP Client
+
+Now you need to tell your primary AI assistant (like Claude) where the MCP server is.
+
+### Option A: Claude Code (Recommended) ❋
+Claude Code is Anthropic's terminal-native tool. It offers the fastest, most cohesive experience simply by running a single command:
 
 ```bash
-# install for claude code
 claude mcp add gemini-cli -- npx -y ask-gemini-mcp
-
-# Start Claude Code - it's automatically configured!
-claude
 ```
 
-## Claude Desktop
----
-#### Configuration File Locations
+### Option B: Claude Desktop 🖥️
+To install the server in the Claude Desktop app, add the following to your configuration file:
 
-<ConfigModal>
-
-*Where are my Claude Desktop Config Files?:*
-
-- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
-- **Linux**: `~/.config/claude/claude_desktop_config.json`
-
-</ConfigModal>
-
----
-
-For Claude Desktop users, add this to your configuration file:
+<details>
+<summary><strong>Where is my config file located?</strong></summary>
+<ul>
+<li><strong>macOS</strong>: <code>~/Library/Application Support/Claude/claude_desktop_config.json</code></li>
+<li><strong>Windows</strong>: <code>%APPDATA%\Claude\claude_desktop_config.json</code></li>
+<li><strong>Linux</strong>: <code>~/.config/claude/claude_desktop_config.json</code></li>
+</ul>
+</details>
 
 ```json
 {
@@ -77,132 +57,31 @@ For Claude Desktop users, add this to your configuration file:
   }
 }
 ```
+*⚠️ **Important:** You must restart Claude Desktop completely for changes to take effect.*
 
-::: warning
-You must restart Claude Desktop ***completely*** for changes to take effect.
-:::
-## Other MCP Clients
-
-Ask Gemini MCP works with 40+ MCP clients! Here are the common configuration patterns:
-
-### STDIO Transport (Most Common)
-```json
-{
-  "transport": {
-    "type": "stdio",
-    "command": "npx",
-    "args": ["-y", "ask-gemini-mcp"]
-  }
-}
-```
-
-### Popular Clients
-
-<details>
-<summary><strong>Warp</strong> - Modern terminal with AI features</summary>
-
-**Configuration Location:** Terminal Settings → AI Settings → MCP Configuration
+### Option C: Generic STDIO Transport (Cursor, Warp, Copilot, etc.) 📂
+Ask Gemini MCP works with **[40+ MCP-compatible clients](https://modelcontextprotocol.io/clients)**. Almost all of them use the standard STDIO transport pattern. Provide your client with this configuration:
 
 ```json
 {
-  "gemini-cli": {
-    "command": "npx",
-    "args": [
-      "-y",
-      "ask-gemini-mcp"
-    ],
-    "env": {},
-    "working_directory": null,
-    "start_on_launch": true
-  }
+  "command": "npx",
+  "args": ["-y", "ask-gemini-mcp"],
+  "env": {}
 }
 ```
 
-**Features:** Terminal-native MCP integration, AI-powered command suggestions
-</details>
-### Generic Setup Steps
-
-1. **Install Prerequisites**: Ensure [Gemini CLI](https://github.com/google-gemini/gemini-cli) is installed
-2. **Add Server Config**: Use the STDIO transport pattern above
-3. **Restart Client**: Most clients require restart after config changes
-4. **Test Connection**: Try `ping` via MCP or use natural language commands
+---
 
 ## Verify Your Setup
 
-Once configured, test that everything is working:
+Once installed, verify the connection works by asking Claude to use the `ping` tool:
 
-### 1. Basic Connectivity Test
-Type in Claude:
+```text
+"Use Gemini ping to test the connection"
 ```
-use gemini ping to test the connection
-```
+If you get a *Pong!* back, you're ready to start analyzing massive codebases with Gemini! Head over to the [How to Ask user guide](/usage/how-to-ask) to learn more.
 
-### 2. Test File Analysis
-```
-ask gemini to summarize @README.md
-```
-
-### 3. Test Sandbox Mode
-```
-ask gemini in sandbox mode to create a simple Python hello world script
-```
-
-## Quick Command Reference
-
-Once installed, use natural language to interact with Gemini:
-
-### Natural Language Examples
-- "use gemini to explain index.html"
-- "understand the massive project using gemini"
-- "ask gemini to search for latest news"
-
-### Available Tools
-These tools are registered via MCP and can be used through natural language:
-- `ask-gemini` - Analyze files, ask questions, get code reviews
-- `fetch-chunk` - Retrieve paginated chunks from large responses
-- `ping` - Test connectivity
-
-## Need a Different Client?
-
-Don't see your MCP client listed? Ask Gemini MCP uses the standard MCP protocol and works with any compatible client.
-
-::: tip Find More MCP Clients
-- **Official List**: [modelcontextprotocol.io/clients](https://modelcontextprotocol.io/clients)
-- **Configuration Help**: Most clients follow the STDIO transport pattern above
-- **Community**: Join discussions on GitHub for client-specific tips
-:::
-
-## Common Issues
-
-### "Command not found: gemini"
-Make sure you've installed the Gemini CLI:
-```bash
-npm install -g @google/gemini-cli
-```
-
-### "MCP server not responding"
-0. run claude code --> /doctor
-1. Check your configuration file path
-2. Ensure JSON syntax is correct
-3. Restart your MCP client completely
-4. Verify Gemini CLI works: `gemini -help`
-
-
-### Client-Specific Issues
-- **Claude Desktop**: Must restart completely after config changes
-- **Other Clients**: Check their specific documentation for MCP setup
-
-## Next Steps
-
-Now that you're set up:
-- Learn about file analysis with @ syntax
-- Explore sandbox mode for safe code execution
-- Check out real-world examples in the README
-- Join the community for support
-
-::: info Need Help?
-If you run into issues, [open an issue](https://github.com/Lykhoyda/ask-gemini-mcp/issues) on GitHub.
-:::
+---
 
 ## Advanced Configuration (Environment Variables)
 
@@ -211,17 +90,4 @@ You can configure the behavior of the server using environment variables in your
 | Variable | Default | Description |
 |---|---|---|
 | `GMCPT_LOG_LEVEL` | `warn` | Minimum log level to output to `stderr`. Valid options: `debug`, `info`, `warn`, `error`. Increase to `debug` if you need to troubleshoot connection issues. |
-| `GMCPT_TIMEOUT_MS` | `300000` | The maximum amount of time (in milliseconds) before the server assumes the Gemini CLI process has hung and forcibly terminates it. Defaults to 5 minutes. |
-
-**Example (Warp):**
-```json
-{
-  "gemini-cli": {
-    "command": "npx",
-    "args": ["-y", "ask-gemini-mcp"],
-    "env": {
-      "GMCPT_LOG_LEVEL": "debug"
-    }
-  }
-}
-```
+| `GMCPT_TIMEOUT_MS` | `300000` | The maximum amount of time (in milliseconds) before the server assumes the Gemini CLI process has hung and forcibly terminates it. Defaults to `300000` (5 minutes). |

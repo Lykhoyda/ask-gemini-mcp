@@ -24,6 +24,6 @@ Just ask naturally:
 
 ## Next Steps
 
-- Learn about [@file syntax](/concepts/file-analysis)
+- Learn about [@file syntax & examples](/usage/strategies-and-examples)
 - Explore [model selection](/concepts/models)
-- See [real examples](/usage/examples)
+- Read the [How to Ask user guide](/usage/how-to-ask)

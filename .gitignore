@@ -22,6 +22,3 @@ CLAUDE.md
 
 # MCP Registry tokens (created by mcp-publisher login)
 .mcpregistry_*
-
-# Smithery build artifacts
-.smithery/

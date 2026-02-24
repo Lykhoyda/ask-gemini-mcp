@@ -88,7 +88,7 @@ ${prompt_processed}
   if (sandbox) {
     args.push(CLI.FLAGS.SANDBOX);
   }
-  args.push(CLI.FLAGS.SEPARATOR, prompt_processed);
+  args.push(CLI.FLAGS.PROMPT, prompt_processed);
 
   try {
     return await executeCommand(CLI.COMMANDS.GEMINI, args, onProgress);
@@ -102,7 +102,7 @@ ${prompt_processed}
       if (sandbox) {
         fallbackArgs.push(CLI.FLAGS.SANDBOX);
       }
-      fallbackArgs.push(CLI.FLAGS.SEPARATOR, prompt_processed);
+      fallbackArgs.push(CLI.FLAGS.PROMPT, prompt_processed);
       try {
         const result = await executeCommand(CLI.COMMANDS.GEMINI, fallbackArgs, onProgress);
         Logger.warn(`Successfully executed with ${MODELS.FLASH} fallback.`);

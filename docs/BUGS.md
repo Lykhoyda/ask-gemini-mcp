@@ -14,6 +14,12 @@
 - **Description:** `child_process.spawn()` fails on Windows because `gemini` resolves to `gemini.cmd`. Needs `shell: true` option and proper argument escaping.
 - **Fix:** Added `shell: process.platform === "win32"` in `commandExecutor.ts`
 
+### ~~Exit code 42: "No input provided via stdin"~~ FIXED
+- **Severity:** Critical
+- **Affected versions:** Gemini CLI v0.29.5+
+- **Description:** After ADR-006 switched from `-p` flag to `--` separator for prompt passing, Gemini CLI v0.29.5 changed behavior so that positional arguments (via `--`) launch interactive mode expecting stdin. Since the MCP server spawns Gemini with `stdio: ["ignore", ...]`, stdin is closed and Gemini exits with code 42.
+- **Fix:** Reverted to `-p` flag (`CLI.FLAGS.PROMPT = "-p"`) which triggers non-interactive headless mode. The v0.23 deprecation of `-p` was reversed in v0.29. See ADR-015.
+
 ### Excessive token responses
 - **Severity:** Medium
 - **Upstream:** Issues #6, #26

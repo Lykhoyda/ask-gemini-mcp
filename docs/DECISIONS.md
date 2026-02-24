@@ -90,6 +90,13 @@
 - **Decision:** Raise `engines.node` to `>=20.0.0`. Update CI matrix to test only Node 20 and 22 (drop 18). Update all documentation references. Adopt an LTS-only policy going forward.
 - **Consequences:** Users on Node.js 18 will see an engine compatibility warning from npm. CI runs faster with fewer matrix entries. The project stays on supported, security-patched runtimes.
 
+## ADR-015: Revert to `-p` Flag for Gemini CLI v0.29+
+- **Date:** 2026-02-24
+- **Status:** Accepted (supersedes ADR-006)
+- **Context:** Gemini CLI v0.29.5 changed behavior again. The `--` separator (positional argument) now launches **interactive mode**, which expects stdin input. Since our MCP server spawns Gemini with `stdio: ["ignore", ...]`, stdin is closed, causing exit code 42: "No input provided via stdin." The `-p`/`--prompt` flag deprecation from v0.23 has been reversed — `-p` is now the correct way to trigger **non-interactive (headless) mode**.
+- **Decision:** Revert `CLI.FLAGS.SEPARATOR = "--"` back to `CLI.FLAGS.PROMPT = "-p"` in `src/constants.ts`. Update both main and fallback code paths in `geminiExecutor.ts` to use `CLI.FLAGS.PROMPT`. This undoes ADR-006's change while keeping all other improvements from that audit (removed broken `@` quoting, etc.).
+- **Consequences:** Fixes exit code 42 errors for users on Gemini CLI v0.29+. Users on older CLI versions (v0.23–v0.28) that still reject `-p` may need to upgrade their Gemini CLI. The `-p` flag is the officially supported non-interactive invocation method going forward.
+
 ## ADR-014: Add Vitest Test Suite
 - **Date:** 2026-02-23
 - **Status:** Accepted

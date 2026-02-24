@@ -2,6 +2,7 @@
 
 ## Priority 1: Critical Fixes
 - [x] Fix deprecated `-p` flag for Gemini CLI v0.23+ (upstream PRs #56, #43)
+- [x] Fix exit code 42 on Gemini CLI v0.29.5+: revert to `-p` flag for non-interactive mode (ADR-015)
 - [x] Windows compatibility: ENOENT spawn errors, `.cmd` handling (upstream PRs #23, #27, #41, #43)
 - [x] Add process timeout to prevent indefinite hangs (5min default, `GMCPT_TIMEOUT_MS` env var)
 - [x] Fix all utils/ audit issues (logger, commandExecutor, geminiExecutor, parsers, cache)
@@ -32,7 +33,8 @@
 - [x] Upgrade `@modelcontextprotocol/sdk` from 0.5.0 to ^1.26.0
 - [x] Raise minimum Node.js to 20 (LTS only), update CI matrix to test 20, 22
 - [x] Clean orphaned dist/ files from deleted sources
-- [x] Fix deprecated `-p` flag → `--` separator + positional prompt
+- [x] Fix deprecated `-p` flag → `--` separator + positional prompt (ADR-006)
+- [x] Revert `--` separator back to `-p` flag for Gemini CLI v0.29.5+ (ADR-015)
 - [x] Windows spawn compat (`shell: true` on win32)
 - [x] Process timeout (5min default + SIGTERM/SIGKILL)
 - [x] Fix O(n^2) stdout concatenation → Buffer array

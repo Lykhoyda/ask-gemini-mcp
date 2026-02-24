@@ -66,7 +66,7 @@ export const CLI = {
   FLAGS: {
     MODEL: "-m",
     SANDBOX: "-s",
-    SEPARATOR: "--",
+    PROMPT: "-p",
   },
   // Default values
   DEFAULTS: {

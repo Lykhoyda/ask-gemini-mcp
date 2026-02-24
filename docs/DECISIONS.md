@@ -110,3 +110,10 @@
 - **Context:** The project had zero test infrastructure — no test runner, no test files, and a placeholder `npm test` script. The codebase has several pure utility modules (changeModeParser, changeModeChunker, changeModeTranslator) ideal for unit testing without mocking. The project is native ESM (`"type": "module"`, `"module": "Node16"`), which makes Jest painful (requires `--experimental-vm-modules` workarounds).
 - **Decision:** Use Vitest as the test runner — it handles ESM natively and `tsx` is already a devDependency. Start with pure-function unit tests (no mocking) for the three changeMode utilities, registry tests using lightweight stub tools, and a smoke test verifying tool registration. Defer mocking-heavy tests (commandExecutor, chunkCache, geminiExecutor) and E2E tests to future iterations.
 - **Consequences:** 42 tests across 5 test files provide baseline coverage for the most logic-dense modules. `npm test` now runs `vitest run` instead of a no-op. Test infrastructure is in place for incremental coverage expansion.
+
+## ADR-017: Smithery CJS Compatibility — createSandboxServer Export
+- **Date:** 2026-02-24
+- **Status:** Accepted
+- **Context:** Smithery bundles MCP servers with esbuild in CJS mode for capability scanning. Our ESM code uses `createRequire(import.meta.url)` to read `package.json` at runtime, but in CJS bundles `import.meta` is empty (undefined), causing the module to crash on load. This prevented Smithery from scanning tool/prompt schemas.
+- **Decision:** (1) Wrap `createRequire(import.meta.url)` in a try/catch with hardcoded fallback values (`name: "ask-gemini-mcp"`, `version: "0.0.0"`). (2) Export a `createSandboxServer()` function that returns a configured `McpServer` with tools/prompts registered via stub handlers — Smithery's recommended pattern for servers that need special handling during scanning.
+- **Consequences:** The module loads cleanly in both ESM (normal operation) and CJS (Smithery bundling) contexts. Smithery can scan tool schemas without invoking real Gemini CLI. The fallback version "0.0.0" is only used in CJS bundles, not in production stdio operation.

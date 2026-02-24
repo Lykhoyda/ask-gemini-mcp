@@ -11,8 +11,16 @@ import { PROTOCOL } from "./constants.js";
 import { executeTool, getPromptMessage, toolRegistry } from "./tools/index.js";
 import { Logger } from "./utils/logger.js";
 
-const require = createRequire(import.meta.url);
-const { name, version } = require("../package.json") as { name: string; version: string };
+function readPackageJson(): { name: string; version: string } {
+  try {
+    const require = createRequire(import.meta.url);
+    return require("../package.json") as { name: string; version: string };
+  } catch {
+    return { name: "ask-gemini-mcp", version: "0.0.0" };
+  }
+}
+
+const { name, version } = readPackageJson();
 
 type ToolExtra = RequestHandlerExtra<ServerRequest, ServerNotification>;
 
@@ -144,6 +152,32 @@ for (const tool of toolRegistry) {
       ],
     };
   });
+}
+
+/**
+ * Smithery sandbox server export for capability scanning.
+ * Returns a configured McpServer with tools/prompts registered but no transport connected.
+ * See: https://smithery.ai/docs/deploy#sandbox-server
+ */
+export function createSandboxServer(): McpServer {
+  const sandbox = new McpServer({ name, version });
+
+  for (const tool of toolRegistry) {
+    const shape = (tool.zodSchema as z.ZodObject<z.ZodRawShape>).shape;
+    sandbox.registerTool(tool.name, { description: tool.description, inputSchema: shape }, async () => ({
+      content: [{ type: "text" as const, text: "Sandbox mode" }],
+      isError: false,
+    }));
+  }
+
+  for (const tool of toolRegistry) {
+    if (!tool.prompt) continue;
+    sandbox.registerPrompt(tool.name, { description: tool.prompt.description }, async () => ({
+      messages: [{ role: "user" as const, content: { type: "text" as const, text: "Sandbox" } }],
+    }));
+  }
+
+  return sandbox;
 }
 
 async function main() {

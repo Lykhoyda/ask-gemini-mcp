@@ -19,3 +19,6 @@ docs/.vitepress/dist/
 extension-build/
 CLAUDE.md
 .claude
+
+# MCP Registry tokens (created by mcp-publisher login)
+.mcpregistry_*

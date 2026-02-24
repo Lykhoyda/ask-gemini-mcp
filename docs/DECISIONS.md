@@ -90,6 +90,13 @@
 - **Decision:** Raise `engines.node` to `>=20.0.0`. Update CI matrix to test only Node 20 and 22 (drop 18). Update all documentation references. Adopt an LTS-only policy going forward.
 - **Consequences:** Users on Node.js 18 will see an engine compatibility warning from npm. CI runs faster with fewer matrix entries. The project stays on supported, security-patched runtimes.
 
+## ADR-016: Publish to MCP Registry with Automated GitHub Actions Release
+- **Date:** 2026-02-24
+- **Status:** Accepted
+- **Context:** The official MCP Registry (registry.modelcontextprotocol.io) launched in preview September 2025 as the standard discovery mechanism for MCP servers. Publishing requires a `server.json` metadata file, a `mcpName` field in `package.json`, and authentication via the `mcp-publisher` CLI. The registry supports GitHub OIDC for zero-secret CI authentication.
+- **Decision:** Add `mcpName: "io.github.Lykhoyda/ask-gemini"` to `package.json`. Create `server.json` with server metadata, npm package reference, and environment variable declarations. Create `.github/workflows/release.yml` triggered on `v*` tags that: runs lint/test/build, publishes to npm, then authenticates via GitHub OIDC and publishes to the MCP Registry. The workflow auto-syncs the git tag version into `server.json` so versions stay consistent. Add `.mcpregistry_*` to `.gitignore` for local token files created by `mcp-publisher login`.
+- **Consequences:** Tagging a release (`git tag v1.2.1 && git push origin v1.2.1`) triggers a single workflow that publishes to both npm and the MCP Registry. No MCP-specific secrets needed — OIDC handles auth. The server becomes discoverable via the registry API and MCP-aware clients.
+
 ## ADR-015: Revert to `-p` Flag for Gemini CLI v0.29+
 - **Date:** 2026-02-24
 - **Status:** Accepted (supersedes ADR-006)

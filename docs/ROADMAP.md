@@ -20,6 +20,11 @@
 - [x] Add automated test suite (Vitest, 42 tests, ADR-014)
 - [x] Set up linter and formatter (Biome v2.4.4)
 
+## Priority 4: Distribution
+- [x] Publish to official MCP Registry via `mcp-publisher` (ADR-016)
+- [x] Automated release workflow: `git tag v* && git push` → npm + MCP Registry (ADR-016)
+- [ ] Add GitHub Release with changelog (gh release create)
+
 ## Completed
 - [x] Remove non-core tools (`brainstorm`, `help`, `timeout-test`) per ADR-004
 - [x] Transfer ownership: update all references from `jamubc/gemini-mcp-tool` to `Lykhoyda/ask-gemini-mcp`
@@ -42,3 +47,4 @@
 - [x] Remove broken `@` quoting, dead exports, sendStatusMessage placeholder
 - [x] Add cache shape validation, truncate error output, fix changeModeTranslator text
 - [x] Rename project from `claude-ask-gemini-mcp` to `ask-gemini-mcp` (ADR-012)
+- [x] MCP Registry publishing: `server.json`, `mcpName` in package.json, automated release workflow (ADR-016)

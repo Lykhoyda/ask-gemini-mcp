@@ -14,7 +14,7 @@ const askGeminiArgsSchema = z.object({
     .string()
     .optional()
     .describe(
-      "Optional model to use (e.g., 'gemini-3-flash-preview'). If not specified, uses the default model (gemini-3.1-pro-preview).",
+      "DO NOT set this parameter. The tool automatically uses gemini-3.1-pro-preview (latest) and falls back to Flash on quota errors. Only set this if the user explicitly requests a specific model.",
     ),
   sandbox: z
     .boolean()
@@ -34,7 +34,8 @@ const askGeminiArgsSchema = z.object({
 
 export const askGeminiTool: UnifiedTool = {
   name: "ask-gemini",
-  description: "model selection [-m], sandbox [-s], and changeMode:boolean for providing edits",
+  description:
+    "Send a prompt to Gemini CLI (defaults to gemini-3.1-pro-preview with automatic Flash fallback on quota errors). Supports sandbox mode [-s] and changeMode for structured edits. Do not override the model parameter unless the user explicitly asks.",
   zodSchema: askGeminiArgsSchema,
   prompt: {
     description:

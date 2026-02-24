@@ -20,7 +20,10 @@
 - [x] Add automated test suite (Vitest, 58 tests across 6 files, ADR-014)
 - [x] Set up linter and formatter (Biome v2.4.4)
 
-## Priority 4: Distribution & Discovery
+## Priority 4: Developer Experience
+- [ ] Migrate from npm to Yarn for faster installs and deterministic lockfile
+
+## Priority 5: Distribution & Discovery
 - [x] Publish to official MCP Registry via `mcp-publisher` (ADR-016)
 - [x] Automated release workflow: `git tag v* && git push` → npm + MCP Registry (ADR-016)
 - [ ] ~~Smithery~~ (requires paid plan for stdio servers — skipped)

@@ -31,6 +31,7 @@
 - [ ] Add OpenGraph metadata and badges to README for better link previews
 - [ ] Publish blog post / dev.to article about the tool and AI-to-AI collaboration pattern
 - [ ] Add to MCP client directories (Cursor, Windsurf, Cline marketplace listings)
+- [ ] Document global (user-scope) install option in README: `claude mcp add --scope user gemini-cli -- npx -y ask-gemini-mcp`
 
 ## Completed
 - [x] Remove non-core tools (`brainstorm`, `help`, `timeout-test`) per ADR-004

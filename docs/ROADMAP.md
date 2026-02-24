@@ -22,6 +22,8 @@
 
 ## Priority 4: Developer Experience
 - [ ] Migrate from npm to Yarn for faster installs and deterministic lockfile
+- [ ] Migrate docs site from VitePress (Vue) to a React-based framework (Nextra, Docusaurus, or Fumadocs)
+- [ ] Update and refresh documentation pages with current features, examples, and screenshots
 
 ## Priority 5: Distribution & Discovery
 - [x] Publish to official MCP Registry via `mcp-publisher` (ADR-016)

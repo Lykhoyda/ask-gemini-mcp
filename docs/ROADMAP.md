@@ -54,4 +54,4 @@
 - [x] Fix stale server name/version in `src/index.ts` — now reads from `package.json` at runtime
 - [x] Upgrade `@modelcontextprotocol/sdk` from ^1.26.0 to ^1.27.0
 - [x] Update CLAUDE.md: fix stale test/lint descriptions, update architecture section
-- [x] Fix Smithery CJS bundling: `createRequire(import.meta.url)` crash, add `createSandboxServer()` export (ADR-017)
+- [x] Fix Smithery CJS bundling: `createRequire(import.meta.url)` crash, add `createSandboxServer()` export, separate CLI entry point (ADR-017)

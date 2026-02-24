@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-
 import { createRequire } from "node:module";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -180,14 +178,9 @@ export function createSandboxServer(): McpServer {
   return sandbox;
 }
 
-async function main() {
+export async function startServer() {
   Logger.debug("init ask-gemini-mcp");
   const transport = new StdioServerTransport();
   await server.connect(transport);
   Logger.debug("ask-gemini-mcp listening on stdio");
 }
-
-main().catch((error) => {
-  Logger.error("Fatal error:", error);
-  process.exit(1);
-});

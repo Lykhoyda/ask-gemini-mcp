@@ -1,17 +1,17 @@
 {
   "name": "ask-gemini-mcp",
-  "version": "1.2.4",
+  "version": "1.2.5",
   "mcpName": "io.github.Lykhoyda/ask-gemini",
   "description": "MCP server for Gemini CLI integration - for Claude IDE and other IDEs",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "gemini-mcp": "dist/index.js"
+    "gemini-mcp": "dist/cli.js"
   },
   "scripts": {
     "build": "tsc",
-    "start": "node dist/index.js",
-    "dev": "tsc && node dist/index.js",
+    "start": "node dist/cli.js",
+    "dev": "tsc && node dist/cli.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "biome check src/ && tsc --noEmit",

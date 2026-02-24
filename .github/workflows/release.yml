@@ -40,8 +40,8 @@ jobs:
       - run: ./mcp-publisher login github-oidc
       - run: ./mcp-publisher publish
 
-      # Smithery — service token
+      # Smithery
       - name: Publish to Smithery
         run: npx -y @smithery/cli mcp publish --name Lykhoyda/ask-gemini-mcp
         env:
-          SMITHERY_TOKEN: ${{ secrets.SMITHERY_TOKEN }}
+          SMITHERY_API_KEY: ${{ secrets.SMITHERY_API_KEY }}

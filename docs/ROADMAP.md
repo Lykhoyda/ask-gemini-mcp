@@ -17,13 +17,16 @@
 ## Priority 3: Open Issues
 - [ ] Allow model configuration via MCP JSON settings (upstream Issue #49)
 - [ ] Fix excessive token responses for small prompts (upstream Issues #6, #26)
-- [x] Add automated test suite (Vitest, 42 tests, ADR-014)
+- [x] Add automated test suite (Vitest, 58 tests across 6 files, ADR-014)
 - [x] Set up linter and formatter (Biome v2.4.4)
 
 ## Priority 4: Distribution
 - [x] Publish to official MCP Registry via `mcp-publisher` (ADR-016)
-- [x] Automated release workflow: `git tag v* && git push` → npm + MCP Registry (ADR-016)
+- [x] Automated release workflow: `git tag v* && git push` → npm + MCP Registry + Smithery (ADR-016)
+- [x] Smithery integration in release workflow
 - [ ] Add GitHub Release with changelog (gh release create)
+- [ ] Submit to awesome-mcp-servers list
+- [ ] Submit to mcp.so and mcpservers.org directories
 
 ## Completed
 - [x] Remove non-core tools (`brainstorm`, `help`, `timeout-test`) per ADR-004
@@ -48,3 +51,6 @@
 - [x] Add cache shape validation, truncate error output, fix changeModeTranslator text
 - [x] Rename project from `claude-ask-gemini-mcp` to `ask-gemini-mcp` (ADR-012)
 - [x] MCP Registry publishing: `server.json`, `mcpName` in package.json, automated release workflow (ADR-016)
+- [x] Fix stale server name/version in `src/index.ts` — now reads from `package.json` at runtime
+- [x] Upgrade `@modelcontextprotocol/sdk` from ^1.26.0 to ^1.27.0
+- [x] Update CLAUDE.md: fix stale test/lint descriptions, update architecture section

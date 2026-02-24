@@ -56,6 +56,52 @@ Add to your config file (`~/Library/Application Support/Claude/claude_desktop_co
 
 </details>
 
+### Cursor
+
+Add to `.cursor/mcp.json` in your project (or `~/.cursor/mcp.json` for global):
+
+```json
+{
+  "mcpServers": {
+    "gemini-cli": {
+      "command": "npx",
+      "args": ["-y", "ask-gemini-mcp"]
+    }
+  }
+}
+```
+
+### Codex CLI
+
+Add to `~/.codex/config.toml` (or `.codex/config.toml` in your project):
+
+```toml
+[mcp_servers.gemini-cli]
+command = "npx"
+args = ["-y", "ask-gemini-mcp"]
+```
+
+Or via CLI:
+
+```bash
+codex mcp add gemini-cli -- npx -y ask-gemini-mcp
+```
+
+### OpenCode
+
+Add to `opencode.json` in your project (or `~/.config/opencode/opencode.json` for global):
+
+```json
+{
+  "mcp": {
+    "gemini-cli": {
+      "type": "local",
+      "command": ["npx", "-y", "ask-gemini-mcp"]
+    }
+  }
+}
+```
+
 ### Any MCP Client (STDIO Transport)
 
 ```json

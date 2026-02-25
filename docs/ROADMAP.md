@@ -61,6 +61,16 @@ As a user, I want the MCP server to expose more Gemini CLI capabilities so I get
 - [ ] Add to MCP client directories (Cursor, Windsurf, Cline marketplace listings)
 - [x] Document global (user-scope) install option in README: `claude mcp add --scope user gemini-cli -- npx -y ask-gemini-mcp`
 
+## Priority 8: Multi-LLM Support (ask-llm-mcp) — ADR-020
+Deferred until Gemini CLI improvements (Priority 3) are complete.
+
+- [ ] **Phase 1: Monorepo restructure** — yarn workspaces, move src/ → packages/ask-gemini/, extract shared code → packages/shared/
+- [ ] **Phase 2: Codex provider** — packages/ask-codex/, codexExecutor with quiet mode, default to latest model
+- [ ] **Phase 3: Orchestrator** — packages/ask-llm/, imports all provider tools, isAvailable() gating, publish ask-llm-mcp
+- [ ] **Phase 4: Ollama (v2)** — packages/ask-ollama/, HTTP executor, Docker integration tests
+- [ ] **Cloud smoke tests** — nightly CI with API keys as secrets, one real call per provider
+- See [design doc](plans/2026-02-26-ask-llm-mcp-design.md)
+
 ## Completed
 - [x] Remove non-core tools (`brainstorm`, `help`, `timeout-test`) per ADR-004
 - [x] Transfer ownership: update all references from `jamubc/gemini-mcp-tool` to `Lykhoyda/ask-gemini-mcp`

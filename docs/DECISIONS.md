@@ -1,5 +1,13 @@
 # Architectural Decisions
 
+## ADR-020: Multi-LLM MCP Server (ask-llm-mcp)
+- **Date:** 2026-02-26
+- **Status:** Approved (implementation deferred until Gemini improvements complete)
+- **Context:** The tool only supports Gemini CLI. Developers using different AI coding tools (Claude Code, OpenCode, Codex) want to consult multiple LLMs. MCP was chosen over Claude Code skills/subagents for universal client compatibility.
+- **Decision:** Restructure into a yarn workspaces monorepo with individual provider packages (ask-gemini-mcp, ask-codex-mcp) and an orchestrator (ask-llm-mcp). Shared code in internal @ask-llm/shared package. Each provider is a standalone MCP server. Separate tools per provider (not a unified ask-llm tool) for easier subagent wiring.
+- **Consequences:** Existing ask-gemini-mcp users see zero breakage. New providers plug in via ProviderExecutor interface. Ollama support deferred to v2 with Docker integration tests.
+- **Design doc:** [docs/plans/2026-02-26-ask-llm-mcp-design.md](plans/2026-02-26-ask-llm-mcp-design.md)
+
 ## ADR-001: Fork from jamubc/gemini-mcp-tool
 - **Date:** 2026-02-23
 - **Status:** Accepted

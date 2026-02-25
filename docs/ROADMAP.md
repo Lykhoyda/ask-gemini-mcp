@@ -7,20 +7,29 @@
 - [x] Add process timeout to prevent indefinite hangs (5min default, `GMCPT_TIMEOUT_MS` env var)
 - [x] Fix all utils/ audit issues (logger, commandExecutor, geminiExecutor, parsers, cache)
 
-## Priority 2: Features from Community PRs
+## Priority 2: Claude Code Plugin
+- [ ] Add direct CLI binary `ask-gemini-run` (`src/run.ts`) — calls geminiExecutor directly, supports stdin piping
+- [ ] Create subagent `gemini-reviewer.md` — isolated Gemini review in separate context
+- [ ] Create `/gemini-review` skill — on-demand Gemini consultation
+- [ ] Add pre-commit hook — background Gemini review of staged diff
+- [ ] Add Stop hook — background Gemini review of session changes
+- [ ] Bundle as Claude Code plugin (`plugin.json`)
+- See [design doc](plans/2026-02-25-claude-code-plugin-design.md)
+
+## Priority 3: Features from Community PRs
 - [ ] Multi-turn session support via session IDs (upstream PR #50)
 - [ ] MCP tool annotations per spec (upstream PR #46)
 - [ ] LRU response caching with performance optimizations (upstream PR #44)
 - [ ] Gemini API compatibility mode (upstream PR #35)
 - [x] Update default model to `gemini-3.1-pro-preview` (upstream PR #54)
 
-## Priority 3: Open Issues
+## Priority 4: Open Issues
 - [ ] Allow model configuration via MCP JSON settings (upstream Issue #49)
 - [ ] Fix excessive token responses for small prompts (upstream Issues #6, #26)
 - [x] Add automated test suite (Vitest, 58 tests across 6 files, ADR-014)
 - [x] Set up linter and formatter (Biome v2.4.4)
 
-## Priority 4: Distribution & Discovery
+## Priority 5: Distribution & Discovery
 - [x] Publish to official MCP Registry via `mcp-publisher` (ADR-016)
 - [x] Automated release workflow: `git tag v* && git push` → npm + MCP Registry (ADR-016)
 - [ ] ~~Smithery~~ (requires paid plan for stdio servers — skipped)

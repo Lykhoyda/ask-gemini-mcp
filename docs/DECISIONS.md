@@ -111,6 +111,14 @@
 - **Decision:** Use Vitest as the test runner — it handles ESM natively and `tsx` is already a devDependency. Start with pure-function unit tests (no mocking) for the three changeMode utilities, registry tests using lightweight stub tools, and a smoke test verifying tool registration. Defer mocking-heavy tests (commandExecutor, chunkCache, geminiExecutor) and E2E tests to future iterations.
 - **Consequences:** 42 tests across 5 test files provide baseline coverage for the most logic-dense modules. `npm test` now runs `vitest run` instead of a no-op. Test infrastructure is in place for incremental coverage expansion.
 
+## ADR-018: Claude Code Plugin — Hybrid Multi-Entrypoint Architecture
+- **Date:** 2026-02-25
+- **Status:** Approved, not yet implemented
+- **Context:** We want a Claude Code plugin for automated Gemini code reviews (pre-commit hook, Stop hook, on-demand skill, isolated subagent). The core question was whether to reuse code from the existing MCP server. Hooks run as shell commands and have no MCP client, so they can't call MCP tools directly.
+- **Decision:** Hybrid multi-entrypoint approach. Add a second CLI binary `ask-gemini-run` (`src/run.ts`) that calls `executeGeminiCLI()` directly and prints to stdout. The plugin uses MCP tools for AI-context interactions (subagent, skill) and the direct CLI for shell-context interactions (hooks). Both entry points share the same core logic (`geminiExecutor.ts`). No monorepo needed — just two `bin` entries in `package.json`. Rejected: MCP-only (hooks can't use MCP), Bash-only (duplicates hardened logic), monorepo (overkill).
+- **Consequences:** Zero logic duplication. Hooks get the same model fallback, quota handling, and chunking as the MCP server. Plugin is mostly markdown/config (~3 files). The `ask-gemini-run` binary also serves as a standalone CLI for users who want Gemini access without MCP.
+- **Design doc:** [docs/plans/2026-02-25-claude-code-plugin-design.md](plans/2026-02-25-claude-code-plugin-design.md)
+
 ## ADR-017: Smithery CJS Compatibility — createSandboxServer Export
 - **Date:** 2026-02-24
 - **Status:** Accepted

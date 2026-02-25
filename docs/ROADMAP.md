@@ -29,7 +29,12 @@
 - [x] Add automated test suite (Vitest, 58 tests across 6 files, ADR-014)
 - [x] Set up linter and formatter (Biome v2.4.4)
 
-## Priority 5: Distribution & Discovery
+## Priority 5: Project Structure
+- [ ] Move deployable VitePress docs to `apps/docs/` (index.md, getting-started.md, concepts/, usage/, .vitepress/, public/)
+- [ ] Keep `docs/` for internal project docs only (ROADMAP, DECISIONS, BUGS, plans/)
+- [ ] Update VitePress config, build scripts, and deploy workflow for new path
+
+## Priority 6: Distribution & Discovery
 - [x] Publish to official MCP Registry via `mcp-publisher` (ADR-016)
 - [x] Automated release workflow: `git tag v* && git push` → npm + MCP Registry (ADR-016)
 - [ ] ~~Smithery~~ (requires paid plan for stdio servers — skipped)

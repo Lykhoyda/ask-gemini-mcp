@@ -71,6 +71,13 @@ hero:
     <span class="next-step-label">Model Selection</span>
     <span class="next-step-desc">Pro vs Flash and when to use each</span>
   </a>
+  <a href="/ask-gemini-mcp/usage/multi-turn-sessions" class="next-step-card">
+    <div class="next-step-icon">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+    </div>
+    <span class="next-step-label">Multi-Turn Sessions</span>
+    <span class="next-step-desc">Continue conversations across calls</span>
+  </a>
   <a href="/ask-gemini-mcp/resources/troubleshooting" class="next-step-card">
     <div class="next-step-icon">
       <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>

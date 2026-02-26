@@ -1,5 +1,12 @@
 # Architectural Decisions
 
+## ADR-021: Multi-Turn Session Support via --resume
+- **Date:** 2026-02-26
+- **Status:** Accepted
+- **Context:** The Gemini CLI supports multi-turn sessions via `--resume <sessionId>`. The `--output-format json` response includes `session_id` at the top level. Combining `--resume <uuid> -p "prompt"` works for headless multi-turn. Verified on Gemini CLI v0.30.0.
+- **Decision:** Add `sessionId` as optional parameter to `ask-gemini` tool. Pass `--resume <sessionId>` when provided. Extract `session_id` from JSON response and embed as `[Session ID: <uuid>]` footer in the response text. Refactored `executeGeminiCLI` from 5 positional params to an options object (`GeminiExecutorOptions`), returning structured `GeminiExecutorResult`. Extracted `buildArgs()` to deduplicate primary/fallback arg construction. Fixed `GeminiJsonResponse.stats` to match real CLI output (nested `stats.models[name].tokens` structure, not the flat `inputTokens`/`outputTokens` from the original ADR-019 design doc).
+- **Consequences:** Claude can maintain multi-turn conversations with Gemini across tool calls. Stats footer now correctly displays token counts from the real CLI JSON. The options-object refactor makes adding future CLI flags trivial. All 88 tests pass.
+
 ## ADR-020: Multi-LLM MCP Server (ask-llm-mcp)
 - **Date:** 2026-02-26
 - **Status:** Approved (implementation deferred until Gemini improvements complete)

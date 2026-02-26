@@ -68,6 +68,7 @@ export const CLI = {
     SANDBOX: "-s",
     PROMPT: "-p",
     OUTPUT_FORMAT: "--output-format",
+    RESUME: "--resume",
   },
   // Output format values
   OUTPUT_FORMATS: {
@@ -97,6 +98,7 @@ export interface ToolArguments {
   model?: string;
   sandbox?: boolean | string;
   changeMode?: boolean | string;
+  sessionId?: string;
   chunkIndex?: number | string; // Which chunk to return (1-based)
   chunkCacheKey?: string; // Optional cache key for continuation
   message?: string;

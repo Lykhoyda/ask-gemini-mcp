@@ -25,7 +25,7 @@ beforeEach(() => {
 
 describe("executeGeminiCLI argument construction", () => {
   it("uses -p flag (not -- separator) to pass prompt", async () => {
-    await executeGeminiCLI("explain this code");
+    await executeGeminiCLI({ prompt: "explain this code" });
 
     expect(mockExecuteCommand).toHaveBeenCalledOnce();
     const [, args] = mockExecuteCommand.mock.calls[0];
@@ -34,7 +34,7 @@ describe("executeGeminiCLI argument construction", () => {
   });
 
   it("passes prompt immediately after -p flag", async () => {
-    await executeGeminiCLI("explain this code");
+    await executeGeminiCLI({ prompt: "explain this code" });
 
     const [, args] = mockExecuteCommand.mock.calls[0];
     const flagIndex = args.indexOf("-p");
@@ -43,7 +43,7 @@ describe("executeGeminiCLI argument construction", () => {
   });
 
   it("builds basic args with only prompt", async () => {
-    await executeGeminiCLI("hello");
+    await executeGeminiCLI({ prompt: "hello" });
 
     const [cmd, args] = mockExecuteCommand.mock.calls[0];
     expect(cmd).toBe(CLI.COMMANDS.GEMINI);
@@ -51,7 +51,7 @@ describe("executeGeminiCLI argument construction", () => {
   });
 
   it("includes -m flag when model is specified", async () => {
-    await executeGeminiCLI("hello", "gemini-3-flash-preview");
+    await executeGeminiCLI({ prompt: "hello", model: "gemini-3-flash-preview" });
 
     const [, args] = mockExecuteCommand.mock.calls[0];
     expect(args).toEqual([
@@ -65,7 +65,7 @@ describe("executeGeminiCLI argument construction", () => {
   });
 
   it("includes -s flag when sandbox is enabled", async () => {
-    await executeGeminiCLI("hello", undefined, true);
+    await executeGeminiCLI({ prompt: "hello", sandbox: true });
 
     const [, args] = mockExecuteCommand.mock.calls[0];
     expect(args).toEqual([
@@ -78,7 +78,7 @@ describe("executeGeminiCLI argument construction", () => {
   });
 
   it("includes both model and sandbox flags", async () => {
-    await executeGeminiCLI("hello", "gemini-3-flash-preview", true);
+    await executeGeminiCLI({ prompt: "hello", model: "gemini-3-flash-preview", sandbox: true });
 
     const [, args] = mockExecuteCommand.mock.calls[0];
     expect(args).toEqual([
@@ -103,9 +103,9 @@ describe("executeGeminiCLI quota fallback", () => {
       .mockRejectedValueOnce(new Error("RESOURCE_EXHAUSTED"))
       .mockResolvedValueOnce(JSON.stringify({ response: "Flash response" }));
 
-    const result = await executeGeminiCLI("hello");
+    const result = await executeGeminiCLI({ prompt: "hello" });
 
-    expect(result).toContain("Flash response");
+    expect(result.response).toContain("Flash response");
     expect(mockExecuteCommand).toHaveBeenCalledTimes(2);
   });
 
@@ -114,7 +114,7 @@ describe("executeGeminiCLI quota fallback", () => {
       .mockRejectedValueOnce(new Error("RESOURCE_EXHAUSTED"))
       .mockResolvedValueOnce(JSON.stringify({ response: "Flash response" }));
 
-    await executeGeminiCLI("hello");
+    await executeGeminiCLI({ prompt: "hello" });
 
     const [, fallbackArgs] = mockExecuteCommand.mock.calls[1];
     expect(fallbackArgs).toContain("-p");
@@ -134,7 +134,7 @@ describe("executeGeminiCLI quota fallback", () => {
       .mockRejectedValueOnce(new Error("RESOURCE_EXHAUSTED"))
       .mockResolvedValueOnce(JSON.stringify({ response: "Flash response" }));
 
-    await executeGeminiCLI("hello", undefined, true);
+    await executeGeminiCLI({ prompt: "hello", sandbox: true });
 
     const [, fallbackArgs] = mockExecuteCommand.mock.calls[1];
     expect(fallbackArgs).toEqual([
@@ -151,7 +151,7 @@ describe("executeGeminiCLI quota fallback", () => {
   it("does not retry if already using Flash model", async () => {
     mockExecuteCommand.mockRejectedValueOnce(new Error("RESOURCE_EXHAUSTED"));
 
-    await expect(executeGeminiCLI("hello", MODELS.FLASH)).rejects.toThrow("RESOURCE_EXHAUSTED");
+    await expect(executeGeminiCLI({ prompt: "hello", model: MODELS.FLASH })).rejects.toThrow("RESOURCE_EXHAUSTED");
     expect(mockExecuteCommand).toHaveBeenCalledOnce();
   });
 
@@ -160,7 +160,7 @@ describe("executeGeminiCLI quota fallback", () => {
       .mockRejectedValueOnce(new Error("RESOURCE_EXHAUSTED"))
       .mockRejectedValueOnce(new Error("Flash also failed"));
 
-    await expect(executeGeminiCLI("hello")).rejects.toThrow(
+    await expect(executeGeminiCLI({ prompt: "hello" })).rejects.toThrow(
       `${MODELS.PRO} quota exceeded, ${MODELS.FLASH} fallback also failed: Flash also failed`,
     );
   });
@@ -168,14 +168,14 @@ describe("executeGeminiCLI quota fallback", () => {
   it("re-throws non-quota errors without fallback", async () => {
     mockExecuteCommand.mockRejectedValueOnce(new Error("Connection refused"));
 
-    await expect(executeGeminiCLI("hello")).rejects.toThrow("Connection refused");
+    await expect(executeGeminiCLI({ prompt: "hello" })).rejects.toThrow("Connection refused");
     expect(mockExecuteCommand).toHaveBeenCalledOnce();
   });
 });
 
 describe("executeGeminiCLI changeMode", () => {
   it("replaces file: syntax with @ syntax in changeMode", async () => {
-    await executeGeminiCLI("fix file:src/index.ts and file:src/app.ts", undefined, false, true);
+    await executeGeminiCLI({ prompt: "fix file:src/index.ts and file:src/app.ts", changeMode: true });
 
     const [, args] = mockExecuteCommand.mock.calls[0];
     const promptArg = args[args.indexOf(CLI.FLAGS.PROMPT) + 1];
@@ -185,7 +185,7 @@ describe("executeGeminiCLI changeMode", () => {
   });
 
   it("wraps prompt in changeMode instructions", async () => {
-    await executeGeminiCLI("fix the bug", undefined, false, true);
+    await executeGeminiCLI({ prompt: "fix the bug", changeMode: true });
 
     const [, args] = mockExecuteCommand.mock.calls[0];
     const promptArg = args[args.indexOf(CLI.FLAGS.PROMPT) + 1];
@@ -196,7 +196,7 @@ describe("executeGeminiCLI changeMode", () => {
   });
 
   it("still uses -p flag with changeMode enabled", async () => {
-    await executeGeminiCLI("fix the bug", undefined, false, true);
+    await executeGeminiCLI({ prompt: "fix the bug", changeMode: true });
 
     const [, args] = mockExecuteCommand.mock.calls[0];
     expect(args).toContain("-p");
@@ -206,7 +206,7 @@ describe("executeGeminiCLI changeMode", () => {
 
 describe("executeGeminiCLI JSON output format", () => {
   it("always passes --output-format json flag", async () => {
-    await executeGeminiCLI("hello");
+    await executeGeminiCLI({ prompt: "hello" });
 
     const [, args] = mockExecuteCommand.mock.calls[0];
     expect(args).toContain("--output-format");
@@ -214,7 +214,7 @@ describe("executeGeminiCLI JSON output format", () => {
   });
 
   it("passes --output-format json before -p flag", async () => {
-    await executeGeminiCLI("hello");
+    await executeGeminiCLI({ prompt: "hello" });
 
     const [, args] = mockExecuteCommand.mock.calls[0];
     const formatIndex = args.indexOf("--output-format");
@@ -227,7 +227,7 @@ describe("executeGeminiCLI JSON output format", () => {
       .mockRejectedValueOnce(new Error("RESOURCE_EXHAUSTED"))
       .mockResolvedValueOnce(JSON.stringify({ response: "Flash response" }));
 
-    await executeGeminiCLI("hello");
+    await executeGeminiCLI({ prompt: "hello" });
 
     const [, fallbackArgs] = mockExecuteCommand.mock.calls[1];
     expect(fallbackArgs).toContain("--output-format");
@@ -237,118 +237,295 @@ describe("executeGeminiCLI JSON output format", () => {
   it("parses JSON response and extracts response text", async () => {
     mockExecuteCommand.mockResolvedValueOnce(JSON.stringify({ response: "parsed text", stats: {} }));
 
-    const result = await executeGeminiCLI("hello");
+    const result = await executeGeminiCLI({ prompt: "hello" });
 
-    expect(result).toContain("parsed text");
+    expect(result.response).toContain("parsed text");
   });
 
   it("appends stats summary when stats are present", async () => {
     mockExecuteCommand.mockResolvedValueOnce(
       JSON.stringify({
         response: "some response",
-        stats: { inputTokens: 1234, outputTokens: 567, model: "gemini-3.1-pro-preview" },
+        stats: {
+          models: {
+            "gemini-3.1-pro-preview": {
+              tokens: { input: 1234, candidates: 567, cached: 0, thoughts: 26 },
+            },
+          },
+        },
       }),
     );
 
-    const result = await executeGeminiCLI("hello");
+    const result = await executeGeminiCLI({ prompt: "hello" });
 
-    expect(result).toContain("[Gemini stats:");
-    expect(result).toContain("1,234 input tokens");
-    expect(result).toContain("567 output tokens");
-    expect(result).toContain("gemini-3.1-pro-preview");
+    expect(result.response).toContain("[Gemini stats:");
+    expect(result.response).toContain("1,234 input tokens");
+    expect(result.response).toContain("567 output tokens");
+    expect(result.response).toContain("gemini-3.1-pro-preview");
   });
 
   it("falls back to raw text when output is not valid JSON", async () => {
     mockExecuteCommand.mockResolvedValueOnce("plain text response");
 
-    const result = await executeGeminiCLI("hello");
+    const result = await executeGeminiCLI({ prompt: "hello" });
 
-    expect(result).toBe("plain text response");
+    expect(result.response).toBe("plain text response");
   });
 
   it("falls back to raw text when JSON has no response field", async () => {
     mockExecuteCommand.mockResolvedValueOnce(JSON.stringify({ stats: {} }));
 
-    const result = await executeGeminiCLI("hello");
+    const result = await executeGeminiCLI({ prompt: "hello" });
 
-    expect(result).toBe(JSON.stringify({ stats: {} }));
+    expect(result.response).toBe(JSON.stringify({ stats: {} }));
   });
 
   it("throws when JSON contains an error field", async () => {
     mockExecuteCommand.mockResolvedValueOnce(JSON.stringify({ error: { message: "Rate limit exceeded", code: 429 } }));
 
-    await expect(executeGeminiCLI("hello")).rejects.toThrow("Rate limit exceeded");
+    await expect(executeGeminiCLI({ prompt: "hello" })).rejects.toThrow("Rate limit exceeded");
   });
 
   it("throws with code when error has no message", async () => {
     mockExecuteCommand.mockResolvedValueOnce(JSON.stringify({ error: { code: 503 } }));
 
-    await expect(executeGeminiCLI("hello")).rejects.toThrow("Gemini error code 503");
+    await expect(executeGeminiCLI({ prompt: "hello" })).rejects.toThrow("Gemini error code 503");
   });
 
   it("extracts JSON when CLI prints warnings before JSON object", async () => {
     const json = JSON.stringify({ response: "actual response", stats: {} });
     mockExecuteCommand.mockResolvedValueOnce(`WARNING: something\n${json}`);
 
-    const result = await executeGeminiCLI("hello");
+    const result = await executeGeminiCLI({ prompt: "hello" });
 
-    expect(result).toContain("actual response");
+    expect(result.response).toContain("actual response");
   });
 
   it("falls back to raw text when output has no JSON object at all", async () => {
     mockExecuteCommand.mockResolvedValueOnce("no json here at all");
 
-    const result = await executeGeminiCLI("hello");
+    const result = await executeGeminiCLI({ prompt: "hello" });
 
-    expect(result).toBe("no json here at all");
+    expect(result.response).toBe("no json here at all");
   });
 
   it("extracts JSON when CLI prints trailing text after JSON object", async () => {
     const json = JSON.stringify({ response: "good response", stats: {} });
     mockExecuteCommand.mockResolvedValueOnce(`${json}\nDone in 3.2s`);
 
-    const result = await executeGeminiCLI("hello");
+    const result = await executeGeminiCLI({ prompt: "hello" });
 
-    expect(result).toContain("good response");
+    expect(result.response).toContain("good response");
   });
 
   it("throws string error when error field is a string", async () => {
     mockExecuteCommand.mockResolvedValueOnce(JSON.stringify({ error: "Rate limit exceeded" }));
 
-    await expect(executeGeminiCLI("hello")).rejects.toThrow("Rate limit exceeded");
+    await expect(executeGeminiCLI({ prompt: "hello" })).rejects.toThrow("Rate limit exceeded");
   });
 
   it("falls back to raw text when JSON.parse returns null", async () => {
     mockExecuteCommand.mockResolvedValueOnce("null");
 
-    const result = await executeGeminiCLI("hello");
+    const result = await executeGeminiCLI({ prompt: "hello" });
 
-    expect(result).toBe("null");
+    expect(result.response).toBe("null");
   });
 
   it("falls back to raw text when parsed JSON is not an object", async () => {
     mockExecuteCommand.mockResolvedValueOnce("42");
 
-    const result = await executeGeminiCLI("hello");
+    const result = await executeGeminiCLI({ prompt: "hello" });
 
-    expect(result).toBe("42");
+    expect(result.response).toBe("42");
   });
 
   it("extracts JSON when warning prefix contains braces", async () => {
     const json = JSON.stringify({ response: "real response", stats: {} });
     mockExecuteCommand.mockResolvedValueOnce(`[Debug] config: { "retry": true }\n${json}`);
 
-    const result = await executeGeminiCLI("hello");
+    const result = await executeGeminiCLI({ prompt: "hello" });
 
-    expect(result).toContain("real response");
+    expect(result.response).toContain("real response");
   });
 
   it("throws array error with stringified details", async () => {
     const errors = [{ message: "Rate limited" }, { message: "Quota exceeded" }];
     mockExecuteCommand.mockResolvedValueOnce(JSON.stringify({ error: errors }));
 
-    await expect(executeGeminiCLI("hello")).rejects.toThrow(
+    await expect(executeGeminiCLI({ prompt: "hello" })).rejects.toThrow(
       'Gemini error: [{"message":"Rate limited"},{"message":"Quota exceeded"}]',
     );
+  });
+});
+
+describe("executeGeminiCLI session support", () => {
+  it("includes --resume flag when sessionId is provided", async () => {
+    mockExecuteCommand.mockResolvedValueOnce(JSON.stringify({ response: "ok" }));
+
+    await executeGeminiCLI({ prompt: "hello", sessionId: "bcc639e4-3415-4270-9fe9-260e6a15203a" });
+
+    const [, args] = mockExecuteCommand.mock.calls[0];
+    expect(args).toContain("--resume");
+    expect(args).toContain("bcc639e4-3415-4270-9fe9-260e6a15203a");
+  });
+
+  it("places --resume before --output-format in args", async () => {
+    mockExecuteCommand.mockResolvedValueOnce(JSON.stringify({ response: "ok" }));
+
+    await executeGeminiCLI({ prompt: "hello", sessionId: "test-session" });
+
+    const [, args] = mockExecuteCommand.mock.calls[0];
+    const resumeIndex = args.indexOf("--resume");
+    const formatIndex = args.indexOf("--output-format");
+    expect(resumeIndex).toBeGreaterThanOrEqual(0);
+    expect(resumeIndex).toBeLessThan(formatIndex);
+  });
+
+  it("does not include --resume when sessionId is undefined", async () => {
+    await executeGeminiCLI({ prompt: "hello" });
+
+    const [, args] = mockExecuteCommand.mock.calls[0];
+    expect(args).not.toContain("--resume");
+  });
+
+  it("preserves --resume in fallback args on quota error", async () => {
+    mockExecuteCommand
+      .mockRejectedValueOnce(new Error("RESOURCE_EXHAUSTED"))
+      .mockResolvedValueOnce(JSON.stringify({ response: "Flash response" }));
+
+    await executeGeminiCLI({ prompt: "hello", sessionId: "my-session" });
+
+    const [, fallbackArgs] = mockExecuteCommand.mock.calls[1];
+    expect(fallbackArgs).toContain("--resume");
+    expect(fallbackArgs).toContain("my-session");
+  });
+
+  it("returns session_id from JSON response", async () => {
+    mockExecuteCommand.mockResolvedValueOnce(
+      JSON.stringify({ session_id: "bcc639e4-3415-4270-9fe9-260e6a15203a", response: "some answer" }),
+    );
+
+    const result = await executeGeminiCLI({ prompt: "hello" });
+
+    expect(result.sessionId).toBe("bcc639e4-3415-4270-9fe9-260e6a15203a");
+  });
+
+  it("returns undefined sessionId when session_id absent from JSON", async () => {
+    mockExecuteCommand.mockResolvedValueOnce(JSON.stringify({ response: "no session" }));
+
+    const result = await executeGeminiCLI({ prompt: "hello" });
+
+    expect(result.sessionId).toBeUndefined();
+  });
+
+  it("returns undefined sessionId for raw text fallback", async () => {
+    mockExecuteCommand.mockResolvedValueOnce("plain text");
+
+    const result = await executeGeminiCLI({ prompt: "hello" });
+
+    expect(result.sessionId).toBeUndefined();
+  });
+
+  it("builds correct full args with model, sandbox, and sessionId", async () => {
+    mockExecuteCommand.mockResolvedValueOnce(JSON.stringify({ response: "ok" }));
+
+    await executeGeminiCLI({
+      prompt: "hello",
+      model: "gemini-3-flash-preview",
+      sandbox: true,
+      sessionId: "abc-123",
+    });
+
+    const [, args] = mockExecuteCommand.mock.calls[0];
+    expect(args).toEqual([
+      CLI.FLAGS.MODEL,
+      "gemini-3-flash-preview",
+      CLI.FLAGS.SANDBOX,
+      CLI.FLAGS.RESUME,
+      "abc-123",
+      CLI.FLAGS.OUTPUT_FORMAT,
+      CLI.OUTPUT_FORMATS.JSON,
+      CLI.FLAGS.PROMPT,
+      "hello",
+    ]);
+  });
+});
+
+describe("executeGeminiCLI stats format (real CLI shape)", () => {
+  it("extracts token counts from stats.models structure", async () => {
+    mockExecuteCommand.mockResolvedValueOnce(
+      JSON.stringify({
+        response: "answer",
+        stats: {
+          models: {
+            "gemini-3.1-pro-preview": {
+              tokens: { input: 10891, candidates: 5, cached: 0, thoughts: 26 },
+            },
+          },
+        },
+      }),
+    );
+
+    const result = await executeGeminiCLI({ prompt: "hello" });
+
+    expect(result.response).toContain("[Gemini stats:");
+    expect(result.response).toContain("10,891 input tokens");
+    expect(result.response).toContain("5 output tokens");
+    expect(result.response).toContain("gemini-3.1-pro-preview");
+  });
+
+  it("includes cached token count when non-zero", async () => {
+    mockExecuteCommand.mockResolvedValueOnce(
+      JSON.stringify({
+        response: "answer",
+        stats: {
+          models: {
+            "gemini-3.1-pro-preview": {
+              tokens: { input: 5000, candidates: 100, cached: 3000, thoughts: 10 },
+            },
+          },
+        },
+      }),
+    );
+
+    const result = await executeGeminiCLI({ prompt: "hello" });
+
+    expect(result.response).toContain("3,000 cached");
+  });
+
+  it("omits cached count when zero", async () => {
+    mockExecuteCommand.mockResolvedValueOnce(
+      JSON.stringify({
+        response: "answer",
+        stats: {
+          models: {
+            "gemini-3.1-pro-preview": {
+              tokens: { input: 5000, candidates: 100, cached: 0, thoughts: 10 },
+            },
+          },
+        },
+      }),
+    );
+
+    const result = await executeGeminiCLI({ prompt: "hello" });
+
+    expect(result.response).not.toContain("cached");
+  });
+
+  it("returns empty stats footer when stats.models is missing", async () => {
+    mockExecuteCommand.mockResolvedValueOnce(JSON.stringify({ response: "answer", stats: {} }));
+
+    const result = await executeGeminiCLI({ prompt: "hello" });
+
+    expect(result.response).not.toContain("[Gemini stats:");
+  });
+
+  it("returns empty stats footer when stats is undefined", async () => {
+    mockExecuteCommand.mockResolvedValueOnce(JSON.stringify({ response: "answer" }));
+
+    const result = await executeGeminiCLI({ prompt: "hello" });
+
+    expect(result.response).not.toContain("[Gemini stats:");
   });
 });

@@ -66,6 +66,10 @@ export default withMermaid(
           items: [
             { text: "How to Ask Gemini", link: "/usage/how-to-ask" },
             {
+              text: "Multi-Turn Sessions",
+              link: "/usage/multi-turn-sessions",
+            },
+            {
               text: "Strategies & Examples",
               link: "/usage/strategies-and-examples",
             },

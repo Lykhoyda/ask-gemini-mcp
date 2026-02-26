@@ -6,13 +6,21 @@ import { cacheChunks, getChunks } from "./chunkCache.js";
 import { executeCommand } from "./commandExecutor.js";
 import { Logger } from "./logger.js";
 
+interface GeminiModelTokens {
+  input?: number;
+  candidates?: number;
+  cached?: number;
+  thoughts?: number;
+}
+
+interface GeminiCliStats {
+  models?: Record<string, { tokens?: GeminiModelTokens }>;
+}
+
 interface GeminiJsonResponse {
+  session_id?: string;
   response?: string;
-  stats?: {
-    inputTokens?: number;
-    outputTokens?: number;
-    model?: string;
-  };
+  stats?: GeminiCliStats;
   error?:
     | {
         message?: string;
@@ -22,12 +30,31 @@ interface GeminiJsonResponse {
     | unknown[];
 }
 
-function formatStats(stats: GeminiJsonResponse["stats"]): string {
-  if (!stats) return "";
+export interface GeminiExecutorOptions {
+  prompt: string;
+  model?: string;
+  sandbox?: boolean;
+  changeMode?: boolean;
+  sessionId?: string;
+  onProgress?: (newOutput: string) => void;
+}
+
+export interface GeminiExecutorResult {
+  response: string;
+  sessionId: string | undefined;
+}
+
+function formatStats(stats: GeminiCliStats | undefined): string {
+  if (!stats?.models) return "";
   const parts: string[] = [];
-  if (stats.inputTokens != null) parts.push(`${stats.inputTokens.toLocaleString()} input tokens`);
-  if (stats.outputTokens != null) parts.push(`${stats.outputTokens.toLocaleString()} output tokens`);
-  if (stats.model) parts.push(`model: ${stats.model}`);
+  for (const [modelName, modelData] of Object.entries(stats.models)) {
+    const tokens = modelData?.tokens;
+    if (!tokens) continue;
+    if (tokens.input != null) parts.push(`${tokens.input.toLocaleString()} input tokens`);
+    if (tokens.candidates != null) parts.push(`${tokens.candidates.toLocaleString()} output tokens`);
+    if (tokens.cached != null && tokens.cached > 0) parts.push(`${tokens.cached.toLocaleString()} cached`);
+    parts.push(`model: ${modelName}`);
+  }
   return parts.length > 0 ? `\n\n[Gemini stats: ${parts.join(", ")}]` : "";
 }
 
@@ -76,11 +103,11 @@ function extractJson(raw: string): string | null {
   return null;
 }
 
-function parseGeminiJsonOutput(raw: string): string {
+function parseGeminiJsonOutput(raw: string): GeminiExecutorResult {
   const jsonStr = extractJson(raw);
   if (!jsonStr) {
     Logger.debug("Gemini output has no JSON object, using raw text");
-    return raw;
+    return { response: raw, sessionId: undefined };
   }
 
   let parsed: unknown;
@@ -88,12 +115,12 @@ function parseGeminiJsonOutput(raw: string): string {
     parsed = JSON.parse(jsonStr);
   } catch {
     Logger.debug("Gemini output is not valid JSON, using raw text");
-    return raw;
+    return { response: raw, sessionId: undefined };
   }
 
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
     Logger.debug("Gemini output is not a JSON object, using raw text");
-    return raw;
+    return { response: raw, sessionId: undefined };
   }
 
   const json = parsed as GeminiJsonResponse;
@@ -111,23 +138,36 @@ function parseGeminiJsonOutput(raw: string): string {
 
   if (typeof json.response !== "string") {
     Logger.debug("Gemini JSON missing response field, using raw text");
-    return raw;
+    return { response: raw, sessionId: undefined };
   }
 
-  return json.response + formatStats(json.stats);
+  return {
+    response: json.response + formatStats(json.stats),
+    sessionId: json.session_id,
+  };
 }
 
-export async function executeGeminiCLI(
+function buildArgs(
   prompt: string,
-  model?: string,
-  sandbox?: boolean,
-  changeMode?: boolean,
-  onProgress?: (newOutput: string) => void,
-): Promise<string> {
-  let prompt_processed = prompt;
+  model: string | undefined,
+  sandbox: boolean | undefined,
+  sessionId: string | undefined,
+): string[] {
+  const args: string[] = [];
+  if (model) args.push(CLI.FLAGS.MODEL, model);
+  if (sandbox) args.push(CLI.FLAGS.SANDBOX);
+  if (sessionId) args.push(CLI.FLAGS.RESUME, sessionId);
+  args.push(CLI.FLAGS.OUTPUT_FORMAT, CLI.OUTPUT_FORMATS.JSON);
+  args.push(CLI.FLAGS.PROMPT, prompt);
+  return args;
+}
+
+export async function executeGeminiCLI(options: GeminiExecutorOptions): Promise<GeminiExecutorResult> {
+  const { model, sandbox, changeMode, sessionId, onProgress } = options;
+  let prompt_processed = options.prompt;
 
   if (changeMode) {
-    prompt_processed = prompt.replace(/file:(\S+)/g, "@$1");
+    prompt_processed = prompt_processed.replace(/file:(\S+)/g, "@$1");
 
     const changeModeInstructions = `
 [CHANGEMODE INSTRUCTIONS]
@@ -192,15 +232,7 @@ ${prompt_processed}
     prompt_processed = changeModeInstructions;
   }
 
-  const args = [];
-  if (model) {
-    args.push(CLI.FLAGS.MODEL, model);
-  }
-  if (sandbox) {
-    args.push(CLI.FLAGS.SANDBOX);
-  }
-  args.push(CLI.FLAGS.OUTPUT_FORMAT, CLI.OUTPUT_FORMATS.JSON);
-  args.push(CLI.FLAGS.PROMPT, prompt_processed);
+  const args = buildArgs(prompt_processed, model, sandbox, sessionId);
 
   try {
     const raw = await executeCommand(CLI.COMMANDS.GEMINI, args, onProgress);
@@ -210,13 +242,7 @@ ${prompt_processed}
     if (errorMessage.includes(ERROR_MESSAGES.QUOTA_EXCEEDED) && model !== MODELS.FLASH) {
       Logger.warn(`${ERROR_MESSAGES.QUOTA_EXCEEDED}. Falling back to ${MODELS.FLASH}.`);
       Logger.debug(`Status: ${STATUS_MESSAGES.FLASH_RETRY}`);
-      const fallbackArgs = [];
-      fallbackArgs.push(CLI.FLAGS.MODEL, MODELS.FLASH);
-      if (sandbox) {
-        fallbackArgs.push(CLI.FLAGS.SANDBOX);
-      }
-      fallbackArgs.push(CLI.FLAGS.OUTPUT_FORMAT, CLI.OUTPUT_FORMATS.JSON);
-      fallbackArgs.push(CLI.FLAGS.PROMPT, prompt_processed);
+      const fallbackArgs = buildArgs(prompt_processed, MODELS.FLASH, sandbox, sessionId);
       try {
         const raw = await executeCommand(CLI.COMMANDS.GEMINI, fallbackArgs, onProgress);
         Logger.warn(`Successfully executed with ${MODELS.FLASH} fallback.`);

@@ -28,6 +28,12 @@ const askGeminiArgsSchema = z.object({
     .describe(
       "Enable structured change mode - formats prompts to prevent tool errors and returns structured edit suggestions that Claude can apply directly",
     ),
+  sessionId: z
+    .string()
+    .optional()
+    .describe(
+      "Resume a previous Gemini conversation. Pass the session_id from a prior ask-gemini response to continue a multi-turn exchange with full context.",
+    ),
   chunkIndex: z.union([z.number(), z.string()]).optional().describe("Which chunk to return (1-based)"),
   chunkCacheKey: z.string().optional().describe("Optional cache key for continuation"),
 });
@@ -35,7 +41,7 @@ const askGeminiArgsSchema = z.object({
 export const askGeminiTool: UnifiedTool = {
   name: "ask-gemini",
   description:
-    "Send a prompt to Gemini CLI (defaults to gemini-3.1-pro-preview with automatic Flash fallback on quota errors). Supports sandbox mode [-s] and changeMode for structured edits. Do not override the model parameter unless the user explicitly asks.",
+    "Send a prompt to Gemini CLI (defaults to gemini-3.1-pro-preview with automatic Flash fallback on quota errors). Supports sandbox mode [-s], changeMode for structured edits, and multi-turn sessions via sessionId. Do not override the model parameter unless the user explicitly asks.",
   zodSchema: askGeminiArgsSchema,
   prompt: {
     description:
@@ -43,31 +49,36 @@ export const askGeminiTool: UnifiedTool = {
   },
   category: "gemini",
   execute: async (args, onProgress) => {
-    const { prompt, model, sandbox, changeMode, chunkIndex, chunkCacheKey } = args;
+    const { prompt, model, sandbox, changeMode, sessionId, chunkIndex, chunkCacheKey } = args;
     if (!prompt?.trim()) {
       throw new Error(ERROR_MESSAGES.NO_PROMPT_PROVIDED);
     }
 
     if (changeMode && chunkIndex && chunkCacheKey) {
-      return processChangeModeOutput(
-        "", // empty for cache...
-        chunkIndex as number,
-        chunkCacheKey as string,
-        prompt as string,
-      );
+      return processChangeModeOutput("", chunkIndex as number, chunkCacheKey as string, prompt as string);
     }
 
-    const result = await executeGeminiCLI(
-      prompt as string,
-      model as string | undefined,
-      !!sandbox,
-      !!changeMode,
+    const result = await executeGeminiCLI({
+      prompt: prompt as string,
+      model: model as string | undefined,
+      sandbox: !!sandbox,
+      changeMode: !!changeMode,
+      sessionId: sessionId as string | undefined,
       onProgress,
-    );
+    });
+
+    const sessionLine = result.sessionId ? `\n\n[Session ID: ${result.sessionId}]` : "";
 
     if (changeMode) {
-      return processChangeModeOutput(result, args.chunkIndex as number | undefined, undefined, prompt as string);
+      const changeModeOutput = processChangeModeOutput(
+        result.response,
+        args.chunkIndex as number | undefined,
+        undefined,
+        prompt as string,
+      );
+      return `${changeModeOutput}${sessionLine}`;
     }
-    return `${STATUS_MESSAGES.GEMINI_RESPONSE}\n${result}`; // changeMode false
+
+    return `${STATUS_MESSAGES.GEMINI_RESPONSE}\n${result.response}${sessionLine}`;
   },
 };

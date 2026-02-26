@@ -31,6 +31,7 @@ The core tool that sends your prompts and context to the Gemini API.
 - `model` (optional): The Gemini model to use (`gemini-3.1-pro-preview` or `gemini-3-flash-preview`). Automatically falls back to Flash if Pro quotas are exceeded.
 - `sandbox` (optional): Set to `true` to run your prompt inside Gemini's isolated code execution sandbox (`-s` flag).
 - `changeMode` (optional): Set to `true` to strongly encourage Gemini to format its output as structured code edits.
+- `sessionId` (optional): Resume a previous conversation. Pass the session ID from a prior response to continue a [multi-turn session](/usage/multi-turn-sessions).
 
 ### `fetch-chunk`
 Used automatically by your AI client. When Gemini returns a response larger than a single MCP message allows, it is cached. The AI uses this tool to paginate through the rest of the response.

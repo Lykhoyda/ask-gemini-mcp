@@ -34,7 +34,7 @@ export async function executeTool(
     throw new Error(`Unknown tool: ${toolName}`);
   }
   try {
-    const validatedArgs = tool.zodSchema.parse(args);
+    const validatedArgs = tool.zodSchema.parse(args) as ToolArguments;
     return tool.execute(validatedArgs, onProgress);
   } catch (error) {
     if (error instanceof ZodError) {

@@ -25,28 +25,12 @@ jobs:
       id-token: write
       actions: read
     steps:
-      - name: Check if fork PR
-        if: github.event.issue.pull_request
-        id: fork-check
-        run: |
-          IS_FORK=$(gh api repos/${{ github.repository }}/pulls/${{ github.event.issue.number }} --jq '.head.repo.fork // false')
-          echo "is_fork=$IS_FORK" >> $GITHUB_OUTPUT
-          if [[ "$IS_FORK" == "true" ]]; then
-            gh issue comment ${{ github.event.issue.number }} \
-              --repo ${{ github.repository }} \
-              --body "> **Note:** \`@claude\` mentions are not yet supported on fork PRs due to an [upstream limitation](https://github.com/anthropics/claude-code-action/issues/962). Automated review runs on all PRs via the separate Claude Code Review workflow."
-          fi
-        env:
-          GH_TOKEN: ${{ github.token }}
-
       - name: Checkout repository
-        if: steps.fork-check.outputs.is_fork != 'true'
         uses: actions/checkout@v6
         with:
           fetch-depth: 1
 
       - name: Run Claude Code
-        if: steps.fork-check.outputs.is_fork != 'true'
         id: claude
         uses: anthropics/claude-code-action@v1
         with:

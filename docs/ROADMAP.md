@@ -75,6 +75,13 @@
 - [x] Submit to awesome-mcp-servers list (PR [#2581](https://github.com/punkpeye/awesome-mcp-servers/pull/2581))
 - [x] Submit to mcp.so and mcpservers.org directories
 
+### CI & Workflow Hardening
+- [x] Update all GitHub Actions to latest versions (checkout@v6, setup-node@v6, upload-pages-artifact@v4)
+- [x] Add lint step to CI pipeline, remove `continue-on-error` on tests
+- [x] Use `pull_request_target` for Claude auto-review to support fork PRs (ADR-025)
+- [x] Fix Claude workflow permissions (`contents: write`, `pull-requests: write`, `additional_permissions`)
+- [x] Add `labeled` trigger for `@claude` mentions on issue label events
+
 ### Other Completed
 - [x] Remove non-core tools (`brainstorm`, `help`, `timeout-test`) per ADR-004
 - [x] Transfer ownership: update all references from `jamubc/gemini-mcp-tool` to `Lykhoyda/ask-gemini-mcp`

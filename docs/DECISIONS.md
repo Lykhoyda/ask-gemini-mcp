@@ -1,5 +1,12 @@
 # Architectural Decisions
 
+## ADR-025: GitHub Actions Workflow Hardening for Fork PRs
+- **Date:** 2026-03-03
+- **Status:** Accepted
+- **Context:** Claude Code Action (`anthropics/claude-code-action@v1`) uses OIDC tokens for authentication, which are not available on `pull_request` events from fork repositories. Additionally, the action internally runs `git fetch origin <branch>` for PR branches, which fails for fork branches since they don't exist on origin.
+- **Decision:** Split fork PR handling across two workflows: (1) `claude-code-review.yml` uses `pull_request_target` event, which runs on the base branch and has OIDC access — safe because the review prompt is read-only (uses `gh pr diff`, never checks out or executes fork code). (2) `claude.yml` (for `@claude` mentions) stays on `issue_comment` — fork PRs with `@claude` mentions won't work because the action's internal checkout can't fetch fork branches. This is accepted as an upstream limitation. Also updated all workflows to actions/checkout@v6, setup-node@v6, upload-pages-artifact@v4; added lint step to CI; removed `continue-on-error: true` on test step.
+- **Consequences:** Auto-review works for all PRs including forks. `@claude` mentions only work on same-repo PRs. CI now fails properly on test or lint failures instead of silently passing.
+
 ## ADR-024: MCP vs Skill vs Subagent Context Comparison Experiment
 - **Date:** 2026-03-01
 - **Status:** Informational

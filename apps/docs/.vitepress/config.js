@@ -5,7 +5,7 @@ export default withMermaid(
   defineConfig({
     title: "Ask Gemini MCP Documentation",
     description: "Bridge Gemini models with Claude Desktop",
-    base: "/ask-gemini-mcp/",
+    base: "/ask-llm/",
 
     vite: {
       build: {
@@ -86,7 +86,7 @@ export default withMermaid(
       ],
 
       socialLinks: [
-        { icon: "github", link: "https://github.com/Lykhoyda/ask-gemini-mcp" },
+        { icon: "github", link: "https://github.com/Lykhoyda/ask-llm" },
       ],
 
       footer: {

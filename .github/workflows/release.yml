@@ -21,9 +21,9 @@ jobs:
 
       - run: corepack enable
       - run: yarn install --immutable
+      - run: yarn build
       - run: yarn lint
       - run: yarn test
-      - run: yarn build
 
       # npm — publish gemini-mcp with bundled @ask-llm/shared
       # Uses npm (not yarn) because yarn pack ignores bundledDependencies

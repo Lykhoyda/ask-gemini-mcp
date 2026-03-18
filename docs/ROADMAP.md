@@ -21,7 +21,7 @@
 ## Priority 8: Multi-LLM Support (ask-llm-mcp) — ADR-020, ADR-026
 - [x] **Phase 1: Monorepo restructure** — yarn workspaces, packages/shared + packages/gemini-mcp + packages/plugin (ADR-026)
 - [ ] **Phase 2: Plugin providers** — Gemini, Codex, Ollama providers in packages/plugin
-- [ ] **Phase 3: Codex MCP** — packages/ask-codex/, codexExecutor with quiet mode, default to latest model
+- [ ] **Phase 3: Codex MCP** — packages/ask-codex/, codexExecutor with quiet mode, default to highest-tier model. Reference impl: [cexll/codex-mcp-server](https://github.com/cexll/codex-mcp-server) (study patterns, implement more minimally)
 - [ ] **Phase 4: Orchestrator** — packages/ask-llm/, imports all provider tools, isAvailable() gating, publish ask-llm-mcp
 - [ ] **Phase 5: Ollama (v2)** — packages/ask-ollama/, HTTP executor, Docker integration tests
 - [ ] **Cloud smoke tests** — nightly CI with API keys as secrets, one real call per provider

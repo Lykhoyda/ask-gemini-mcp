@@ -212,9 +212,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@ask-llm/plugin@workspace:packages/plugin":
+"@ask-llm/plugin@workspace:packages/claude-plugin":
   version: 0.0.0-use.local
-  resolution: "@ask-llm/plugin@workspace:packages/plugin"
+  resolution: "@ask-llm/plugin@workspace:packages/claude-plugin"
   dependencies:
     "@ask-llm/shared": "workspace:*"
     "@biomejs/biome": "npm:^2.4.4"

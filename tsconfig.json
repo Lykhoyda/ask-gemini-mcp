@@ -3,6 +3,6 @@
   "references": [
     { "path": "packages/shared" },
     { "path": "packages/gemini-mcp" },
-    { "path": "packages/plugin" }
+    { "path": "packages/claude-plugin" }
   ]
 }

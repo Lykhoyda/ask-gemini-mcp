@@ -19,14 +19,16 @@ jobs:
           node-version: "24"
           registry-url: "https://registry.npmjs.org"
 
-      - run: npm ci
-      - run: npm run lint
-      - run: npm test
-      - run: npm run build
+      - run: yarn install --immutable
+      - run: yarn lint
+      - run: yarn test
+      - run: yarn build
 
-      # npm — Trusted Publisher OIDC, no token needed
+      # npm — publish gemini-mcp with bundled @ask-llm/shared
+      # Uses npm (not yarn) because yarn pack ignores bundledDependencies
       - name: Publish to npm
         run: npm publish --access public
+        working-directory: packages/gemini-mcp
         continue-on-error: true
         id: npm_publish
 

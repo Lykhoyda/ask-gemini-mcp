@@ -18,11 +18,12 @@
 - [ ] Publish blog post / dev.to article about the tool and AI-to-AI collaboration pattern
 - [ ] Add to MCP client directories (Cursor, Windsurf, Cline marketplace listings)
 
-## Priority 8: Multi-LLM Support (ask-llm-mcp) — ADR-020
-- [ ] **Phase 1: Monorepo restructure** — yarn workspaces, move src/ → packages/ask-gemini/, extract shared code → packages/shared/
-- [ ] **Phase 2: Codex provider** — packages/ask-codex/, codexExecutor with quiet mode, default to latest model
-- [ ] **Phase 3: Orchestrator** — packages/ask-llm/, imports all provider tools, isAvailable() gating, publish ask-llm-mcp
-- [ ] **Phase 4: Ollama (v2)** — packages/ask-ollama/, HTTP executor, Docker integration tests
+## Priority 8: Multi-LLM Support (ask-llm-mcp) — ADR-020, ADR-026
+- [x] **Phase 1: Monorepo restructure** — yarn workspaces, packages/shared + packages/gemini-mcp + packages/plugin (ADR-026)
+- [ ] **Phase 2: Plugin providers** — Gemini, Codex, Ollama providers in packages/plugin
+- [ ] **Phase 3: Codex MCP** — packages/ask-codex/, codexExecutor with quiet mode, default to latest model
+- [ ] **Phase 4: Orchestrator** — packages/ask-llm/, imports all provider tools, isAvailable() gating, publish ask-llm-mcp
+- [ ] **Phase 5: Ollama (v2)** — packages/ask-ollama/, HTTP executor, Docker integration tests
 - [ ] **Cloud smoke tests** — nightly CI with API keys as secrets, one real call per provider
 - See [design doc](plans/2026-02-26-ask-llm-mcp-design.md)
 

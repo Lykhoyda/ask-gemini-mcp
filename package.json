@@ -1,74 +1,26 @@
 {
-  "name": "ask-gemini-mcp",
-  "version": "1.4.5",
-  "mcpName": "io.github.Lykhoyda/ask-gemini",
-  "description": "MCP server for Gemini CLI integration - for Claude IDE and other IDEs",
-  "type": "module",
-  "main": "dist/index.js",
-  "bin": {
-    "ask-gemini-mcp": "dist/cli.js"
-  },
+  "name": "ask-llm",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/docs"
+  ],
   "scripts": {
-    "build": "tsc",
-    "start": "node dist/cli.js",
-    "dev": "tsc && node dist/cli.js",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "lint": "biome check src/ && tsc --noEmit",
-    "format": "biome format --write src/",
-    "format:check": "biome format src/",
-    "check": "biome check --write src/",
-    "prepublishOnly": "echo '⚠️  Remember to test locally first!' && npm run build",
-    "docs:dev": "vitepress dev apps/docs",
-    "docs:build": "vitepress build apps/docs",
-    "docs:preview": "vitepress preview apps/docs"
-  },
-  "keywords": [
-    "mcp",
-    "mcp-server",
-    "modelcontextprotocol",
-    "gemini",
-    "gemini-cli",
-    "google-gemini",
-    "claude",
-    "ai",
-    "ai-collaboration",
-    "llm",
-    "code-review",
-    "second-opinion"
-  ],
-  "author": "Lykhoyda",
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/Lykhoyda/ask-gemini-mcp.git"
-  },
-  "bugs": {
-    "url": "https://github.com/Lykhoyda/ask-gemini-mcp/issues"
-  },
-  "homepage": "https://github.com/Lykhoyda/ask-gemini-mcp#readme",
-  "engines": {
-    "node": ">=20.0.0"
-  },
-  "files": [
-    "dist/",
-    "README.md",
-    "LICENSE"
-  ],
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.27.1",
-    "zod": "^4.3.6"
+    "build": "yarn workspaces foreach -At run build",
+    "test": "yarn workspaces foreach -A run test",
+    "lint": "yarn workspaces foreach -A run lint",
+    "docs:dev": "yarn workspace docs run dev",
+    "docs:build": "yarn workspace docs run build",
+    "docs:preview": "yarn workspace docs run preview"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.4",
     "@types/node": "^22.19.13",
-    "mermaid": "^11.9.0",
     "typescript": "^5.0.0",
-    "vitepress": "^1.6.3",
-    "vitepress-plugin-mermaid": "^2.0.17",
     "vitest": "^4.0.18"
   },
-  "publishConfig": {
-    "access": "public"
-  }
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "packageManager": "yarn@4.9.1"
 }

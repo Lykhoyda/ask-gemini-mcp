@@ -1,5 +1,12 @@
 # Architectural Decisions
 
+## ADR-026: Yarn Workspaces Monorepo Restructure
+- **Date:** 2026-03-18
+- **Status:** Accepted (implements ADR-020)
+- **Context:** The project was a single-package npm project. ADR-020 approved restructuring into a monorepo to support multiple LLM providers and a Claude Code plugin. The restructure was needed before adding new providers (Codex, Ollama) to avoid cross-cutting changes.
+- **Decision:** Restructure into a Yarn 4 workspaces monorepo with `nodeLinker: node-modules` (not PnP, due to `createRequire` usage). Three packages: `packages/shared` (`@ask-llm/shared`, internal, not published) contains registry, logger, commandExecutor, changeMode parser/chunker/translator, chunkCache, base constants, and `BaseToolArguments`. `packages/gemini-mcp` (`ask-gemini-mcp`, published to npm) contains Gemini-specific constants (MODELS, CLI, ERROR_MESSAGES), tools, geminiExecutor, and MCP server entry points. `packages/plugin` (`@ask-llm/plugin`, placeholder) will support Gemini, Codex, and Ollama providers. TypeScript project references with `tsconfig.base.json` (`composite: true`) enable dependency-ordered builds. CI/CD updated from npm to yarn (`yarn install --immutable`, `yarn workspace ask-gemini-mcp npm publish`). The `workspace:*` protocol resolves to real versions during publish.
+- **Consequences:** Existing `ask-gemini-mcp` npm users experience zero breakage — same package name, same version, same binary. All 99 tests pass across 6 test files (38 shared + 61 gemini-mcp). New providers plug in via shared registry. Root `yarn build/test/lint` orchestrates all packages.
+
 ## ADR-025: GitHub Actions Workflow Hardening for Fork PRs
 - **Date:** 2026-03-03
 - **Status:** Accepted

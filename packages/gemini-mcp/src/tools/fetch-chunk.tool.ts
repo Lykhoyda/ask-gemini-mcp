@@ -1,8 +1,6 @@
+import type { EditChunk, UnifiedTool } from "@ask-llm/shared";
+import { formatChangeModeResponse, getChunks, Logger, summarizeChangeModeEdits } from "@ask-llm/shared";
 import { z } from "zod";
-import { formatChangeModeResponse, summarizeChangeModeEdits } from "../utils/changeModeTranslator.js";
-import { getChunks } from "../utils/chunkCache.js";
-import { Logger } from "../utils/logger.js";
-import type { UnifiedTool } from "./registry.js";
 
 const inputSchema = z.object({
   cacheKey: z.string().describe("The cache key provided in the initial changeMode response"),
@@ -41,11 +39,10 @@ export const fetchChunkTool: UnifiedTool = {
     Logger.toolInvocation("fetch-chunk", args);
     Logger.debug(`Fetching chunk ${chunkIndex} with cache key: ${cacheKey}`);
 
-    // Retrieve cached chunks
     const chunks = getChunks(cacheKey);
 
     if (!chunks) {
-      return `❌ Cache miss: No chunks found for cache key "${cacheKey}". 
+      return `Cache miss: No chunks found for cache key "${cacheKey}".
 
   Possible reasons:
   1. The cache key is incorrect, Have you ran ask-gemini with changeMode enabled?
@@ -55,9 +52,8 @@ export const fetchChunkTool: UnifiedTool = {
 Please re-run the original changeMode request to regenerate the chunks.`;
     }
 
-    // Validate chunk index
     if (chunkIndex < 1 || chunkIndex > chunks.length) {
-      return `❌ Invalid chunk index: ${chunkIndex}
+      return `Invalid chunk index: ${chunkIndex}
 
 Available chunks: 1 to ${chunks.length}
 You requested: ${chunkIndex}
@@ -65,15 +61,12 @@ You requested: ${chunkIndex}
 Please use a valid chunk index.`;
     }
 
-    // Get the requested chunk
     const chunk = chunks[chunkIndex - 1];
 
-    // Format the response
     let result = formatChangeModeResponse(chunk.edits, { current: chunkIndex, total: chunks.length, cacheKey });
 
-    // Add summary for first chunk
     if (chunkIndex === 1 && chunks.length > 1) {
-      const allEdits = chunks.flatMap((c) => c.edits);
+      const allEdits = chunks.flatMap((c: EditChunk) => c.edits);
       result = `${summarizeChangeModeEdits(allEdits, true)}\n\n${result}`;
     }
 

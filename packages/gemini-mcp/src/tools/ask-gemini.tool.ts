@@ -1,7 +1,7 @@
+import type { UnifiedTool } from "@ask-llm/shared";
 import { z } from "zod";
 import { ERROR_MESSAGES, STATUS_MESSAGES } from "../constants.js";
 import { executeGeminiCLI, processChangeModeOutput } from "../utils/geminiExecutor.js";
-import type { UnifiedTool } from "./registry.js";
 
 const askGeminiArgsSchema = z.object({
   prompt: z

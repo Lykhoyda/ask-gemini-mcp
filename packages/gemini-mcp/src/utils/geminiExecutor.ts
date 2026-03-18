@@ -1,10 +1,17 @@
-import { CLI, ERROR_MESSAGES, EXECUTION, MODELS, STATUS_MESSAGES } from "../constants.js";
-import { chunkChangeModeEdits } from "./changeModeChunker.js";
-import { parseChangeModeOutput, validateChangeModeEdits } from "./changeModeParser.js";
-import { formatChangeModeResponse, summarizeChangeModeEdits } from "./changeModeTranslator.js";
-import { cacheChunks, getChunks } from "./chunkCache.js";
-import { executeCommand } from "./commandExecutor.js";
-import { Logger } from "./logger.js";
+import {
+  cacheChunks,
+  chunkChangeModeEdits,
+  type EditChunk,
+  EXECUTION,
+  executeCommand,
+  formatChangeModeResponse,
+  getChunks,
+  Logger,
+  parseChangeModeOutput,
+  summarizeChangeModeEdits,
+  validateChangeModeEdits,
+} from "@ask-llm/shared";
+import { CLI, ERROR_MESSAGES, MODELS, STATUS_MESSAGES } from "../constants.js";
 
 interface GeminiModelTokens {
   input?: number;
@@ -296,7 +303,7 @@ export function processChangeModeOutput(
       });
 
       if (chunkIndex === 1 && chunk.edits.length > 5) {
-        const allEdits = cachedChunks.flatMap((c) => c.edits);
+        const allEdits = cachedChunks.flatMap((c: EditChunk) => c.edits);
         result = `${summarizeChangeModeEdits(allEdits)}\n\n${result}`;
       }
 

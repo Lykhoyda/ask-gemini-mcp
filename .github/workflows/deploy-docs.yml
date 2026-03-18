@@ -22,8 +22,8 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: 20
-      - run: npm ci
-      - run: npm run docs:build
+      - run: yarn install --immutable
+      - run: yarn docs:build
       - uses: actions/upload-pages-artifact@v4
         with:
           path: apps/docs/.vitepress/dist

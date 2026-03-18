@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { EXECUTION } from "../constants.js";
+import { EXECUTION } from "./constants.js";
 import { Logger } from "./logger.js";
 
 const IS_WINDOWS = process.platform === "win32";

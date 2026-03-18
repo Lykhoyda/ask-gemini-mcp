@@ -1,7 +1,7 @@
 import type { ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
 import type { ZodTypeAny } from "zod";
 import { ZodError } from "zod";
-import type { ToolArguments } from "../constants.js";
+import type { BaseToolArguments } from "./constants.js";
 
 export interface UnifiedTool {
   name: string;
@@ -18,7 +18,7 @@ export interface UnifiedTool {
     }>;
   };
 
-  execute: (args: ToolArguments, onProgress?: (newOutput: string) => void) => Promise<string>;
+  execute: (args: BaseToolArguments, onProgress?: (newOutput: string) => void) => Promise<string>;
   category?: "simple" | "gemini" | "utility";
 }
 
@@ -26,7 +26,7 @@ export const toolRegistry: UnifiedTool[] = [];
 
 export async function executeTool(
   toolName: string,
-  args: ToolArguments,
+  args: BaseToolArguments,
   onProgress?: (newOutput: string) => void,
 ): Promise<string> {
   const tool = toolRegistry.find((t) => t.name === toolName);
@@ -34,7 +34,7 @@ export async function executeTool(
     throw new Error(`Unknown tool: ${toolName}`);
   }
   try {
-    const validatedArgs = tool.zodSchema.parse(args) as ToolArguments;
+    const validatedArgs = tool.zodSchema.parse(args) as BaseToolArguments;
     return tool.execute(validatedArgs, onProgress);
   } catch (error) {
     if (error instanceof ZodError) {

@@ -1,0 +1,32 @@
+{
+  "name": "@ask-llm/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./logger": "./dist/logger.js",
+    "./constants": "./dist/constants.js",
+    "./command-executor": "./dist/commandExecutor.js",
+    "./registry": "./dist/registry.js",
+    "./change-mode": "./dist/changeMode/index.js",
+    "./chunk-cache": "./dist/chunkCache.js"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "test": "vitest run",
+    "lint": "biome check src/ && tsc --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.4",
+    "@types/node": "^22.19.13",
+    "typescript": "^5.0.0",
+    "vitest": "^4.0.18"
+  }
+}

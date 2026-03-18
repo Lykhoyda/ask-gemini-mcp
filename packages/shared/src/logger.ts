@@ -1,4 +1,4 @@
-import { LOG_LEVEL_ENV_VAR, LOG_PREFIX } from "../constants.js";
+import { LOG_LEVEL_ENV_VAR, LOG_PREFIX } from "./constants.js";
 
 type LogLevel = "debug" | "info" | "warn" | "error";
 

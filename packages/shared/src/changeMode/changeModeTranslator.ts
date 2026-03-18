@@ -58,9 +58,7 @@ There ${chunkInfo.total - chunkInfo.current === 1 ? "is" : "are"} ${chunkInfo.to
 }
 
 export function summarizeChangeModeEdits(edits: ChangeModeEdit[], isPartialView?: boolean): string {
-  // for user
   const fileGroups = new Map<string, number>();
-  // Count edits per file
   for (const edit of edits) {
     fileGroups.set(edit.filename, (fileGroups.get(edit.filename) || 0) + 1);
   }

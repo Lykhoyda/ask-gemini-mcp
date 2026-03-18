@@ -9,6 +9,14 @@ dist/
 .idea/
 .npmignore
 
+# Yarn
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+*.tsbuildinfo
 
 # Docs Site
 apps/docs/.vitepress/cache/

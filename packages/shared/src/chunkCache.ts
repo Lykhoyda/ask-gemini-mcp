@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { EditChunk } from "./changeModeChunker.js";
+import type { EditChunk } from "./changeMode/changeModeChunker.js";
 import { Logger } from "./logger.js";
 
 interface CacheEntry {
@@ -21,22 +21,14 @@ function ensureCacheDir(): void {
   }
 }
 
-/**
- * Caches chunks from a changeMode response
- * @param prompt The original prompt (used for hash generation)
- * @param chunks The parsed and chunked edits
- * @returns A short cache key for retrieval
- */
 export function cacheChunks(prompt: string, chunks: EditChunk[]): string {
   ensureCacheDir();
-  cleanExpiredFiles(); // Cleanup on each write
+  cleanExpiredFiles();
 
-  // Generate deterministic cache key from prompt
   const promptHash = createHash("sha256").update(prompt).digest("hex");
   const cacheKey = promptHash.slice(0, 8);
   const filePath = path.join(CACHE_DIR, `${cacheKey}.json`);
 
-  // Store with metadata
   const cacheData: CacheEntry = {
     chunks,
     timestamp: Date.now(),
@@ -53,11 +45,6 @@ export function cacheChunks(prompt: string, chunks: EditChunk[]): string {
   return cacheKey;
 }
 
-/**
- * Retrieves cached chunks if they exist and haven't expired
- * @param cacheKey The cache key returned from cacheChunks
- * @returns The cached chunks or null if expired/not found
- */
 export function getChunks(cacheKey: string): EditChunk[] | null {
   const filePath = path.join(CACHE_DIR, `${cacheKey}.json`);
 
@@ -93,7 +80,7 @@ export function getChunks(cacheKey: string): EditChunk[] | null {
   } catch (error) {
     Logger.debug(`Cache read error for ${cacheKey}: ${error}`);
     try {
-      fs.unlinkSync(filePath); // Clean up bad file
+      fs.unlinkSync(filePath);
     } catch {}
     return null;
   }
@@ -117,7 +104,6 @@ function cleanExpiredFiles(): void {
           cleaned++;
         }
       } catch (error) {
-        // Individual file error - continue with others
         Logger.debug(`Error checking file ${file}: ${error}`);
       }
     }
@@ -126,7 +112,6 @@ function cleanExpiredFiles(): void {
       Logger.debug(`Cleaned ${cleaned} expired cache files`);
     }
   } catch (error) {
-    // Non-critical, just log
     Logger.debug(`Cache cleanup error: ${error}`);
   }
 }
@@ -141,9 +126,8 @@ function enforceFileLimits(): void {
         path: path.join(CACHE_DIR, f),
         mtime: fs.statSync(path.join(CACHE_DIR, f)).mtimeMs,
       }))
-      .sort((a, b) => a.mtime - b.mtime); // Oldest first
+      .sort((a, b) => a.mtime - b.mtime);
 
-    // Remove oldest files if over limit
     if (files.length > MAX_CACHE_FILES) {
       const toRemove = files.slice(0, files.length - MAX_CACHE_FILES);
       for (const file of toRemove) {

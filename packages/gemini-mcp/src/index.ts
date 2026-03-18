@@ -1,13 +1,12 @@
 import { createRequire } from "node:module";
+import type { BaseToolArguments } from "@ask-llm/shared";
+import { Logger, PROTOCOL } from "@ask-llm/shared";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import type { RequestHandlerExtra } from "@modelcontextprotocol/sdk/shared/protocol.js";
 import type { CallToolResult, ServerNotification, ServerRequest } from "@modelcontextprotocol/sdk/types.js";
 import type { z } from "zod";
-import type { ToolArguments } from "./constants.js";
-import { PROTOCOL } from "./constants.js";
 import { executeTool, getPromptMessage, toolRegistry } from "./tools/index.js";
-import { Logger } from "./utils/logger.js";
 
 function readPackageJson(): { name: string; version: string } {
   try {
@@ -95,7 +94,6 @@ function stopProgressUpdates(progressData: { interval: NodeJS.Timeout }, extra: 
   );
 }
 
-// Register tools from the unified registry with their actual Zod schemas
 for (const tool of toolRegistry) {
   const shape = (tool.zodSchema as z.ZodObject<z.ZodRawShape>).shape;
 
@@ -107,7 +105,7 @@ for (const tool of toolRegistry) {
       const progressData = startProgressUpdates(toolName, extra);
 
       try {
-        const toolArgs = args as unknown as ToolArguments;
+        const toolArgs = args as unknown as BaseToolArguments;
         Logger.toolInvocation(toolName, args);
 
         const result = await executeTool(toolName, toolArgs, (newOutput) => {
@@ -135,7 +133,6 @@ for (const tool of toolRegistry) {
   );
 }
 
-// Register prompts from the unified registry
 for (const tool of toolRegistry) {
   if (!tool.prompt) continue;
 
@@ -152,11 +149,6 @@ for (const tool of toolRegistry) {
   });
 }
 
-/**
- * Smithery sandbox server export for capability scanning.
- * Returns a configured McpServer with tools/prompts registered but no transport connected.
- * See: https://smithery.ai/docs/deploy#sandbox-server
- */
 export function createSandboxServer(): McpServer {
   const sandbox = new McpServer({ name, version });
 

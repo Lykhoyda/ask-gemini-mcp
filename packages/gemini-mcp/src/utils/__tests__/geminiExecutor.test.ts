@@ -1,19 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CLI, MODELS } from "../../constants.js";
 
-vi.mock("../commandExecutor.js", () => ({
-  executeCommand: vi.fn(),
-}));
+vi.mock("@ask-llm/shared", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@ask-llm/shared")>();
+  return {
+    ...actual,
+    executeCommand: vi.fn(),
+    Logger: {
+      warn: vi.fn(),
+      debug: vi.fn(),
+      error: vi.fn(),
+    },
+  };
+});
 
-vi.mock("../logger.js", () => ({
-  Logger: {
-    warn: vi.fn(),
-    debug: vi.fn(),
-    error: vi.fn(),
-  },
-}));
-
-import { executeCommand } from "../commandExecutor.js";
+import { executeCommand } from "@ask-llm/shared";
 import { executeGeminiCLI } from "../geminiExecutor.js";
 
 const mockExecuteCommand = vi.mocked(executeCommand);

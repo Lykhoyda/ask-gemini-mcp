@@ -1,0 +1,20 @@
+{
+  "name": "@ask-llm/plugin",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -b",
+    "test": "echo 'No tests yet'",
+    "lint": "biome check src/ && tsc --noEmit"
+  },
+  "dependencies": {
+    "@ask-llm/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.4",
+    "@types/node": "^22.19.13",
+    "typescript": "^5.0.0"
+  }
+}

@@ -4,7 +4,7 @@
 
 [![npm version](https://img.shields.io/npm/v/ask-gemini-mcp)](https://www.npmjs.com/package/ask-gemini-mcp)
 [![npm downloads](https://img.shields.io/npm/dt/ask-gemini-mcp)](https://www.npmjs.com/package/ask-gemini-mcp)
-[![GitHub Release](https://img.shields.io/github/v/release/Lykhoyda/ask-gemini-mcp?logo=github&label=GitHub)](https://github.com/Lykhoyda/ask-gemini-mcp/releases)
+[![GitHub Release](https://img.shields.io/github/v/release/Lykhoyda/ask-llm?logo=github&label=GitHub)](https://github.com/Lykhoyda/ask-llm/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
 **MCP server that connects any AI client to Google Gemini CLI**
@@ -13,8 +13,8 @@
 
 An [MCP](https://modelcontextprotocol.io/) server for AI-to-AI collaboration via the Gemini CLI. Available on npm: [`ask-gemini-mcp`](https://www.npmjs.com/package/ask-gemini-mcp). Works with Claude Code, Claude Desktop, Cursor, Warp, Copilot, and [40+ other MCP clients](https://modelcontextprotocol.io/clients). Leverage Gemini's massive 1M+ token context window for large file and codebase analysis while your primary AI handles interaction and code editing.
 
-<a href="https://glama.ai/mcp/servers/@Lykhoyda/ask-gemini-mcp">
-  <img width="380" height="200" src="https://glama.ai/mcp/servers/@Lykhoyda/ask-gemini-mcp/badge" alt="ask-gemini-mcp MCP server" />
+<a href="https://glama.ai/mcp/servers/@Lykhoyda/ask-llm">
+  <img width="380" height="200" src="https://glama.ai/mcp/servers/@Lykhoyda/ask-llm/badge" alt="ask-gemini-mcp MCP server" />
 </a>
 
 ## Why?
@@ -157,7 +157,7 @@ The server automatically falls back to Flash when Pro quota is exceeded.
 
 ## Contributing
 
-Contributions are welcome! See [open issues](https://github.com/Lykhoyda/ask-gemini-mcp/issues) for things to work on.
+Contributions are welcome! See [open issues](https://github.com/Lykhoyda/ask-llm/issues) for things to work on.
 
 ## License
 

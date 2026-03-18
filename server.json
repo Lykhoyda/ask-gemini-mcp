@@ -3,7 +3,7 @@
   "name": "io.github.Lykhoyda/ask-gemini",
   "description": "Bridge Claude with Gemini CLI for AI-to-AI collaboration, code review, and second opinions",
   "repository": {
-    "url": "https://github.com/Lykhoyda/ask-gemini-mcp",
+    "url": "https://github.com/Lykhoyda/ask-llm",
     "source": "github"
   },
   "version": "1.2.1",

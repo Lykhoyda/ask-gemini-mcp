@@ -127,5 +127,5 @@ By bridging Claude Desktop with Google's powerful models, Gemini MCP Tool lets y
 ## More Questions?
 
 - Check [Documentation](/)
-- Browse [GitHub Issues](https://github.com/Lykhoyda/ask-gemini-mcp/issues)
-- Ask in [Discussions](https://github.com/Lykhoyda/ask-gemini-mcp/discussions)
+- Browse [GitHub Issues](https://github.com/Lykhoyda/ask-llm/issues)
+- Ask in [Discussions](https://github.com/Lykhoyda/ask-llm/discussions)

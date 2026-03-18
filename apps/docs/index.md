@@ -11,7 +11,7 @@ hero:
       link: /getting-started
     - theme: alt
       text: View on GitHub
-      link: https://github.com/Lykhoyda/ask-gemini-mcp
+      link: https://github.com/Lykhoyda/ask-llm
     - theme: alt
       text: npm package
       link: https://www.npmjs.com/package/ask-gemini-mcp

@@ -32,13 +32,13 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Lykhoyda/ask-gemini-mcp.git",
+    "url": "git+https://github.com/Lykhoyda/ask-llm.git",
     "directory": "packages/gemini-mcp"
   },
   "bugs": {
-    "url": "https://github.com/Lykhoyda/ask-gemini-mcp/issues"
+    "url": "https://github.com/Lykhoyda/ask-llm/issues"
   },
-  "homepage": "https://github.com/Lykhoyda/ask-gemini-mcp#readme",
+  "homepage": "https://github.com/Lykhoyda/ask-llm#readme",
   "engines": {
     "node": ">=20.0.0"
   },

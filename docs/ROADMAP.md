@@ -15,10 +15,11 @@
 ## Priority 8: Multi-LLM Support (ask-llm-mcp) — ADR-020, ADR-026
 - [x] **Phase 1: Monorepo restructure** — yarn workspaces, packages/shared + packages/gemini-mcp + packages/plugin (ADR-026)
 - [ ] **Phase 2: Plugin providers** — Gemini, Codex, Ollama providers in packages/plugin
-- [ ] **Phase 3: Codex MCP** — packages/ask-codex/, codexExecutor with quiet mode, default to highest-tier model. Reference impl: [cexll/codex-mcp-server](https://github.com/cexll/codex-mcp-server) (study patterns, implement more minimally)
-- [ ] **Phase 4: Orchestrator** — packages/ask-llm/, imports all provider tools, isAvailable() gating, publish ask-llm-mcp
+- [x] **Phase 3: Codex MCP** — packages/codex-mcp/ (`ask-codex-mcp`), codexExecutor with JSONL parsing, gpt-5.4 default with gpt-5.4-mini fallback on quota errors (ADR-028)
+- [x] **Phase 4: Orchestrator** — packages/llm-mcp/ (`ask-llm-mcp`), dynamic provider import via `./register` subpath, `isCommandAvailable()` gating, tool dedup, startup logging (ADR-029)
 - [ ] **Phase 5: Ollama (v2)** — packages/ask-ollama/, HTTP executor, Docker integration tests
 - [ ] **Cloud smoke tests** — nightly CI with API keys as secrets, one real call per provider
+- [x] **Benchmark** — token overhead + latency comparison of MCP vs Skill vs Subagent vs Orchestrator (ADR-030, static analysis complete, manual runs pending)
 - See [design doc](plans/2026-02-26-ask-llm-mcp-design.md)
 
 ## Undecided / Potential Improvements

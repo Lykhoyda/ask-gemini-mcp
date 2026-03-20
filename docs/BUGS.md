@@ -49,6 +49,14 @@
 - **Description:** The `GeminiModelTokens` interface included a `thoughts` field and the Gemini CLI returns thinking token counts, but `formatStats` never displayed them. Users had no visibility into how many thinking tokens Gemini used.
 - **Fix:** Added `if (tokens.thoughts != null && tokens.thoughts > 0) parts.push(...)` to `formatStats`, displayed between output tokens and cached count.
 
+## Shared Layer — Known Technical Debt
+
+### commandExecutor.ts contains Gemini-specific quota detection
+- **Severity:** Low
+- **File:** `packages/shared/src/commandExecutor.ts`, lines 58–78
+- **Description:** The shared `executeCommand` function checks stderr for `RESOURCE_EXHAUSTED` and logs Gemini-specific error JSON. This is dead code for the Codex provider (Codex uses `rate_limit_exceeded` / `429` in error messages, not gRPC status codes). Harmless but violates the "provider-agnostic shared code" principle.
+- **Deferred fix:** Refactor `executeCommand` to accept an optional provider-specific stderr handler callback. Requires its own ADR and test updates across both provider packages.
+
 ## Claude Code Plugin — Known Limitations (from Gemini & Codex review)
 
 ### Untracked files not included in Stop hook review

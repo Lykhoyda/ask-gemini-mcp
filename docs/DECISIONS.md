@@ -1,5 +1,28 @@
 # Architectural Decisions
 
+## ADR-030: Multi-Approach Benchmark (MCP vs Skill vs Subagent vs Orchestrator)
+- **Date:** 2026-03-20
+- **Status:** In Progress (static analysis complete, manual runs pending)
+- **Context:** The project offers four approaches to external LLM consultation: Standalone MCP, Orchestrator MCP, Skill, and Subagent. ADR-024 was a one-off experiment on a single file. This formalizes the comparison with reproducible methodology across three metrics: token overhead, latency, and review quality.
+- **Decision:** (1) Static analysis via `scripts/benchmark-overhead.ts` — imports tool registries from provider `./register` subpath exports, counts BPE tokens via `js-tiktoken` (cl100k_base). (2) Manual run protocol with 5 runs per approach per scenario (60 total) across three scenarios (small/medium/large). (3) Decision criteria: token overhead drives tier classification (<10% = default, 10-30% = multi-provider only, >30% = convenience option), latency is secondary filter. (4) Skill overhead reported per-window (primary + subagent) since costs burden different Claude instances.
+- **Findings (post-redesign):** Orchestrator: 312 tokens (-68% vs baseline). Standalone Codex: 411 tokens. Standalone Gemini: 973 tokens (baseline). Subagent: 1,274 tokens (+31%). Skill: 1,430 tokens (+47%). The unified `ask-llm` tool redesign made the orchestrator the most token-efficient approach (Tier 1). Latency data pending.
+- **Consequences:** Produces `docs/benchmarks/overhead.md` (static token costs), `docs/benchmarks/results.md` (latency + quality), and `docs/benchmarks/RECOMMENDATION.md` (user-facing decision tree). Results inform whether `ask-llm-mcp` is recommended as default or positioned as a convenience option.
+
+## ADR-029: Orchestrator MCP Package (ask-llm-mcp)
+- **Date:** 2026-03-20
+- **Status:** Accepted (implements ADR-020 Phase 4)
+- **Context:** ADR-020 approved a unified orchestrator that registers tools from all available providers in one MCP server. Users install `ask-llm-mcp` instead of individual provider packages.
+- **Decision (v2 — unified tool):** Redesigned after ADR-030 benchmark showed the original per-provider-tool approach added +42% token overhead. (1) Package at `packages/llm-mcp/` → npm `ask-llm-mcp`. (2) Single unified `ask-llm` tool with `provider` parameter (enum of available CLIs) + `prompt` + `model`. Replaces registering each provider's individual tools (which required 4+ tool schemas). (3) At startup, `isCommandAvailable()` checks each provider's CLI on PATH, then dynamically imports the executor function via `ask-<provider>-mcp/executor` subpath. (4) Provider enum in the tool schema is built from detected providers. (5) Routing: the `ask-llm` handler dispatches to the appropriate executor based on the `provider` field. (6) Token cost: 312 tokens total (ask-llm: 240 + ping: 72) — 68% less than standalone Gemini (973 tokens). (7) Startup logs available/missing providers to stderr.
+- **Consequences:** The orchestrator is now the most token-efficient approach. Users get multi-provider access through one tool with minimal context overhead. Trade-off: provider-specific parameters (Gemini sandbox, changeMode, sessions) are not exposed through the unified tool — users needing those should use standalone MCP. 7 tests across 2 files.
+
+## ADR-028: Codex MCP Package (ask-codex-mcp)
+- **Date:** 2026-03-19
+- **Status:** Accepted (implements ADR-020 Phase 3)
+- **Context:** ADR-020 approved multi-LLM provider packages. Phase 3 adds OpenAI Codex CLI support as a standalone MCP server (`packages/codex-mcp/` → npm `ask-codex-mcp`), mirroring the proven `packages/gemini-mcp/` pattern.
+- **Decision:** (1) Use `executeCommand` from `@ask-llm/shared` as the subprocess transport — the Gemini-specific `RESOURCE_EXHAUSTED` stderr handler in `commandExecutor.ts` is harmless dead code for Codex (never triggers). (2) Invoke Codex via `codex exec --skip-git-repo-check --ephemeral --json -m <model> "<prompt>"` — the prompt is a bare positional argument per official Codex CLI docs; `--quiet` and `--approval-mode` flags do not exist for `codex exec`. (3) Parse JSONL stdout: scan all lines, find the last `item.completed` event where `item.type === "agent_message"`, extract `item.text`. Error events are accumulated and thrown only if no `agent_message` was found (non-fatal errors during tool sub-steps don't discard the final response). Token stats from `turn.completed` events are appended as a stats footer. (4) Default model `gpt-5.4` with automatic fallback to `gpt-5.4-mini` on quota/rate-limit errors (signals: `rate_limit_exceeded`, `quota_exceeded`, `429`, `insufficient_quota`). (5) Added `"codex"` to the `UnifiedTool.category` union in `@ask-llm/shared/registry.ts`. (6) MCP Registry publishing ready via `mcpName` and `server.json`.
+- **Reference implementations studied:** [cexll/codex-mcp-server](https://github.com/cexll/codex-mcp-server) (9 tools, `cross-spawn`, changeMode — too complex for our needs), [tuannvm/codex-mcp-server](https://github.com/tuannvm/codex-mcp-server) (simpler, captures raw stdout without `--json`). Both confirmed the bare positional prompt pattern and `--skip-git-repo-check` flag. Neither uses JSONL parsing.
+- **Consequences:** Codex MCP is a standalone MCP server installable via `npx ask-codex-mcp`. 22 tests across 2 files. Zero changes to `gemini-mcp`. One 1-line change to `@ask-llm/shared` (category union). The `./executor` subpath export enables future plugin integration.
+
 ## ADR-027: Claude Code Plugin — Implementation of ADR-018
 - **Date:** 2026-03-19
 - **Status:** Accepted (implements ADR-018)

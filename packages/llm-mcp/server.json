@@ -1,0 +1,26 @@
+{
+  "name": "ask-llm-mcp",
+  "description": "Unified MCP server for multi-LLM consultation — Gemini, Codex, and more. Automatically detects installed CLI tools and exposes only available providers.",
+  "license": "MIT",
+  "repository": "https://github.com/Lykhoyda/ask-llm",
+  "package": {
+    "registry": "npm",
+    "name": "ask-llm-mcp",
+    "version": "0.1.0"
+  },
+  "tools": [
+    {
+      "name": "ask-gemini",
+      "description": "Send a prompt to Google Gemini CLI (requires gemini CLI installed)"
+    },
+    {
+      "name": "ask-codex",
+      "description": "Send a prompt to OpenAI Codex CLI (requires codex CLI installed)"
+    },
+    {
+      "name": "ping",
+      "description": "Test connectivity with the MCP server"
+    }
+  ],
+  "env": []
+}

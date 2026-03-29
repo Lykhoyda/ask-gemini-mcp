@@ -60,10 +60,14 @@ describe("ResponseCache", () => {
     expect(cache.get("big1")).toBeNull();
   });
 
-  it("rejects single entries larger than maxSizeBytes", () => {
+  it("rejects single entries larger than maxSizeBytes without flushing existing", () => {
+    cache.set("keep", "small value");
+    expect(cache.size).toBe(1);
+
     const huge = "x".repeat(2048);
     cache.set("huge", huge);
-    expect(cache.size).toBe(0);
+    expect(cache.size).toBe(1);
+    expect(cache.get("keep")).toBe("small value");
   });
 
   it("updates existing entries on re-set", () => {
@@ -102,6 +106,12 @@ describe("ResponseCache", () => {
       const k1 = ResponseCache.buildKey("gemini", "hello");
       const k2 = ResponseCache.buildKey("gemini", "hello");
       expect(k1).toBe(k2);
+    });
+
+    it("produces different keys when extra context differs", () => {
+      const k1 = ResponseCache.buildKey("gemini", "hello", "pro", "/path/a");
+      const k2 = ResponseCache.buildKey("gemini", "hello", "pro", "/path/b");
+      expect(k1).not.toBe(k2);
     });
   });
 });

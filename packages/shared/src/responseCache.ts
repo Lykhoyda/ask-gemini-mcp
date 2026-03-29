@@ -31,8 +31,8 @@ export class ResponseCache {
     this.maxEntries = options?.maxEntries ?? DEFAULT_MAX_ENTRIES;
   }
 
-  static buildKey(provider: string, prompt: string, model?: string): string {
-    const raw = `${provider}:${model ?? "default"}:${prompt}`;
+  static buildKey(provider: string, prompt: string, model?: string, extra?: string): string {
+    const raw = `${provider}:${model ?? "default"}:${extra ?? ""}:${prompt}`;
     return createHash("sha256").update(raw).digest("hex").slice(0, 16);
   }
 
@@ -57,15 +57,15 @@ export class ResponseCache {
 
     const sizeBytes = Buffer.byteLength(response, "utf-8");
 
+    if (sizeBytes > this.maxSizeBytes) {
+      Logger.debug(`Response too large to cache: ${sizeBytes} bytes`);
+      return;
+    }
+
     while (this.totalSizeBytes + sizeBytes > this.maxSizeBytes || this.cache.size >= this.maxEntries) {
       const lruKey = this.findLRU();
       if (!lruKey) break;
       this.delete(lruKey);
-    }
-
-    if (sizeBytes > this.maxSizeBytes) {
-      Logger.debug(`Response too large to cache: ${sizeBytes} bytes`);
-      return;
     }
 
     this.cache.set(key, {

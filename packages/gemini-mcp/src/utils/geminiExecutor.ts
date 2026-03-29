@@ -191,23 +191,22 @@ function buildArgs(
   return args;
 }
 
-function handleGeminiStderr(stderr: string): void {
-  if (stderr.includes("RESOURCE_EXHAUSTED")) {
-    const modelMatch = stderr.match(/Quota exceeded for quota metric '([^']+)'/);
-    const statusMatch = stderr.match(/status["\s]*[:=]\s*(\d+)/);
-    const reasonMatch = stderr.match(/"reason":\s*"([^"]+)"/);
-    const model = modelMatch ? modelMatch[1] : "Unknown Model";
-    const status = statusMatch ? statusMatch[1] : "429";
-    const reason = reasonMatch ? reasonMatch[1] : "rateLimitExceeded";
-    const errorJson = {
-      error: {
-        code: parseInt(status, 10),
-        message: `GMCPT: --> Quota exceeded for ${model}`,
-        details: { model, reason, statusText: "Too Many Requests" },
-      },
-    };
-    Logger.error(`Gemini Quota Error: ${JSON.stringify(errorJson, null, 2)}`);
-  }
+function createGeminiStderrHandler(): (chunk: string) => void {
+  let buffer = "";
+  let logged = false;
+  return (chunk: string) => {
+    buffer += chunk;
+    if (!logged && buffer.includes("RESOURCE_EXHAUSTED")) {
+      logged = true;
+      const modelMatch = buffer.match(/Quota exceeded for quota metric '([^']+)'/);
+      const statusMatch = buffer.match(/status["\s]*[:=]\s*(\d+)/);
+      const reasonMatch = buffer.match(/"reason":\s*"([^"]+)"/);
+      const model = modelMatch ? modelMatch[1] : "Unknown Model";
+      const status = statusMatch ? statusMatch[1] : "429";
+      const reason = reasonMatch ? reasonMatch[1] : "rateLimitExceeded";
+      Logger.error(`Gemini Quota Error: code=${status}, model=${model}, reason=${reason}`);
+    }
+  };
 }
 
 export async function executeGeminiCLI(options: GeminiExecutorOptions): Promise<GeminiExecutorResult> {
@@ -282,8 +281,10 @@ ${prompt_processed}
 
   const args = buildArgs(prompt_processed, model || MODELS.PRO, sandbox, sessionId, includeDirs);
 
+  const resolvedModel = model || MODELS.PRO;
   const isCacheable = !sessionId && !sandbox && !changeMode;
-  const cacheKey = isCacheable ? ResponseCache.buildKey("gemini", options.prompt, model) : null;
+  const extraContext = includeDirs?.length ? includeDirs.sort().join(":") : undefined;
+  const cacheKey = isCacheable ? ResponseCache.buildKey("gemini", options.prompt, resolvedModel, extraContext) : null;
 
   if (cacheKey) {
     const cached = responseCache.get(cacheKey);
@@ -294,7 +295,7 @@ ${prompt_processed}
   }
 
   try {
-    const raw = await executeCommand(CLI.COMMANDS.GEMINI, args, onProgress, handleGeminiStderr);
+    const raw = await executeCommand(CLI.COMMANDS.GEMINI, args, onProgress, createGeminiStderrHandler());
     const result = parseGeminiJsonOutput(raw);
     if (cacheKey) {
       responseCache.set(cacheKey, result.response);
@@ -307,7 +308,7 @@ ${prompt_processed}
       Logger.debug(`Status: ${STATUS_MESSAGES.FLASH_RETRY}`);
       const fallbackArgs = buildArgs(prompt_processed, MODELS.FLASH, sandbox, sessionId, includeDirs);
       try {
-        const raw = await executeCommand(CLI.COMMANDS.GEMINI, fallbackArgs, onProgress);
+        const raw = await executeCommand(CLI.COMMANDS.GEMINI, fallbackArgs, onProgress, createGeminiStderrHandler());
         Logger.warn(`Successfully executed with ${MODELS.FLASH} fallback.`);
         Logger.debug(`Status: ${STATUS_MESSAGES.FLASH_SUCCESS}`);
         return parseGeminiJsonOutput(raw);

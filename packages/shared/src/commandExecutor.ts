@@ -55,9 +55,10 @@ export async function executeCommand(
     });
 
     childProcess.stderr.on("data", (data: Buffer) => {
-      stderr += data.toString();
+      const chunk = data.toString();
+      stderr += chunk;
       if (onStderr) {
-        onStderr(stderr);
+        onStderr(chunk);
       }
     });
 

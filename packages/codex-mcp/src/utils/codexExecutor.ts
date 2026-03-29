@@ -135,9 +135,7 @@ export async function executeCodexCLI(options: CodexExecutorOptions): Promise<Co
         const raw = await executeCommand(CLI.COMMANDS.CODEX, fallbackArgs, options.onProgress);
         Logger.warn(`Successfully executed with ${MODELS.FALLBACK} fallback.`);
         Logger.debug(`Status: ${STATUS_MESSAGES.FALLBACK_SUCCESS}`);
-        const fallbackResult = parseCodexJsonlOutput(raw);
-        responseCache.set(cacheKey, fallbackResult.response);
-        return fallbackResult;
+        return parseCodexJsonlOutput(raw);
       } catch (fallbackError) {
         const fallbackMsg = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
         throw new Error(`${MODELS.DEFAULT} quota exceeded, ${MODELS.FALLBACK} fallback also failed: ${fallbackMsg}`);

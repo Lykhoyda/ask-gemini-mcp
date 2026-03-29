@@ -32,8 +32,16 @@ export async function detectProviders(): Promise<ProviderStatus> {
   const available: string[] = [];
   const missing: string[] = [];
 
-  for (const [key, provider] of Object.entries(PROVIDERS)) {
-    if (await isCommandAvailable(provider.command)) {
+  const checks = await Promise.all(
+    Object.entries(PROVIDERS).map(async ([key, provider]) => ({
+      key,
+      provider,
+      found: await isCommandAvailable(provider.command),
+    })),
+  );
+
+  for (const { key, provider, found } of checks) {
+    if (found) {
       try {
         const mod = await import(provider.executorModule);
         loadedExecutors.set(key, mod[provider.executorFn] as ExecutorFn);
@@ -80,9 +88,11 @@ function buildAskLlmSchema(availableProviders: string[]) {
 
 type ToolExtra = RequestHandlerExtra<ServerRequest, ServerNotification>;
 
-let isProcessing = false;
-let currentOperationName = "";
-let latestOutput = "";
+interface ProgressHandle {
+  interval: NodeJS.Timeout;
+  stop: (success: boolean) => void;
+  updateOutput: (output: string) => void;
+}
 
 async function sendProgressNotification(extra: ToolExtra, progress: number, total?: number, message?: string) {
   const progressToken = extra._meta?.progressToken;
@@ -97,10 +107,9 @@ async function sendProgressNotification(extra: ToolExtra, progress: number, tota
   }
 }
 
-function startProgressUpdates(operationName: string, extra: ToolExtra) {
-  isProcessing = true;
-  currentOperationName = operationName;
-  latestOutput = "";
+function startProgressUpdates(operationName: string, extra: ToolExtra): ProgressHandle {
+  let active = true;
+  let latestOutput = "";
 
   const msgs = [
     `${operationName} - Processing your request...`,
@@ -114,7 +123,7 @@ function startProgressUpdates(operationName: string, extra: ToolExtra) {
   sendProgressNotification(extra, 0, undefined, `Starting ${operationName}`);
 
   const interval = setInterval(async () => {
-    if (isProcessing) {
+    if (active) {
       progress += 1;
       const base = msgs[idx % msgs.length];
       const preview = latestOutput.slice(-150).trim();
@@ -125,15 +134,17 @@ function startProgressUpdates(operationName: string, extra: ToolExtra) {
     }
   }, PROTOCOL.KEEPALIVE_INTERVAL);
 
-  return { interval };
-}
-
-function stopProgressUpdates(data: { interval: NodeJS.Timeout }, extra: ToolExtra, success = true) {
-  const op = currentOperationName;
-  isProcessing = false;
-  currentOperationName = "";
-  clearInterval(data.interval);
-  sendProgressNotification(extra, 100, 100, success ? `${op} completed` : `${op} failed`);
+  return {
+    interval,
+    stop(success: boolean) {
+      active = false;
+      clearInterval(interval);
+      sendProgressNotification(extra, 100, 100, success ? `${operationName} completed` : `${operationName} failed`);
+    },
+    updateOutput(output: string) {
+      latestOutput = output;
+    },
+  };
 }
 
 export async function startServer() {
@@ -154,7 +165,7 @@ export async function startServer() {
       annotations: { title: "Ask LLM", readOnlyHint: false, destructiveHint: false, openWorldHint: true },
     },
     async (args: Record<string, unknown>, extra: ToolExtra): Promise<CallToolResult> => {
-      const progressData = startProgressUpdates("ask-llm", extra);
+      const progress = startProgressUpdates("ask-llm", extra);
       try {
         const { provider, prompt, model } = askLlmSchema.parse(args);
         Logger.toolInvocation("ask-llm", args);
@@ -171,15 +182,15 @@ export async function startServer() {
           prompt,
           model,
           onProgress: (output) => {
-            latestOutput = output;
+            progress.updateOutput(output);
           },
         });
 
-        stopProgressUpdates(progressData, extra, true);
+        progress.stop(true);
         const providerName = PROVIDERS[provider]?.name ?? provider;
         return { content: [{ type: "text", text: `${providerName} response:\n${result.response}` }], isError: false };
       } catch (error) {
-        stopProgressUpdates(progressData, extra, false);
+        progress.stop(false);
         const msg = error instanceof Error ? error.message : String(error);
         Logger.error("ask-llm error:", error);
         return { content: [{ type: "text", text: `Error: ${msg}` }], isError: true };

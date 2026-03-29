@@ -15,6 +15,15 @@ function getTimeoutMs(): number {
   return EXECUTION.DEFAULT_TIMEOUT_MS;
 }
 
+export function quoteArgsForWindows(args: string[]): string[] {
+  return args.map((a) => {
+    if (a.includes(" ") || a.includes('"') || a.includes("&") || a.includes("|") || a.includes("^")) {
+      return `"${a.replace(/"/g, '\\"')}"`;
+    }
+    return a;
+  });
+}
+
 export async function executeCommand(
   command: string,
   args: string[],
@@ -24,7 +33,9 @@ export async function executeCommand(
   return new Promise((resolve, reject) => {
     const commandId = Logger.commandExecution(command, args);
 
-    const childProcess = spawn(command, args, {
+    const safeArgs = IS_WINDOWS ? quoteArgsForWindows(args) : args;
+
+    const childProcess = spawn(command, safeArgs, {
       env: process.env,
       shell: IS_WINDOWS,
       stdio: ["ignore", "pipe", "pipe"],

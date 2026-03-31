@@ -1,5 +1,13 @@
 # Architectural Decisions
 
+## ADR-033: Cloud Smoke Tests
+- **Date:** 2026-03-31
+- **Status:** Accepted
+- **Context:** All 173 unit tests use mocked executors — none verify real CLI/HTTP integrations. Upstream API changes, model deprecations, or CLI flag changes could silently break the tool.
+- **Decision:** (1) Integration test files in each provider's `__tests__/integration.test.ts`, guarded by `SMOKE_TEST` env var via `describe.skipIf(!SMOKE)`. Normal `yarn test` skips them. (2) GitHub Actions workflow `.github/workflows/smoke.yml` with weekly schedule (Monday 06:00 UTC) + `workflow_dispatch` with provider selector input. (3) Three independent jobs: Gemini (installs `@google/gemini-cli`, auth via `GOOGLE_API_KEY` secret), Codex (installs `@openai/codex`, auth via `OPENAI_API_KEY` secret), Ollama (Docker service container `ollama/ollama`, pulls `qwen2.5-coder:1.5b`). (4) Summary job aggregates results into GitHub Step Summary with pass/fail/skip per provider. (5) Each test sends "What is 2+2?" and verifies response contains "4" — cheap, deterministic, validates the full path.
+- **Trade-offs:** Weekly not nightly — saves API credits while still catching regressions within a week. Ollama uses the 1.5b model (not 7b default) to keep CI fast and image small. Secrets must be manually configured in repo settings.
+- **Consequences:** First real end-to-end validation of the CLI/HTTP integrations. Requires `GOOGLE_API_KEY` and `OPENAI_API_KEY` repo secrets. Ollama job needs no secrets. Developers can run integration tests locally with `SMOKE_TEST=1 yarn workspace <pkg> run test`.
+
 ## ADR-032: Ollama MCP Package (ask-ollama-mcp)
 - **Date:** 2026-03-30
 - **Status:** Accepted (implements ADR-020 Phase 5)

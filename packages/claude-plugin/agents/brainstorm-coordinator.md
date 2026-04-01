@@ -31,12 +31,12 @@ Build a clear, structured prompt for the providers. The prompt should:
 
 ### Phase 3: Parallel Consultation
 
-Send the prompt to ALL available providers simultaneously using MCP tools:
+The user specifies which providers to use. Default is `gemini,codex`. Only send to the requested providers:
 - `ask-gemini` — Google Gemini (large context, strong at analysis)
 - `ask-codex` — OpenAI Codex (strong at code reasoning)
 - `ask-ollama` — Local Ollama (private, no data leaves machine)
 
-Use whichever tools are available. If a provider fails or is unavailable, continue with the others. Always try at least 2 providers.
+Send to all selected providers simultaneously. If a provider fails, continue with the others. At least 2 providers should be consulted for meaningful synthesis.
 
 ### Phase 4: Synthesis
 

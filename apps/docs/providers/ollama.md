@@ -4,11 +4,11 @@ Run local LLMs via Ollama's HTTP API. No API keys needed, fully private, zero co
 
 ## Installation
 
-```bash
-# Claude Code (recommended)
-claude mcp add ollama -- npx -y ask-ollama-mcp
+<SetupTabs provider="ollama" />
 
-# Or install globally
+Or install globally:
+
+```bash
 npm install -g ask-ollama-mcp
 ```
 

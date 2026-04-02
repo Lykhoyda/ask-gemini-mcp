@@ -13,7 +13,7 @@
     },
     "./register": "./dist/tools/index.js"
   },
-  "bin": "dist/cli.js",
+  "bin": { "ask-codex-mcp": "dist/cli.js" },
   "scripts": {
     "build": "tsc -b",
     "start": "node dist/cli.js",

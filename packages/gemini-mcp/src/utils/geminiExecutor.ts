@@ -211,10 +211,10 @@ function createGeminiStderrHandler(): (chunk: string) => void {
 
 export async function executeGeminiCLI(options: GeminiExecutorOptions): Promise<GeminiExecutorResult> {
   const { model, sandbox, changeMode, sessionId, includeDirs, onProgress } = options;
-  let prompt_processed = options.prompt;
+  let promptProcessed = options.prompt;
 
   if (changeMode) {
-    prompt_processed = prompt_processed.replace(/file:(\S+)/g, "@$1");
+    promptProcessed = promptProcessed.replace(/file:(\S+)/g, "@$1");
 
     const changeModeInstructions = `
 [CHANGEMODE INSTRUCTIONS]
@@ -274,12 +274,12 @@ NEW:
 IMPORTANT: The OLD section must be an EXACT copy from the file that can be found with Ctrl+F!
 
 USER REQUEST:
-${prompt_processed}
+${promptProcessed}
 `;
-    prompt_processed = changeModeInstructions;
+    promptProcessed = changeModeInstructions;
   }
 
-  const args = buildArgs(prompt_processed, model || MODELS.PRO, sandbox, sessionId, includeDirs);
+  const args = buildArgs(promptProcessed, model || MODELS.PRO, sandbox, sessionId, includeDirs);
 
   const resolvedModel = model || MODELS.PRO;
   const isCacheable = !sessionId && !sandbox && !changeMode;
@@ -306,7 +306,7 @@ ${prompt_processed}
     if (errorMessage.includes(ERROR_MESSAGES.QUOTA_EXCEEDED) && model !== MODELS.FLASH) {
       Logger.warn(`${ERROR_MESSAGES.QUOTA_EXCEEDED}. Falling back to ${MODELS.FLASH}.`);
       Logger.debug(`Status: ${STATUS_MESSAGES.FLASH_RETRY}`);
-      const fallbackArgs = buildArgs(prompt_processed, MODELS.FLASH, sandbox, sessionId, includeDirs);
+      const fallbackArgs = buildArgs(promptProcessed, MODELS.FLASH, sandbox, sessionId, includeDirs);
       try {
         const raw = await executeCommand(CLI.COMMANDS.GEMINI, fallbackArgs, onProgress, createGeminiStderrHandler());
         Logger.warn(`Successfully executed with ${MODELS.FLASH} fallback.`);

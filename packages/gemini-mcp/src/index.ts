@@ -23,9 +23,11 @@ type ToolExtra = RequestHandlerExtra<ServerRequest, ServerNotification>;
 
 const server = new McpServer({ name, version });
 
-let isProcessing = false;
-let currentOperationName = "";
-let latestOutput = "";
+interface ProgressHandle {
+  interval: NodeJS.Timeout;
+  stop: (success: boolean) => void;
+  updateOutput: (output: string) => void;
+}
 
 async function sendProgressNotification(extra: ToolExtra, progress: number, total?: number, message?: string) {
   const progressToken = extra._meta?.progressToken;
@@ -45,10 +47,9 @@ async function sendProgressNotification(extra: ToolExtra, progress: number, tota
   }
 }
 
-function startProgressUpdates(operationName: string, extra: ToolExtra) {
-  isProcessing = true;
-  currentOperationName = operationName;
-  latestOutput = "";
+function startProgressUpdates(operationName: string, extra: ToolExtra): ProgressHandle {
+  let active = true;
+  let latestOutput = "";
 
   const progressMessages = [
     `${operationName} - Gemini is analyzing your request...`,
@@ -63,8 +64,8 @@ function startProgressUpdates(operationName: string, extra: ToolExtra) {
 
   sendProgressNotification(extra, 0, undefined, `Starting ${operationName}`);
 
-  const progressInterval = setInterval(async () => {
-    if (isProcessing) {
+  const interval = setInterval(async () => {
+    if (active) {
       progress += 1;
       const baseMessage = progressMessages[messageIndex % progressMessages.length];
       const outputPreview = latestOutput.slice(-150).trim();
@@ -73,25 +74,21 @@ function startProgressUpdates(operationName: string, extra: ToolExtra) {
       await sendProgressNotification(extra, progress, undefined, message);
       messageIndex++;
     } else {
-      clearInterval(progressInterval);
+      clearInterval(interval);
     }
   }, PROTOCOL.KEEPALIVE_INTERVAL);
 
-  return { interval: progressInterval };
-}
-
-function stopProgressUpdates(progressData: { interval: NodeJS.Timeout }, extra: ToolExtra, success: boolean = true) {
-  const operationName = currentOperationName;
-  isProcessing = false;
-  currentOperationName = "";
-  clearInterval(progressData.interval);
-
-  sendProgressNotification(
-    extra,
-    100,
-    100,
-    success ? `${operationName} completed successfully` : `${operationName} failed`,
-  );
+  return {
+    interval,
+    stop(success: boolean) {
+      active = false;
+      clearInterval(interval);
+      sendProgressNotification(extra, 100, 100, success ? `${operationName} completed` : `${operationName} failed`);
+    },
+    updateOutput(output: string) {
+      latestOutput = output;
+    },
+  };
 }
 
 for (const tool of toolRegistry) {
@@ -102,24 +99,24 @@ for (const tool of toolRegistry) {
     { description: tool.description, inputSchema: shape, annotations: tool.annotations },
     async (args: Record<string, unknown>, extra: ToolExtra): Promise<CallToolResult> => {
       const toolName = tool.name;
-      const progressData = startProgressUpdates(toolName, extra);
+      const handle = startProgressUpdates(toolName, extra);
 
       try {
         const toolArgs = args as unknown as BaseToolArguments;
         Logger.toolInvocation(toolName, args);
 
         const result = await executeTool(toolName, toolArgs, (newOutput) => {
-          latestOutput = newOutput;
+          handle.updateOutput(newOutput);
         });
 
-        stopProgressUpdates(progressData, extra, true);
+        handle.stop(true);
 
         return {
           content: [{ type: "text", text: result }],
           isError: false,
         };
       } catch (error) {
-        stopProgressUpdates(progressData, extra, false);
+        handle.stop(false);
         Logger.error(`Error in tool '${toolName}':`, error);
 
         const errorMessage = error instanceof Error ? error.message : String(error);

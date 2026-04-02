@@ -1,5 +1,26 @@
 # Architectural Decisions
 
+## ADR-039: MCP Server Concurrency Fix and Package Cleanup
+- **Date:** 2026-04-02
+- **Status:** Accepted
+- **Context:** Code review of the MCP server packages revealed: (1) three individual servers (gemini, codex, ollama) used module-level mutable state (`isProcessing`, `currentOperationName`, `latestOutput`) for progress tracking — concurrent tool calls would corrupt this shared state. The orchestrator (`llm-mcp`) already had the correct fix using closure-scoped state. (2) `llm-mcp/tsconfig.json` was missing a project reference to `ollama-mcp`, causing stale types in incremental builds. (3) All four `package.json` files used string shorthand for `bin`, producing implicit binary names. (4) A `snake_case` variable (`prompt_processed`) existed in an otherwise `camelCase` codebase.
+- **Decision:** (1) Refactored all three provider servers to use the `ProgressHandle` closure pattern from `llm-mcp` — each tool invocation gets its own closure-scoped `active`, `latestOutput` variables instead of sharing module-level state. (2) Added `{ "path": "../ollama-mcp" }` to `llm-mcp`'s tsconfig references. (3) Converted all `bin` fields to named object form (`{ "ask-gemini-mcp": "dist/cli.js" }`). (4) Renamed `prompt_processed` → `promptProcessed`. (5) Fixed stale doc references to old `gemini-mcp` binary name.
+- **Consequences:** Parallel MCP tool invocations are now safe across all servers. The `ProgressHandle` interface is consistent across all four server implementations.
+
+## ADR-038: Plugin Marketplace Distribution
+- **Date:** 2026-04-02
+- **Status:** Accepted
+- **Context:** The `@ask-llm/plugin` Claude Code plugin could only be installed by cloning the repo and building from source. Claude Code uses a marketplace system for plugin distribution — plugins are listed in a `marketplace.json` file within a git repo, and users add the marketplace then install plugins from it.
+- **Decision:** (1) Created `.claude-plugin/marketplace.json` at the repo root with the `ask-llm-plugins` marketplace name. (2) Plugin source uses `git-subdir` type pointing to `packages/claude-plugin`, so Claude Code sparse-clones only the plugin directory. (3) Renamed plugin from `ask-gemini` to `ask-llm` in `plugin.json` to reflect multi-provider scope. (4) Updated docs with marketplace install as primary method (`/plugin marketplace add Lykhoyda/ask-llm` → `/plugin install ask-llm@ask-llm-plugins`), kept from-source as development option. (5) Plugin remains `"private": true` in npm — distribution is via the marketplace, not npm publish.
+- **Consequences:** Users can install with two commands instead of cloning and building. The repo serves double duty as source code and marketplace. Future option to submit to the official Anthropic marketplace for even wider reach.
+
+## ADR-037: Docs TypeScript Conversion, Provider SetupTabs, OpenGraph Metadata
+- **Date:** 2026-04-02
+- **Status:** Accepted
+- **Context:** Three remaining roadmap items from Priority 6 and Priority 7: (1) VitePress config and theme entry were plain JS files lacking type safety, (2) the SetupTabs installation component was hardcoded to `ask-gemini-mcp` and only used on the homepage — provider pages had static code blocks, (3) the README lacked OpenGraph metadata for link previews and only showed the Gemini package badge.
+- **Decision:** (1) Converted `config.js` → `config.ts` and `theme/index.js` → `theme/index.ts` with VitePress types (`defineConfig` return type inference, `Theme` satisfies constraint). (2) Added a `provider` prop to `SetupTabs` component with a config map (`gemini|codex|ollama|unified` → `{pkg, serverName}`), defaulting to `gemini` for backward compatibility with the homepage. Embedded `<SetupTabs provider="..." />` on all 4 provider pages. (3) Added OpenGraph (`og:title`, `og:description`, `og:type`, `og:url`, `og:image`) and Twitter Card meta tags to VitePress head config. (4) Rewrote README header: renamed to "Ask LLM", added CI badge, created a badges table showing version and downloads for all 4 npm packages, updated description to multi-provider.
+- **Consequences:** All VitePress source files are now TypeScript. Provider pages show full multi-client installation instructions via the interactive SetupTabs component. README link previews render meaningful titles and descriptions on social media and chat platforms.
+
 ## ADR-036: Documentation Site Redesign (Dark-Only, Mastra-Inspired)
 - **Date:** 2026-04-01
 - **Status:** Accepted

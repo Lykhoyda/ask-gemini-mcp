@@ -4,11 +4,11 @@ Bridge Claude with Google's Gemini via the official Gemini CLI. Leverages Gemini
 
 ## Installation
 
-```bash
-# Claude Code (recommended)
-claude mcp add gemini-cli -- npx -y ask-gemini-mcp
+<SetupTabs provider="gemini" />
 
-# Or install globally
+Or install globally:
+
+```bash
 npm install -g ask-gemini-mcp
 ```
 
@@ -47,4 +47,4 @@ gemini login
 ## npm
 
 - **Package:** [ask-gemini-mcp](https://www.npmjs.com/package/ask-gemini-mcp)
-- **Binary:** `gemini-mcp`
+- **Binary:** `ask-gemini-mcp`

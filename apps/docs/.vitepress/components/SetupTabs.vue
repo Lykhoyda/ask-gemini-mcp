@@ -29,10 +29,10 @@
                 <pre
                   class="shiki"
                 ><code><span class="line"><span class="comment"># Project scope (current project only)</span></span>
-<span class="line"><span>claude mcp add gemini-cli -- npx -y ask-gemini-mcp</span></span>
+<span class="line"><span>claude mcp add {{ cfg.serverName }} -- npx -y {{ cfg.pkg }}</span></span>
 <span class="line"></span>
 <span class="line"><span class="comment"># User scope (all projects)</span></span>
-<span class="line"><span>claude mcp add --scope user gemini-cli -- npx -y ask-gemini-mcp</span></span></code></pre>
+<span class="line"><span>claude mcp add --scope user {{ cfg.serverName }} -- npx -y {{ cfg.pkg }}</span></span></code></pre>
               </div>
             </div>
           </div>
@@ -50,9 +50,9 @@
                 <span class="lang">json</span>
                 <pre class="shiki"><code><span class="line">{</span>
 <span class="line">  <span class="string">"mcpServers"</span>: {</span>
-<span class="line">    <span class="string">"gemini-cli"</span>: {</span>
+<span class="line">    <span class="string">"{{ cfg.serverName }}"</span>: {</span>
 <span class="line">      <span class="string">"command"</span>: <span class="string">"npx"</span>,</span>
-<span class="line">      <span class="string">"args"</span>: [<span class="string">"-y"</span>, <span class="string">"ask-gemini-mcp"</span>]</span>
+<span class="line">      <span class="string">"args"</span>: [<span class="string">"-y"</span>, <span class="string">"{{ cfg.pkg }}"</span>]</span>
 <span class="line">    }</span>
 <span class="line">  }</span>
 <span class="line">}</span></code></pre>
@@ -71,9 +71,9 @@
                 <span class="lang">json</span>
                 <pre class="shiki"><code><span class="line">{</span>
 <span class="line">  <span class="string">"mcpServers"</span>: {</span>
-<span class="line">    <span class="string">"gemini-cli"</span>: {</span>
+<span class="line">    <span class="string">"{{ cfg.serverName }}"</span>: {</span>
 <span class="line">      <span class="string">"command"</span>: <span class="string">"npx"</span>,</span>
-<span class="line">      <span class="string">"args"</span>: [<span class="string">"-y"</span>, <span class="string">"ask-gemini-mcp"</span>]</span>
+<span class="line">      <span class="string">"args"</span>: [<span class="string">"-y"</span>, <span class="string">"{{ cfg.pkg }}"</span>]</span>
 <span class="line">    }</span>
 <span class="line">  }</span>
 <span class="line">}</span></code></pre>
@@ -88,7 +88,7 @@
                 <span class="lang">bash</span>
                 <pre
                   class="shiki"
-                ><code><span class="line">codex mcp add gemini-cli -- npx -y ask-gemini-mcp</span></code></pre>
+                ><code><span class="line">codex mcp add {{ cfg.serverName }} -- npx -y {{ cfg.pkg }}</span></code></pre>
               </div>
             </div>
           </div>
@@ -104,9 +104,9 @@
                 <span class="lang">json</span>
                 <pre class="shiki"><code><span class="line">{</span>
 <span class="line">  <span class="string">"mcpServers"</span>: {</span>
-<span class="line">    <span class="string">"gemini-cli"</span>: {</span>
+<span class="line">    <span class="string">"{{ cfg.serverName }}"</span>: {</span>
 <span class="line">      <span class="string">"command"</span>: <span class="string">"npx"</span>,</span>
-<span class="line">      <span class="string">"args"</span>: [<span class="string">"-y"</span>, <span class="string">"ask-gemini-mcp"</span>]</span>
+<span class="line">      <span class="string">"args"</span>: [<span class="string">"-y"</span>, <span class="string">"{{ cfg.pkg }}"</span>]</span>
 <span class="line">    }</span>
 <span class="line">  }</span>
 <span class="line">}</span></code></pre>
@@ -125,9 +125,9 @@
                 <span class="lang">json</span>
                 <pre class="shiki"><code><span class="line">{</span>
 <span class="line">  <span class="string">"mcp"</span>: {</span>
-<span class="line">    <span class="string">"gemini-cli"</span>: {</span>
+<span class="line">    <span class="string">"{{ cfg.serverName }}"</span>: {</span>
 <span class="line">      <span class="string">"type"</span>: <span class="string">"local"</span>,</span>
-<span class="line">      <span class="string">"command"</span>: [<span class="string">"npx"</span>, <span class="string">"-y"</span>, <span class="string">"ask-gemini-mcp"</span>]</span>
+<span class="line">      <span class="string">"command"</span>: [<span class="string">"npx"</span>, <span class="string">"-y"</span>, <span class="string">"{{ cfg.pkg }}"</span>]</span>
 <span class="line">    }</span>
 <span class="line">  }</span>
 <span class="line">}</span></code></pre>
@@ -142,7 +142,7 @@
                 <span class="lang">json</span>
                 <pre class="shiki"><code><span class="line">{</span>
 <span class="line">  <span class="string">"command"</span>: <span class="string">"npx"</span>,</span>
-<span class="line">  <span class="string">"args"</span>: [<span class="string">"-y"</span>, <span class="string">"ask-gemini-mcp"</span>]</span>
+<span class="line">  <span class="string">"args"</span>: [<span class="string">"-y"</span>, <span class="string">"{{ cfg.pkg }}"</span>]</span>
 <span class="line">}</span></code></pre>
               </div>
             </div>
@@ -153,8 +153,26 @@
   </div>
 </template>
 
-<script setup>
-import { ref } from "vue";
+<script setup lang="ts">
+import { ref, computed } from "vue";
+
+interface ProviderConfig {
+  pkg: string;
+  serverName: string;
+}
+
+const providerConfigs: Record<string, ProviderConfig> = {
+  gemini: { pkg: "ask-gemini-mcp", serverName: "gemini-cli" },
+  codex: { pkg: "ask-codex-mcp", serverName: "codex-cli" },
+  ollama: { pkg: "ask-ollama-mcp", serverName: "ollama" },
+  unified: { pkg: "ask-llm-mcp", serverName: "ask-llm" },
+};
+
+const props = withDefaults(defineProps<{ provider?: string }>(), {
+  provider: "gemini",
+});
+
+const cfg = computed(() => providerConfigs[props.provider] ?? providerConfigs.gemini);
 
 const activeTab = ref("claude-code");
 

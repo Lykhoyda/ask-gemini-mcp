@@ -18,6 +18,52 @@ export default withMermaid(
 
     head: [
       ["meta", { name: "theme-color", content: "#0a0a0b" }],
+      [
+        "meta",
+        {
+          property: "og:title",
+          content: "Ask LLM — AI-to-AI Collaboration via MCP",
+        },
+      ],
+      [
+        "meta",
+        {
+          property: "og:description",
+          content:
+            "MCP servers bridging Claude with Gemini, Codex, and Ollama. Get second opinions, debate plans, and review code across AI providers.",
+        },
+      ],
+      ["meta", { property: "og:type", content: "website" }],
+      [
+        "meta",
+        {
+          property: "og:url",
+          content: "https://lykhoyda.github.io/ask-llm/",
+        },
+      ],
+      [
+        "meta",
+        {
+          property: "og:image",
+          content: "https://lykhoyda.github.io/ask-llm/og-image.png",
+        },
+      ],
+      ["meta", { name: "twitter:card", content: "summary_large_image" }],
+      [
+        "meta",
+        {
+          name: "twitter:title",
+          content: "Ask LLM — AI-to-AI Collaboration via MCP",
+        },
+      ],
+      [
+        "meta",
+        {
+          name: "twitter:description",
+          content:
+            "MCP servers bridging Claude with Gemini, Codex, and Ollama. Get second opinions, debate plans, and review code across AI providers.",
+        },
+      ],
       ["link", { rel: "preconnect", href: "https://fonts.googleapis.com" }],
       [
         "link",

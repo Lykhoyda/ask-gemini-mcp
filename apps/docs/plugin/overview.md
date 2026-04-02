@@ -4,24 +4,32 @@ The `@ask-llm/plugin` package integrates Ask LLM providers into Claude Code as a
 
 ## Installation
 
-The plugin lives in the monorepo at `packages/claude-plugin`. To use it, clone the repo and install:
+### From Marketplace (recommended)
+
+Add the Ask LLM marketplace, then install the plugin:
+
+```bash
+/plugin marketplace add Lykhoyda/ask-llm
+/plugin install ask-llm@ask-llm-plugins
+```
+
+### From Source (development)
 
 ```bash
 git clone https://github.com/Lykhoyda/ask-llm.git
 cd ask-llm
 yarn install && yarn build
+claude --plugin-dir ./packages/claude-plugin
 ```
 
-The plugin auto-registers the Gemini MCP server via its `.mcp.json`. For Codex and Ollama features, you also need to add their MCP servers:
+### MCP Servers
 
-```bash
-# Gemini — included automatically via plugin
-# Codex — add manually
-claude mcp add codex-cli -- npx -y ask-codex-mcp
+The plugin auto-registers all three MCP servers via its `.mcp.json`:
+- **gemini-cli** — `ask-gemini-mcp`
+- **codex-cli** — `ask-codex-mcp`
+- **ollama** — `ask-ollama-mcp`
 
-# Ollama — add manually (requires Ollama running locally)
-claude mcp add ollama -- npx -y ask-ollama-mcp
-```
+No manual MCP setup needed. Providers without their CLI installed will simply be unavailable.
 
 ## What's Included
 
@@ -35,7 +43,7 @@ claude mcp add ollama -- npx -y ask-ollama-mcp
 | `/brainstorm` | Multi | Send a topic to multiple providers in parallel |
 | `/brainstorm-all` | All | Brainstorm with all three providers |
 
-> `/codex-review`, `/ollama-review`, and `/brainstorm` require the respective MCP servers to be added separately (see Installation above).
+> `/codex-review`, `/ollama-review`, and `/brainstorm` require the respective CLI tools to be installed and authenticated.
 
 ### Agents
 
@@ -53,7 +61,7 @@ claude mcp add ollama -- npx -y ask-ollama-mcp
 | Stop hook | Session end | Sends worktree diff to Gemini for a 3-bullet advisory review |
 | Pre-commit hook | Before `git commit` | Reviews staged changes and warns about critical issues (advisory, does not block) |
 
-Both hooks use the Gemini provider via the `ask-gemini-run` CLI binary.
+Both hooks use the Gemini CLI directly (`gemini -p` with `@` file syntax).
 
 ### CLI Binaries
 
@@ -83,5 +91,5 @@ The plugin uses several Claude Code integration points:
 
 ## Source
 
-- **Package:** `@ask-llm/plugin` (monorepo package, not published to npm)
-- **Location:** [packages/claude-plugin](https://github.com/Lykhoyda/ask-llm/tree/main/packages/claude-plugin)
+- **Marketplace:** `/plugin marketplace add Lykhoyda/ask-llm` then `/plugin install ask-llm@ask-llm-plugins`
+- **Source:** [packages/claude-plugin](https://github.com/Lykhoyda/ask-llm/tree/main/packages/claude-plugin)

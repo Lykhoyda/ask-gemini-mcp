@@ -3,6 +3,14 @@
     "gemini-cli": {
       "command": "npx",
       "args": ["-y", "ask-gemini-mcp"]
+    },
+    "codex-cli": {
+      "command": "npx",
+      "args": ["-y", "ask-codex-mcp"]
+    },
+    "ollama": {
+      "command": "npx",
+      "args": ["-y", "ask-ollama-mcp"]
     }
   }
 }

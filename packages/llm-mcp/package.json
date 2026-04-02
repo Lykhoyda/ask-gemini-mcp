@@ -8,7 +8,7 @@
   "exports": {
     ".": "./dist/index.js"
   },
-  "bin": "dist/cli.js",
+  "bin": { "ask-llm-mcp": "dist/cli.js" },
   "scripts": {
     "build": "tsc -b",
     "start": "node dist/cli.js",

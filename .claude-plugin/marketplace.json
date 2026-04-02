@@ -1,0 +1,31 @@
+{
+  "name": "ask-llm-plugins",
+  "owner": {
+    "name": "Anton Lykhoyda",
+    "email": "lykhoyda@gmail.com"
+  },
+  "metadata": {
+    "description": "Claude Code plugins for AI-to-AI collaboration with Gemini, Codex, and Ollama",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "ask-llm",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/Lykhoyda/ask-llm.git",
+        "path": "packages/claude-plugin"
+      },
+      "description": "AI-to-AI collaboration — review code, brainstorm ideas, and debate plans across Gemini, Codex, and Ollama providers",
+      "version": "0.1.0",
+      "author": {
+        "name": "Anton Lykhoyda"
+      },
+      "homepage": "https://lykhoyda.github.io/ask-llm/plugin/overview",
+      "repository": "https://github.com/Lykhoyda/ask-llm",
+      "license": "MIT",
+      "keywords": ["ai", "gemini", "codex", "ollama", "mcp", "code-review", "brainstorm"],
+      "category": "external-integrations"
+    }
+  ]
+}

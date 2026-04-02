@@ -15,11 +15,11 @@
 - [x] **Multi-provider navigation** — Providers dropdown, sidebar section, 4 provider pages
 - [x] **Provider cards** — Per-provider accent colors with gradient-glow hover effects
 - [x] **Rebrand** — "Ask LLM" title, multi-provider hero, updated tagline
-- [ ] Convert config.js / theme/index.js to TypeScript
-- [ ] Add provider installation commands to SetupTabs per provider page
+- [x] Convert config.js / theme/index.js to TypeScript
+- [x] Add provider installation commands to SetupTabs per provider page
 
 ## Priority 7: Distribution & Discovery
-- [ ] Add OpenGraph metadata and badges to README for better link previews
+- [x] Add OpenGraph metadata and badges to README for better link previews
 - [ ] Publish blog post / dev.to article about the tool and AI-to-AI collaboration pattern
 - [ ] Add to MCP client directories (Cursor, Windsurf, Cline marketplace listings)
 

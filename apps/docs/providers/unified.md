@@ -4,11 +4,11 @@ All providers in one MCP server. Auto-detects which CLIs are installed and regis
 
 ## Installation
 
-```bash
-# Claude Code (recommended)
-claude mcp add ask-llm -- npx -y ask-llm-mcp
+<SetupTabs provider="unified" />
 
-# Or install globally
+Or install globally:
+
+```bash
 npm install -g ask-llm-mcp
 ```
 

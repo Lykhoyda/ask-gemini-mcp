@@ -1,17 +1,23 @@
-# Ask Gemini MCP
+# Ask LLM
 
 <div align="center">
 
-[![npm version](https://img.shields.io/npm/v/ask-gemini-mcp)](https://www.npmjs.com/package/ask-gemini-mcp)
-[![npm downloads](https://img.shields.io/npm/dt/ask-gemini-mcp)](https://www.npmjs.com/package/ask-gemini-mcp)
-[![GitHub Release](https://img.shields.io/github/v/release/Lykhoyda/ask-llm?logo=github&label=GitHub)](https://github.com/Lykhoyda/ask-llm/releases)
+[![CI](https://img.shields.io/github/actions/workflow/status/Lykhoyda/ask-llm/ci.yml?branch=main&label=CI&logo=github)](https://github.com/Lykhoyda/ask-llm/actions/workflows/ci.yml)
+[![GitHub Release](https://img.shields.io/github/v/release/Lykhoyda/ask-llm?logo=github&label=release)](https://github.com/Lykhoyda/ask-llm/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-**MCP server that connects any AI client to Google Gemini CLI**
+| Package | Version | Downloads |
+|---------|---------|-----------|
+| [`ask-gemini-mcp`](https://www.npmjs.com/package/ask-gemini-mcp) | [![npm](https://img.shields.io/npm/v/ask-gemini-mcp)](https://www.npmjs.com/package/ask-gemini-mcp) | [![downloads](https://img.shields.io/npm/dt/ask-gemini-mcp)](https://www.npmjs.com/package/ask-gemini-mcp) |
+| [`ask-codex-mcp`](https://www.npmjs.com/package/ask-codex-mcp) | [![npm](https://img.shields.io/npm/v/ask-codex-mcp)](https://www.npmjs.com/package/ask-codex-mcp) | [![downloads](https://img.shields.io/npm/dt/ask-codex-mcp)](https://www.npmjs.com/package/ask-codex-mcp) |
+| [`ask-ollama-mcp`](https://www.npmjs.com/package/ask-ollama-mcp) | [![npm](https://img.shields.io/npm/v/ask-ollama-mcp)](https://www.npmjs.com/package/ask-ollama-mcp) | [![downloads](https://img.shields.io/npm/dt/ask-ollama-mcp)](https://www.npmjs.com/package/ask-ollama-mcp) |
+| [`ask-llm-mcp`](https://www.npmjs.com/package/ask-llm-mcp) | [![npm](https://img.shields.io/npm/v/ask-llm-mcp)](https://www.npmjs.com/package/ask-llm-mcp) | [![downloads](https://img.shields.io/npm/dt/ask-llm-mcp)](https://www.npmjs.com/package/ask-llm-mcp) |
+
+**MCP servers for AI-to-AI collaboration — Gemini, Codex, Ollama**
 
 </div>
 
-An [MCP](https://modelcontextprotocol.io/) server for AI-to-AI collaboration via the Gemini CLI. Available on npm: [`ask-gemini-mcp`](https://www.npmjs.com/package/ask-gemini-mcp). Works with Claude Code, Claude Desktop, Cursor, Warp, Copilot, and [40+ other MCP clients](https://modelcontextprotocol.io/clients). Leverage Gemini's massive 1M+ token context window for large file and codebase analysis while your primary AI handles interaction and code editing.
+MCP servers that bridge your AI client with multiple LLM providers for AI-to-AI collaboration. Works with Claude Code, Claude Desktop, Cursor, Warp, Copilot, and [40+ other MCP clients](https://modelcontextprotocol.io/clients). Leverage Gemini's 1M+ token context, Codex's GPT-5.4, or local Ollama models — all via standard [MCP](https://modelcontextprotocol.io/).
 
 <a href="https://glama.ai/mcp/servers/@Lykhoyda/ask-llm">
   <img width="380" height="200" src="https://glama.ai/mcp/servers/@Lykhoyda/ask-llm/badge" alt="ask-gemini-mcp MCP server" />

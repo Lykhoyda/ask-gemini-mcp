@@ -4,11 +4,11 @@ Bridge Claude with OpenAI's Codex CLI. Access GPT-5.4 for code generation, analy
 
 ## Installation
 
-```bash
-# Claude Code (recommended)
-claude mcp add codex-cli -- npx -y ask-codex-mcp
+<SetupTabs provider="codex" />
 
-# Or install globally
+Or install globally:
+
+```bash
 npm install -g ask-codex-mcp
 ```
 

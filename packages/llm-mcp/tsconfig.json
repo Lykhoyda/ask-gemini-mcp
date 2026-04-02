@@ -9,6 +9,7 @@
   "references": [
     { "path": "../shared" },
     { "path": "../gemini-mcp" },
-    { "path": "../codex-mcp" }
+    { "path": "../codex-mcp" },
+    { "path": "../ollama-mcp" }
   ]
 }

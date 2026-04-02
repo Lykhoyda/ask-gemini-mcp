@@ -1,16 +1,3 @@
 {
-  "mcpServers": {
-    "gemini": {
-      "command": "npx",
-      "args": ["-y", "ask-gemini-mcp"]
-    },
-    "codex": {
-      "command": "npx",
-      "args": ["-y", "ask-codex-mcp"]
-    },
-    "ollama": {
-      "command": "npx",
-      "args": ["-y", "ask-ollama-mcp"]
-    }
-  }
+  "mcpServers": {}
 }

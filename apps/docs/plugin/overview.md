@@ -24,12 +24,15 @@ claude --plugin-dir ./packages/claude-plugin
 
 ### MCP Servers
 
-The plugin auto-registers all three MCP servers via its `.mcp.json`:
-- **gemini-cli** — `ask-gemini-mcp`
-- **codex-cli** — `ask-codex-mcp`
-- **ollama** — `ask-ollama-mcp`
+Add the MCP servers at user scope for short tool names (recommended):
 
-No manual MCP setup needed. Providers without their CLI installed will simply be unavailable.
+```bash
+claude mcp add --scope user gemini -- npx -y ask-gemini-mcp
+claude mcp add --scope user codex -- npx -y ask-codex-mcp
+claude mcp add --scope user ollama -- npx -y ask-ollama-mcp
+```
+
+This gives you `gemini:ask-gemini` rather than `plugin:ask-llm:gemini:ask-gemini`.
 
 ## What's Included
 

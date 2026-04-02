@@ -6,14 +6,15 @@
 [![GitHub Release](https://img.shields.io/github/v/release/Lykhoyda/ask-llm?logo=github&label=release)](https://github.com/Lykhoyda/ask-llm/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-| Package | Version | Downloads |
-|---------|---------|-----------|
-| [`ask-gemini-mcp`](https://www.npmjs.com/package/ask-gemini-mcp) | [![npm](https://img.shields.io/npm/v/ask-gemini-mcp)](https://www.npmjs.com/package/ask-gemini-mcp) | [![downloads](https://img.shields.io/npm/dt/ask-gemini-mcp)](https://www.npmjs.com/package/ask-gemini-mcp) |
-| [`ask-codex-mcp`](https://www.npmjs.com/package/ask-codex-mcp) | [![npm](https://img.shields.io/npm/v/ask-codex-mcp)](https://www.npmjs.com/package/ask-codex-mcp) | [![downloads](https://img.shields.io/npm/dt/ask-codex-mcp)](https://www.npmjs.com/package/ask-codex-mcp) |
-| [`ask-ollama-mcp`](https://www.npmjs.com/package/ask-ollama-mcp) | [![npm](https://img.shields.io/npm/v/ask-ollama-mcp)](https://www.npmjs.com/package/ask-ollama-mcp) | [![downloads](https://img.shields.io/npm/dt/ask-ollama-mcp)](https://www.npmjs.com/package/ask-ollama-mcp) |
-| [`ask-llm-mcp`](https://www.npmjs.com/package/ask-llm-mcp) | [![npm](https://img.shields.io/npm/v/ask-llm-mcp)](https://www.npmjs.com/package/ask-llm-mcp) | [![downloads](https://img.shields.io/npm/dt/ask-llm-mcp)](https://www.npmjs.com/package/ask-llm-mcp) |
+| Package | Type | Version | Downloads |
+|---------|------|---------|-----------|
+| [`ask-gemini-mcp`](https://www.npmjs.com/package/ask-gemini-mcp) | MCP Server | [![npm](https://img.shields.io/npm/v/ask-gemini-mcp)](https://www.npmjs.com/package/ask-gemini-mcp) | [![downloads](https://img.shields.io/npm/dt/ask-gemini-mcp)](https://www.npmjs.com/package/ask-gemini-mcp) |
+| [`ask-codex-mcp`](https://www.npmjs.com/package/ask-codex-mcp) | MCP Server | [![npm](https://img.shields.io/npm/v/ask-codex-mcp)](https://www.npmjs.com/package/ask-codex-mcp) | [![downloads](https://img.shields.io/npm/dt/ask-codex-mcp)](https://www.npmjs.com/package/ask-codex-mcp) |
+| [`ask-ollama-mcp`](https://www.npmjs.com/package/ask-ollama-mcp) | MCP Server | [![npm](https://img.shields.io/npm/v/ask-ollama-mcp)](https://www.npmjs.com/package/ask-ollama-mcp) | [![downloads](https://img.shields.io/npm/dt/ask-ollama-mcp)](https://www.npmjs.com/package/ask-ollama-mcp) |
+| [`ask-llm-mcp`](https://www.npmjs.com/package/ask-llm-mcp) | MCP Server | [![npm](https://img.shields.io/npm/v/ask-llm-mcp)](https://www.npmjs.com/package/ask-llm-mcp) | [![downloads](https://img.shields.io/npm/dt/ask-llm-mcp)](https://www.npmjs.com/package/ask-llm-mcp) |
+| [`@ask-llm/plugin`](https://github.com/Lykhoyda/ask-llm/tree/main/packages/claude-plugin) | Claude Code Plugin | v0.2.1 | `/plugin install` |
 
-**MCP servers for AI-to-AI collaboration — Gemini, Codex, Ollama**
+**MCP servers + Claude Code plugin for AI-to-AI collaboration**
 
 </div>
 
@@ -96,6 +97,31 @@ Replace `ask-gemini-mcp` with `ask-codex-mcp`, `ask-ollama-mcp`, or `ask-llm-mcp
 
 </details>
 
+## Claude Code Plugin
+
+The **Ask LLM plugin** adds multi-provider code review, brainstorming, and automated hooks directly into Claude Code:
+
+```
+/plugin marketplace add Lykhoyda/ask-llm
+/plugin install ask-llm@ask-llm-plugins
+```
+
+### What You Get
+
+| Feature | Description |
+|---------|-------------|
+| `/multi-review` | Parallel Gemini + Codex review with 4-phase validation pipeline and consensus highlighting |
+| `/gemini-review` | Gemini-only review with confidence filtering |
+| `/codex-review` | Codex-only review with confidence filtering |
+| `/ollama-review` | Local review — no data leaves your machine |
+| `/brainstorm` | Multi-LLM brainstorm: send a topic to providers in parallel, get synthesized analysis |
+| **Stop hook** | Automatic session diff review via Gemini when you end a session |
+| **Pre-commit hook** | Reviews staged changes before `git commit`, warns about critical issues |
+
+The review agents use a 4-phase pipeline inspired by [Anthropic's code-review plugin](https://github.com/anthropics/claude-code/tree/main/plugins/code-review): context gathering, prompt construction with explicit false-positive exclusions, synthesis, and source-level validation of each finding.
+
+See the [plugin docs](https://lykhoyda.github.io/ask-llm/plugin/overview) for details.
+
 ## Prerequisites
 
 - **[Node.js](https://nodejs.org/)** v20.0.0 or higher (LTS)
@@ -104,7 +130,7 @@ Replace `ask-gemini-mcp` with `ask-codex-mcp`, `ask-ollama-mcp`, or `ask-llm-mcp
   - [Codex CLI](https://github.com/openai/codex) — installed and authenticated
   - [Ollama](https://ollama.com) — running locally with a model pulled (`ollama pull qwen2.5-coder:7b`)
 
-## Tools
+## MCP Tools
 
 | Tool | Package | Purpose |
 |------|---------|---------|
@@ -123,32 +149,6 @@ ask codex to suggest a better algorithm for @src/sort.ts
 ask ollama to explain @src/config.ts (runs locally, no data sent anywhere)
 use gemini to summarize @. the current directory
 ```
-
-## Claude Code Plugin
-
-For Claude Code users, the **Ask LLM plugin** adds review skills, brainstorm agents, and automated hooks:
-
-```
-/plugin marketplace add Lykhoyda/ask-llm
-/plugin install ask-llm@ask-llm-plugins
-```
-
-### Skills
-
-| Command | Description |
-|---------|-------------|
-| `/multi-review` | Parallel Gemini + Codex review with validation pipeline and consensus highlighting |
-| `/gemini-review` | Gemini-only review with confidence filtering |
-| `/codex-review` | Codex-only review |
-| `/ollama-review` | Local review — no data leaves your machine |
-| `/brainstorm` | Multi-LLM brainstorm (default: gemini + codex) |
-
-### Automated Hooks
-
-- **Session end** — Sends your session diff to Gemini for a 3-bullet advisory review
-- **Pre-commit** — Reviews staged changes before `git commit` and warns about critical issues
-
-See the [plugin docs](https://lykhoyda.github.io/ask-llm/plugin/overview) for details.
 
 ## Models
 

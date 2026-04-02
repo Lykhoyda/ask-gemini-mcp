@@ -25,141 +25,145 @@ MCP servers that bridge your AI client with multiple LLM providers for AI-to-AI 
 
 ## Why?
 
-- **Get a second opinion** — Ask Gemini to review your coding approach before committing to it
-- **Debate plans** — Send architecture proposals to Gemini for critique and alternative suggestions
-- **Review changes** — Have Gemini analyze diffs or modified files to catch issues your primary AI might miss
+- **Get a second opinion** — Ask another AI to review your coding approach before committing
+- **Debate plans** — Send architecture proposals for critique and alternative suggestions
+- **Review changes** — Have multiple AIs analyze diffs to catch issues your primary AI might miss
 - **Massive context** — Gemini reads entire codebases (1M+ tokens) that would overflow other models
+- **Local & private** — Use Ollama for reviews where no data leaves your machine
 
 ## Quick Start
 
 ### Claude Code
 
 ```bash
-# Project scope (available in current project only)
-claude mcp add gemini-cli -- npx -y ask-gemini-mcp
+# Individual providers
+claude mcp add --scope user gemini -- npx -y ask-gemini-mcp
+claude mcp add --scope user codex -- npx -y ask-codex-mcp
+claude mcp add --scope user ollama -- npx -y ask-ollama-mcp
 
-# User scope (available across all projects)
-claude mcp add --scope user gemini-cli -- npx -y ask-gemini-mcp
+# Or all-in-one (auto-detects installed providers)
+claude mcp add --scope user ask-llm -- npx -y ask-llm-mcp
 ```
 
 ### Claude Desktop
 
-Add to your config file (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
+Add to `claude_desktop_config.json`:
 
 ```json
 {
   "mcpServers": {
-    "gemini-cli": {
+    "gemini": {
       "command": "npx",
       "args": ["-y", "ask-gemini-mcp"]
+    },
+    "codex": {
+      "command": "npx",
+      "args": ["-y", "ask-codex-mcp"]
+    },
+    "ollama": {
+      "command": "npx",
+      "args": ["-y", "ask-ollama-mcp"]
     }
   }
 }
 ```
 
 <details>
-<summary>Other config file locations</summary>
+<summary>Cursor, Codex CLI, OpenCode, and other clients</summary>
 
-- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
-- **Linux**: `~/.config/claude/claude_desktop_config.json`
-
-</details>
-
-### Cursor
-
-Add to `.cursor/mcp.json` in your project (or `~/.cursor/mcp.json` for global):
-
+**Cursor** (`.cursor/mcp.json`):
 ```json
 {
   "mcpServers": {
-    "gemini-cli": {
-      "command": "npx",
-      "args": ["-y", "ask-gemini-mcp"]
-    }
+    "gemini": { "command": "npx", "args": ["-y", "ask-gemini-mcp"] }
   }
 }
 ```
 
-### Codex CLI
-
-Add to `~/.codex/config.toml` (or `.codex/config.toml` in your project):
-
+**Codex CLI** (`~/.codex/config.toml`):
 ```toml
-[mcp_servers.gemini-cli]
+[mcp_servers.gemini]
 command = "npx"
 args = ["-y", "ask-gemini-mcp"]
 ```
 
-Or via CLI:
-
-```bash
-codex mcp add gemini-cli -- npx -y ask-gemini-mcp
-```
-
-### OpenCode
-
-Add to `opencode.json` in your project (or `~/.config/opencode/opencode.json` for global):
-
+**Any MCP Client** (STDIO transport):
 ```json
-{
-  "mcp": {
-    "gemini-cli": {
-      "type": "local",
-      "command": ["npx", "-y", "ask-gemini-mcp"]
-    }
-  }
-}
+{ "command": "npx", "args": ["-y", "ask-gemini-mcp"] }
 ```
 
-### Any MCP Client (STDIO Transport)
+Replace `ask-gemini-mcp` with `ask-codex-mcp`, `ask-ollama-mcp`, or `ask-llm-mcp` as needed.
 
-```json
-{
-  "transport": {
-    "type": "stdio",
-    "command": "npx",
-    "args": ["-y", "ask-gemini-mcp"]
-  }
-}
-```
+</details>
 
 ## Prerequisites
 
 - **[Node.js](https://nodejs.org/)** v20.0.0 or higher (LTS)
-- **[Google Gemini CLI](https://github.com/google-gemini/gemini-cli)** installed and authenticated
+- **At least one provider:**
+  - [Gemini CLI](https://github.com/google-gemini/gemini-cli) — `npm install -g @google/gemini-cli && gemini login`
+  - [Codex CLI](https://github.com/openai/codex) — installed and authenticated
+  - [Ollama](https://ollama.com) — running locally with a model pulled (`ollama pull qwen2.5-coder:7b`)
 
 ## Tools
 
-| Tool | Purpose |
-|------|---------|
-| `ask-gemini` | Send prompts to Gemini CLI. Supports `@` file syntax, model selection, sandbox mode, and changeMode for structured edits |
-| `fetch-chunk` | Retrieve subsequent chunks from cached large responses |
-| `ping` | Connection test — verify MCP setup without using Gemini tokens |
+| Tool | Package | Purpose |
+|------|---------|---------|
+| `ask-gemini` | ask-gemini-mcp | Send prompts to Gemini CLI with `@` file syntax. 1M+ token context |
+| `ask-gemini-edit` | ask-gemini-mcp | Get structured OLD/NEW code edit blocks from Gemini |
+| `fetch-chunk` | ask-gemini-mcp | Retrieve chunks from cached large responses |
+| `ask-codex` | ask-codex-mcp | Send prompts to Codex CLI. GPT-5.4 with mini fallback |
+| `ask-ollama` | ask-ollama-mcp | Send prompts to local Ollama. Fully private, zero cost |
+| `ping` | all | Connection test — verify MCP setup |
 
 ### Usage Examples
 
-**File analysis (@ syntax):**
-- `ask gemini to analyze @src/main.js and explain what it does`
-- `use gemini to summarize @. the current directory`
+```
+ask gemini to review the changes in @src/auth.ts for security issues
+ask codex to suggest a better algorithm for @src/sort.ts
+ask ollama to explain @src/config.ts (runs locally, no data sent anywhere)
+use gemini to summarize @. the current directory
+```
 
-**Code review:**
-- `ask gemini to review the changes in @src/auth.ts for security issues`
-- `use gemini to compare @old.js and @new.js`
+## Claude Code Plugin
 
-**General questions:**
-- `ask gemini about best practices for React state management`
+For Claude Code users, the **Ask LLM plugin** adds review skills, brainstorm agents, and automated hooks:
 
-**Sandbox mode:**
-- `use gemini sandbox to create and run a Python script`
+```
+/plugin marketplace add Lykhoyda/ask-llm
+/plugin install ask-llm@ask-llm-plugins
+```
+
+### Skills
+
+| Command | Description |
+|---------|-------------|
+| `/multi-review` | Parallel Gemini + Codex review with validation pipeline and consensus highlighting |
+| `/gemini-review` | Gemini-only review with confidence filtering |
+| `/codex-review` | Codex-only review |
+| `/ollama-review` | Local review — no data leaves your machine |
+| `/brainstorm` | Multi-LLM brainstorm (default: gemini + codex) |
+
+### Automated Hooks
+
+- **Session end** — Sends your session diff to Gemini for a 3-bullet advisory review
+- **Pre-commit** — Reviews staged changes before `git commit` and warns about critical issues
+
+See the [plugin docs](https://lykhoyda.github.io/ask-llm/plugin/overview) for details.
 
 ## Models
 
-| Model | Use Case |
-|-------|----------|
-| `gemini-3.1-pro-preview` | Default — best quality reasoning |
-| `gemini-3-flash-preview` | Faster responses, large codebases |
+| Provider | Default | Fallback |
+|----------|---------|----------|
+| Gemini | `gemini-3.1-pro-preview` | `gemini-3-flash-preview` (on quota) |
+| Codex | `gpt-5.4` | `gpt-5.4-mini` (on quota) |
+| Ollama | `qwen2.5-coder:7b` | `qwen2.5-coder:1.5b` (if not found) |
 
-The server automatically falls back to Flash when Pro quota is exceeded.
+All providers automatically fall back to a lighter model on errors.
+
+## Documentation
+
+- **Docs site:** [lykhoyda.github.io/ask-llm](https://lykhoyda.github.io/ask-llm/)
+- **AI-readable:** [llms.txt](https://lykhoyda.github.io/ask-llm/llms.txt) | [llms-full.txt](https://lykhoyda.github.io/ask-llm/llms-full.txt)
 
 ## Contributing
 
@@ -169,4 +173,4 @@ Contributions are welcome! See [open issues](https://github.com/Lykhoyda/ask-llm
 
 MIT License. See [LICENSE](LICENSE) for details.
 
-**Disclaimer:** This is an unofficial, third-party tool and is not affiliated with, endorsed, or sponsored by Google.
+**Disclaimer:** This is an unofficial, third-party tool and is not affiliated with, endorsed, or sponsored by Google or OpenAI.

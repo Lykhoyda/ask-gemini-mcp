@@ -25,7 +25,7 @@ const server = new McpServer({ name, version });
 
 interface ProgressHandle {
   interval: NodeJS.Timeout;
-  stop: (success: boolean) => void;
+  stop: (success: boolean) => Promise<void>;
   updateOutput: (output: string) => void;
 }
 
@@ -80,10 +80,15 @@ function startProgressUpdates(operationName: string, extra: ToolExtra): Progress
 
   return {
     interval,
-    stop(success: boolean) {
+    async stop(success: boolean) {
       active = false;
       clearInterval(interval);
-      sendProgressNotification(extra, 100, 100, success ? `${operationName} completed` : `${operationName} failed`);
+      await sendProgressNotification(
+        extra,
+        100,
+        100,
+        success ? `${operationName} completed` : `${operationName} failed`,
+      );
     },
     updateOutput(output: string) {
       latestOutput = output;
@@ -109,14 +114,14 @@ for (const tool of toolRegistry) {
           handle.updateOutput(newOutput);
         });
 
-        handle.stop(true);
+        await handle.stop(true);
 
         return {
           content: [{ type: "text", text: result }],
           isError: false,
         };
       } catch (error) {
-        handle.stop(false);
+        await handle.stop(false);
         Logger.error(`Error in tool '${toolName}':`, error);
 
         const errorMessage = error instanceof Error ? error.message : String(error);

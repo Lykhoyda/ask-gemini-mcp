@@ -99,7 +99,7 @@ type ToolExtra = RequestHandlerExtra<ServerRequest, ServerNotification>;
 
 interface ProgressHandle {
   interval: NodeJS.Timeout;
-  stop: (success: boolean) => void;
+  stop: (success: boolean) => Promise<void>;
   updateOutput: (output: string) => void;
 }
 
@@ -145,10 +145,15 @@ function startProgressUpdates(operationName: string, extra: ToolExtra): Progress
 
   return {
     interval,
-    stop(success: boolean) {
+    async stop(success: boolean) {
       active = false;
       clearInterval(interval);
-      sendProgressNotification(extra, 100, 100, success ? `${operationName} completed` : `${operationName} failed`);
+      await sendProgressNotification(
+        extra,
+        100,
+        100,
+        success ? `${operationName} completed` : `${operationName} failed`,
+      );
     },
     updateOutput(output: string) {
       latestOutput = output;
@@ -195,11 +200,11 @@ export async function startServer() {
           },
         });
 
-        progress.stop(true);
+        await progress.stop(true);
         const providerName = PROVIDERS[provider]?.name ?? provider;
         return { content: [{ type: "text", text: `${providerName} response:\n${result.response}` }], isError: false };
       } catch (error) {
-        progress.stop(false);
+        await progress.stop(false);
         const msg = error instanceof Error ? error.message : String(error);
         Logger.error("ask-llm error:", error);
         return { content: [{ type: "text", text: `Error: ${msg}` }], isError: true };

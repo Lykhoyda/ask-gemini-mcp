@@ -13,9 +13,9 @@ export const STATUS_MESSAGES = {
 } as const;
 
 export const MODELS = {
-  DEFAULT: "gpt-5.4",
-  FALLBACK: "gpt-5.4-mini",
-} as const;
+  DEFAULT: process.env.ASK_CODEX_MODEL || "gpt-5.4",
+  FALLBACK: process.env.ASK_CODEX_FALLBACK_MODEL || "gpt-5.4-mini",
+};
 
 export const CLI = {
   COMMANDS: {

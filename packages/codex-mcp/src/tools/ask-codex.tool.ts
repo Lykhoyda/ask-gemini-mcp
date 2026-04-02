@@ -1,6 +1,6 @@
 import type { UnifiedTool } from "@ask-llm/shared";
 import { z } from "zod";
-import { ERROR_MESSAGES, STATUS_MESSAGES } from "../constants.js";
+import { ERROR_MESSAGES, MODELS, STATUS_MESSAGES } from "../constants.js";
 import { executeCodexCLI } from "../utils/codexExecutor.js";
 
 const askCodexArgsSchema = z.object({
@@ -9,7 +9,7 @@ const askCodexArgsSchema = z.object({
     .string()
     .optional()
     .describe(
-      "DO NOT set this parameter. The tool automatically uses gpt-5.4 (latest) and falls back to gpt-5.4-mini on quota errors. Only set this if the user explicitly requests a specific model.",
+      `DO NOT set this parameter. The tool automatically uses ${MODELS.DEFAULT} and falls back to ${MODELS.FALLBACK} on quota errors. Only set this if the user explicitly requests a specific model.`,
     ),
 });
 

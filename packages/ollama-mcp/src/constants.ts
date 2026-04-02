@@ -2,9 +2,9 @@ export const OLLAMA_HOST_ENV = "OLLAMA_HOST";
 export const DEFAULT_BASE_URL = "http://localhost:11434";
 
 export const MODELS = {
-  DEFAULT: "qwen2.5-coder:7b",
-  FALLBACK: "qwen2.5-coder:1.5b",
-} as const;
+  DEFAULT: process.env.ASK_OLLAMA_MODEL || "qwen2.5-coder:7b",
+  FALLBACK: process.env.ASK_OLLAMA_FALLBACK_MODEL || "qwen2.5-coder:1.5b",
+};
 
 export const API = {
   CHAT: "/api/chat",

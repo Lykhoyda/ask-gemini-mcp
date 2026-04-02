@@ -1,6 +1,6 @@
 import type { UnifiedTool } from "@ask-llm/shared";
 import { z } from "zod";
-import { ERROR_MESSAGES, STATUS_MESSAGES } from "../constants.js";
+import { ERROR_MESSAGES, MODELS, STATUS_MESSAGES } from "../constants.js";
 import { executeGeminiCLI } from "../utils/geminiExecutor.js";
 
 const askGeminiArgsSchema = z.object({
@@ -14,7 +14,7 @@ const askGeminiArgsSchema = z.object({
     .string()
     .optional()
     .describe(
-      "DO NOT set this parameter. The tool automatically uses gemini-3.1-pro-preview (latest) and falls back to Flash on quota errors. Only set this if the user explicitly requests a specific model.",
+      `DO NOT set this parameter. The tool automatically uses ${MODELS.PRO} and falls back to ${MODELS.FLASH} on quota errors. Only set this if the user explicitly requests a specific model.`,
     ),
 });
 

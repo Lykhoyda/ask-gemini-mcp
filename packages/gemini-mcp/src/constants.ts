@@ -20,9 +20,9 @@ export const STATUS_MESSAGES = {
 } as const;
 
 export const MODELS = {
-  PRO: "gemini-3.1-pro-preview",
-  FLASH: "gemini-3-flash-preview",
-} as const;
+  PRO: process.env.ASK_GEMINI_MODEL || "gemini-3.1-pro-preview",
+  FLASH: process.env.ASK_GEMINI_FALLBACK_MODEL || "gemini-3-flash-preview",
+};
 
 export const CLI = {
   COMMANDS: {

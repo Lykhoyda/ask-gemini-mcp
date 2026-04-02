@@ -1,6 +1,6 @@
 import type { UnifiedTool } from "@ask-llm/shared";
 import { z } from "zod";
-import { ERROR_MESSAGES, STATUS_MESSAGES } from "../constants.js";
+import { ERROR_MESSAGES, MODELS, STATUS_MESSAGES } from "../constants.js";
 import { executeOllamaCLI } from "../utils/ollamaExecutor.js";
 
 const askOllamaArgsSchema = z.object({
@@ -9,7 +9,7 @@ const askOllamaArgsSchema = z.object({
     .string()
     .optional()
     .describe(
-      "DO NOT set this parameter. The tool automatically uses qwen2.5-coder:7b and falls back to qwen2.5-coder:1.5b if not found. Only set this if the user explicitly requests a specific model.",
+      `DO NOT set this parameter. The tool automatically uses ${MODELS.DEFAULT} and falls back to ${MODELS.FALLBACK} if not found. Only set this if the user explicitly requests a specific model.`,
     ),
 });
 

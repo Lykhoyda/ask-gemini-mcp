@@ -80,6 +80,15 @@ export default withMermaid(
           rel: "stylesheet",
         },
       ],
+      [
+        "link",
+        {
+          rel: "alternate",
+          type: "text/plain",
+          href: "https://lykhoyda.github.io/ask-llm/llms.txt",
+          title: "LLM-readable documentation",
+        },
+      ],
     ],
 
     themeConfig: {

@@ -1,0 +1,290 @@
+# Ask LLM — Full Reference for AI Agents
+
+> MCP servers for AI-to-AI collaboration — bridge your AI client with Gemini, Codex, and Ollama.
+
+This file contains everything an AI agent needs to integrate with Ask LLM MCP servers: tool schemas, configuration examples, provider details, and plugin setup.
+
+## Architecture
+
+Ask LLM is a monorepo with 4 published npm packages + 1 shared library + 1 Claude Code plugin:
+
+```
+packages/shared/       @ask-llm/shared     Internal shared code (registry, logger, progress tracker)
+packages/gemini-mcp/   ask-gemini-mcp      MCP server for Google Gemini CLI
+packages/codex-mcp/    ask-codex-mcp       MCP server for OpenAI Codex CLI
+packages/ollama-mcp/   ask-ollama-mcp      MCP server for local Ollama LLMs
+packages/llm-mcp/      ask-llm-mcp         Unified MCP server (auto-detects providers)
+packages/claude-plugin @ask-llm/plugin     Claude Code plugin (agents, skills, hooks)
+```
+
+## Prerequisites
+
+- Node.js >= 20.0.0
+- For Gemini: `npm install -g @google/gemini-cli && gemini login`
+- For Codex: Codex CLI installed and authenticated
+- For Ollama: Ollama running locally (`https://ollama.com`) with a model pulled
+
+## Installation
+
+### Claude Code (user scope — available across all projects)
+
+```bash
+claude mcp add --scope user gemini -- npx -y ask-gemini-mcp
+claude mcp add --scope user codex -- npx -y ask-codex-mcp
+claude mcp add --scope user ollama -- npx -y ask-ollama-mcp
+```
+
+### Claude Code (project scope)
+
+```bash
+claude mcp add gemini -- npx -y ask-gemini-mcp
+claude mcp add codex -- npx -y ask-codex-mcp
+claude mcp add ollama -- npx -y ask-ollama-mcp
+```
+
+### Claude Desktop (claude_desktop_config.json)
+
+```json
+{
+  "mcpServers": {
+    "gemini": {
+      "command": "npx",
+      "args": ["-y", "ask-gemini-mcp"]
+    },
+    "codex": {
+      "command": "npx",
+      "args": ["-y", "ask-codex-mcp"]
+    },
+    "ollama": {
+      "command": "npx",
+      "args": ["-y", "ask-ollama-mcp"]
+    }
+  }
+}
+```
+
+### Cursor (.cursor/mcp.json)
+
+```json
+{
+  "mcpServers": {
+    "gemini": {
+      "command": "npx",
+      "args": ["-y", "ask-gemini-mcp"]
+    },
+    "codex": {
+      "command": "npx",
+      "args": ["-y", "ask-codex-mcp"]
+    },
+    "ollama": {
+      "command": "npx",
+      "args": ["-y", "ask-ollama-mcp"]
+    }
+  }
+}
+```
+
+### Codex CLI (~/.codex/config.toml)
+
+```toml
+[mcp_servers.gemini]
+command = "npx"
+args = ["-y", "ask-gemini-mcp"]
+```
+
+### Any MCP Client (STDIO transport)
+
+```json
+{
+  "transport": {
+    "type": "stdio",
+    "command": "npx",
+    "args": ["-y", "ask-gemini-mcp"]
+  }
+}
+```
+
+### Unified Server (all providers in one)
+
+```bash
+claude mcp add ask-llm -- npx -y ask-llm-mcp
+```
+
+The unified server auto-detects installed providers at startup and registers only available tools.
+
+## Tool Reference
+
+### ask-gemini
+
+Send prompts to Google Gemini CLI. Supports @ file syntax for including files in context.
+
+- **Package:** ask-gemini-mcp
+- **Parameters:**
+  - `prompt` (string, required): The question, code review request, or analysis task. Use @ syntax to include files (e.g., "@src/main.ts explain this code").
+  - `model` (string, optional): Do not set unless user explicitly requests it. Default: gemini-3.1-pro-preview. Falls back to gemini-3-flash-preview on quota errors.
+- **Returns:** Gemini's text response with optional stats footer (model, tokens, thinking tokens, session ID).
+- **Annotations:** readOnlyHint=false, destructiveHint=false, openWorldHint=true
+
+### ask-gemini-edit
+
+Send a code edit request to Gemini and get structured OLD/NEW edit blocks. Gemini analyzes files and returns precise, applicable code changes.
+
+- **Package:** ask-gemini-mcp
+- **Parameters:**
+  - `prompt` (string, required): Describe the code changes you want. Reference files with @ syntax.
+  - `model` (string, optional): Default: gemini-3.1-pro-preview.
+  - `includeDirs` (string[], optional): Additional directories to include in Gemini's context. Useful for monorepos.
+- **Returns:** Structured edit format with OLD/NEW blocks, or chunked response with cache key for large edits.
+- **Annotations:** readOnlyHint=false, destructiveHint=false, openWorldHint=true
+
+### fetch-chunk
+
+Retrieve subsequent chunks from cached large responses (used after ask-gemini-edit returns chunked output).
+
+- **Package:** ask-gemini-mcp
+- **Parameters:**
+  - `chunkIndex` (number, required): 1-based index of the chunk to retrieve.
+  - `chunkCacheKey` (string, required): Cache key returned by the original chunked response.
+- **Returns:** The requested chunk content.
+- **Annotations:** readOnlyHint=true, idempotentHint=true, openWorldHint=false
+
+### ask-codex
+
+Send prompts to OpenAI Codex CLI.
+
+- **Package:** ask-codex-mcp
+- **Parameters:**
+  - `prompt` (string, required): The question, code review request, or analysis task.
+  - `model` (string, optional): Do not set unless user explicitly requests it. Default: gpt-5.4. Falls back to gpt-5.4-mini on quota errors.
+- **Returns:** Codex's text response.
+- **Annotations:** readOnlyHint=false, destructiveHint=false, openWorldHint=true
+
+### ask-ollama
+
+Send prompts to a local Ollama LLM via HTTP. No API keys or network calls needed.
+
+- **Package:** ask-ollama-mcp
+- **Parameters:**
+  - `prompt` (string, required): The question, code review request, or analysis task.
+  - `model` (string, optional): Do not set unless user explicitly requests it. Default: qwen2.5-coder:7b. Falls back to qwen2.5-coder:1.5b if not found.
+- **Returns:** Ollama's text response.
+- **Annotations:** readOnlyHint=false, destructiveHint=false, openWorldHint=false
+- **Environment:** Set OLLAMA_HOST to customize the Ollama server address (default: http://localhost:11434).
+
+### ping
+
+Test MCP server connectivity. Available in all packages.
+
+- **Parameters:**
+  - `message` (string, optional): A message to echo back.
+- **Returns:** The echoed message or a default pong response. Ollama's ping lists locally available models.
+- **Annotations:** readOnlyHint=true, idempotentHint=true, openWorldHint=false
+
+## Models
+
+### Gemini
+| Model | Use Case |
+|-------|----------|
+| gemini-3.1-pro-preview | Default — best quality reasoning, 1M+ token context |
+| gemini-3-flash-preview | Automatic fallback on quota errors — faster, large codebases |
+
+### Codex
+| Model | Use Case |
+|-------|----------|
+| gpt-5.4 | Default — highest capability |
+| gpt-5.4-mini | Automatic fallback on quota errors |
+
+### Ollama
+| Model | Use Case |
+|-------|----------|
+| qwen2.5-coder:7b | Default — good balance of speed and capability |
+| qwen2.5-coder:1.5b | Automatic fallback if 7b not available |
+
+## Usage Patterns
+
+### Code review (second opinion)
+```
+Ask Gemini to review @src/auth.ts for security issues
+```
+
+### Codebase analysis
+```
+Ask Gemini to summarize @. the current directory
+```
+
+### Architecture debate
+```
+Ask Codex: should we use a message queue or direct HTTP calls for this service?
+```
+
+### Local private review
+```
+Ask Ollama to review the changes in @src/payments.ts
+```
+
+### Multi-provider review (Claude Code plugin)
+```
+/multi-review
+```
+Launches Gemini and Codex reviews in parallel with consensus highlighting.
+
+## Claude Code Plugin
+
+### Installation
+
+```
+/plugin marketplace add Lykhoyda/ask-llm
+/plugin install ask-llm@ask-llm-plugins
+```
+
+### Skills (slash commands)
+
+| Skill | Description |
+|-------|-------------|
+| /multi-review | Parallel Gemini + Codex code review with validation pipeline and consensus highlighting |
+| /gemini-review | Gemini-only code review with confidence filtering |
+| /codex-review | Codex-only code review with confidence filtering |
+| /ollama-review | Local Ollama code review — no data leaves machine |
+| /brainstorm [providers] topic | Multi-LLM brainstorm (default: gemini,codex) |
+| /brainstorm-all topic | Brainstorm with all three providers |
+
+### Agents
+
+| Agent | Color | Description |
+|-------|-------|-------------|
+| gemini-reviewer | cyan | 4-phase review: context, prompt, synthesis, validation |
+| codex-reviewer | green | 4-phase review: context, prompt, synthesis, validation |
+| ollama-reviewer | yellow | 4-phase review: context, prompt, synthesis, validation (local) |
+| brainstorm-coordinator | magenta | Parallel multi-LLM consultation with synthesis |
+
+### Hooks
+
+| Hook | Trigger | Action |
+|------|---------|--------|
+| Stop | Session end | Sends worktree diff to Gemini for 3-bullet advisory review |
+| PreToolUse (Bash) | Before git commit | Reviews staged changes, warns about critical issues |
+
+## Error Handling
+
+All MCP servers handle errors gracefully:
+- **Quota errors:** Automatic fallback to cheaper model (Pro→Flash, gpt-5.4→mini, 7b→1.5b)
+- **CLI not found:** Clear error message with installation instructions
+- **Timeout:** 5-minute default, configurable via GMCPT_TIMEOUT_MS environment variable
+- **Large responses:** Automatic chunking with fetch-chunk retrieval (Gemini only)
+
+## Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| GMCPT_TIMEOUT_MS | 300000 (5 min) | Process timeout for CLI commands |
+| GMCPT_LOG_LEVEL | warn | Log level: debug, info, warn, error |
+| OLLAMA_HOST | http://localhost:11434 | Ollama server address |
+
+## Links
+
+- Source: https://github.com/Lykhoyda/ask-llm
+- Docs: https://lykhoyda.github.io/ask-llm/
+- npm (gemini): https://www.npmjs.com/package/ask-gemini-mcp
+- npm (codex): https://www.npmjs.com/package/ask-codex-mcp
+- npm (ollama): https://www.npmjs.com/package/ask-ollama-mcp
+- npm (unified): https://www.npmjs.com/package/ask-llm-mcp

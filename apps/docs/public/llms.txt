@@ -1,0 +1,55 @@
+# Ask LLM
+
+> MCP servers for AI-to-AI collaboration — bridge your AI client with Gemini, Codex, and Ollama.
+
+Ask LLM provides Model Context Protocol (MCP) servers that let any MCP-compatible AI client (Claude Code, Claude Desktop, Cursor, Warp, Copilot, and 40+ others) consult external LLM providers. The core pattern: your primary AI delegates research, reviews, or brainstorming to other AI providers via standard MCP tool calls.
+
+## Packages
+
+- `ask-gemini-mcp`: MCP server for Google Gemini CLI. 1M+ token context. Default model: gemini-3.1-pro-preview.
+- `ask-codex-mcp`: MCP server for OpenAI Codex CLI. Default model: gpt-5.4.
+- `ask-ollama-mcp`: MCP server for local Ollama. No API keys, fully private. Default model: qwen2.5-coder:7b.
+- `ask-llm-mcp`: Unified server — auto-detects installed providers and registers all available tools.
+
+## Installation
+
+Each server is installed via npx or globally via npm:
+
+```
+claude mcp add gemini -- npx -y ask-gemini-mcp
+claude mcp add codex -- npx -y ask-codex-mcp
+claude mcp add ollama -- npx -y ask-ollama-mcp
+claude mcp add ask-llm -- npx -y ask-llm-mcp
+```
+
+## Tools
+
+| Tool | Package | Parameters | Description |
+|------|---------|------------|-------------|
+| ask-gemini | ask-gemini-mcp | prompt (required), model (optional) | Send prompts to Gemini CLI. Use @ syntax for files. |
+| ask-gemini-edit | ask-gemini-mcp | prompt (required), model (optional), includeDirs (optional) | Get structured OLD/NEW code edit blocks from Gemini. |
+| fetch-chunk | ask-gemini-mcp | chunkIndex (required), chunkCacheKey (required) | Retrieve subsequent chunks from cached large responses. |
+| ask-codex | ask-codex-mcp | prompt (required), model (optional) | Send prompts to Codex CLI. |
+| ask-ollama | ask-ollama-mcp | prompt (required), model (optional) | Send prompts to local Ollama. |
+| ping | all packages | message (optional) | Test MCP server connectivity. |
+
+## Claude Code Plugin
+
+Install the plugin for review skills, brainstorm agents, and automated hooks:
+
+```
+/plugin marketplace add Lykhoyda/ask-llm
+/plugin install ask-llm@ask-llm-plugins
+```
+
+Skills: /multi-review, /gemini-review, /codex-review, /ollama-review, /brainstorm, /brainstorm-all
+
+## Links
+
+- Source: https://github.com/Lykhoyda/ask-llm
+- Docs: https://lykhoyda.github.io/ask-llm/
+- Full reference for AI agents: https://lykhoyda.github.io/ask-llm/llms-full.txt
+- npm (gemini): https://www.npmjs.com/package/ask-gemini-mcp
+- npm (codex): https://www.npmjs.com/package/ask-codex-mcp
+- npm (ollama): https://www.npmjs.com/package/ask-ollama-mcp
+- npm (unified): https://www.npmjs.com/package/ask-llm-mcp

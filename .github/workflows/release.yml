@@ -28,22 +28,22 @@ jobs:
       # npm — publish all MCP server packages with bundled @ask-llm/shared
       # Uses npm (not yarn) because yarn pack ignores bundledDependencies
       - name: Publish ask-gemini-mcp
-        run: npm publish --access public
+        run: npm publish --access public --provenance
         working-directory: packages/gemini-mcp
         continue-on-error: true
 
       - name: Publish ask-codex-mcp
-        run: npm publish --access public
+        run: npm publish --access public --provenance
         working-directory: packages/codex-mcp
         continue-on-error: true
 
       - name: Publish ask-ollama-mcp
-        run: npm publish --access public
+        run: npm publish --access public --provenance
         working-directory: packages/ollama-mcp
         continue-on-error: true
 
       - name: Publish ask-llm-mcp
-        run: npm publish --access public
+        run: npm publish --access public --provenance
         working-directory: packages/llm-mcp
         continue-on-error: true
 

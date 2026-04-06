@@ -1,5 +1,12 @@
 # Architectural Decisions
 
+## ADR-043: Move Smoke Tests from GA to Local Husky Pre-Push Hook
+- **Date:** 2026-04-06
+- **Status:** Accepted
+- **Context:** Cloud smoke tests ran weekly in GitHub Actions (`smoke.yml`) with three separate jobs (Gemini, Codex, Ollama). Each job installed CLIs, built the monorepo, and ran integration tests with real API calls. This consumed CI minutes, required stored secrets, and only ran weekly — meaning broken integrations could go undetected for days between manual triggers. The developer already has all three CLIs installed and authenticated locally.
+- **Decision:** (1) Deleted `.github/workflows/smoke.yml`. (2) Added Husky v9 with a `pre-push` hook that runs smoke tests using locally installed CLIs (Gemini, Codex, Ollama). (3) `scripts/smoke-test.sh` runs all three provider integration tests sequentially with `SMOKE_TEST=1`. (4) Added `yarn smoke` convenience script. No Docker needed — all providers use existing local authentication.
+- **Consequences:** Smoke tests run on every push instead of weekly. Uses existing local CLI sessions (no API key management). CI (`ci.yml`) still handles unit tests, linting, and type checking. Developers can skip with `git push --no-verify` when needed.
+
 ## ADR-042: Fix Codex stdin Pipe Error in Agent Sub-Processes
 - **Date:** 2026-04-03
 - **Status:** Accepted

@@ -1,10 +1,6 @@
 import type { BaseToolArguments } from "@ask-llm/shared";
 
-export const QUOTA_PATTERNS = [
-  "RESOURCE_EXHAUSTED",
-  "TerminalQuotaError",
-  "exhausted your capacity",
-] as const;
+export const QUOTA_PATTERNS = ["RESOURCE_EXHAUSTED", "TerminalQuotaError", "exhausted your capacity"] as const;
 
 export const ERROR_MESSAGES = {
   QUOTA_EXCEEDED: "RESOURCE_EXHAUSTED",

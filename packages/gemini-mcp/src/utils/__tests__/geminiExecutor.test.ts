@@ -186,7 +186,9 @@ describe("executeGeminiCLI quota fallback", () => {
   it("retries on TerminalQuotaError from newer Gemini CLI", async () => {
     mockExecuteCommand
       .mockRejectedValueOnce(
-        new Error("TerminalQuotaError: You have exhausted your capacity on this model. Your quota will reset after 3h34m21s."),
+        new Error(
+          "TerminalQuotaError: You have exhausted your capacity on this model. Your quota will reset after 3h34m21s.",
+        ),
       )
       .mockResolvedValueOnce(JSON.stringify({ response: "Flash response" }));
 
@@ -198,9 +200,7 @@ describe("executeGeminiCLI quota fallback", () => {
 
   it("retries on 'exhausted your capacity' JSON error", async () => {
     mockExecuteCommand
-      .mockRejectedValueOnce(
-        new Error("You have exhausted your capacity on this model."),
-      )
+      .mockRejectedValueOnce(new Error("You have exhausted your capacity on this model."))
       .mockResolvedValueOnce(JSON.stringify({ response: "Flash response" }));
 
     const result = await executeGeminiCLI({ prompt: "hello" });

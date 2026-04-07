@@ -13,7 +13,7 @@ import {
   summarizeChangeModeEdits,
   validateChangeModeEdits,
 } from "@ask-llm/shared";
-import { CLI, ERROR_MESSAGES, MODELS, QUOTA_PATTERNS, STATUS_MESSAGES } from "../constants.js";
+import { CLI, MODELS, QUOTA_PATTERNS, STATUS_MESSAGES } from "../constants.js";
 
 interface GeminiModelTokens {
   input?: number;

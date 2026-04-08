@@ -60,12 +60,14 @@ jobs:
         run: |
           curl -sL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_linux_amd64.tar.gz" | tar xz mcp-publisher
 
-      - name: Sync versions from tag to server.json files
+      - name: Sync versions from tag to server.json and marketplace.json
         run: |
           VERSION=${GITHUB_REF#refs/tags/v}
           for f in server.json packages/codex-mcp/server.json packages/ollama-mcp/server.json packages/llm-mcp/server.json; do
             jq --arg v "$VERSION" '(.version = $v) | (.packages[0].version = $v)' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
           done
+          PLUGIN_VERSION=$(node -p "require('./packages/claude-plugin/package.json').version")
+          jq --arg v "$PLUGIN_VERSION" '(.plugins[0].version = $v)' .claude-plugin/marketplace.json > .claude-plugin/marketplace.json.tmp && mv .claude-plugin/marketplace.json.tmp .claude-plugin/marketplace.json
 
       - run: ./mcp-publisher login github-oidc
 

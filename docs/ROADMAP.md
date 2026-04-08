@@ -37,6 +37,7 @@
 - [x] **#21 Gemini fallback** — Multi-pattern quota detection for newer CLI versions (ADR-044)
 - [x] **#20 Claude Desktop timeout** — Lowered default timeout to 210s, actionable error messages (ADR-045)
 - [x] **ANT-242 Codex hangs + Node detection** — Added `--full-auto` flag, Node.js v20+ startup check (ADR-046)
+- [x] **Shell PATH resolution** — macOS GUI apps (Claude Desktop) don't inherit shell PATH; added login shell extraction + heuristic fallback (ADR-047)
 
 ## Undecided / Potential Improvements
 - **Streaming JSON output** — expose `--output-format stream-json` for real-time JSONL progress events (`init`, `message`, `tool_use`, `result`). Would replace keepalive messages with live content streaming. High complexity, no user demand yet.

@@ -17,3 +17,4 @@ export type { UnifiedTool } from "./registry.js";
 export { executeTool, getPromptMessage, toolRegistry } from "./registry.js";
 export type { ResponseCacheOptions } from "./responseCache.js";
 export { ResponseCache, responseCache } from "./responseCache.js";
+export { getSpawnEnv, resolveShellPath } from "./shellPath.js";

@@ -1,5 +1,12 @@
 # Architectural Decisions
 
+## ADR-047: Shell PATH Resolution for macOS GUI Apps
+- **Date:** 2026-04-08
+- **Status:** Accepted
+- **Context:** macOS GUI applications (Claude Desktop, Cursor, etc.) do not inherit the user's shell environment — `.zshrc`/`.zprofile` are never sourced. This means nvm, fnm, Volta, and Homebrew paths are missing from PATH. When our MCP server spawns CLI tools like `gemini` or `codex`, those CLIs resolve to the wrong Node version (e.g., system v18 instead of user's v24), causing ES2024 incompatibility crashes. This affects all macOS users who install Node via version managers.
+- **Decision:** Added `shellPath.ts` to `@ask-llm/shared` with a 3-tier PATH resolution strategy: (1) `ASK_LLM_PATH` env var override if set, (2) Extract real PATH from user's login shell via `execFileSync(shell, ["-ilc", "echo $PATH"])`, (3) Heuristic fallback scanning `~/.nvm/versions/node/`, `~/.volta/bin`, `/opt/homebrew/bin`, `/usr/local/bin` for Node v20+. The resolved PATH is cached once at startup and passed to all `spawn()` calls via `getSpawnEnv()`. Also updated `llm-mcp`'s `isCommandAvailable()` to use the resolved PATH.
+- **Consequences:** CLI tools spawned by our MCP servers now use the user's real PATH regardless of how the parent process was launched. The login shell extraction adds ~100ms to first command execution (cached thereafter). Windows is unaffected (GUI apps inherit PATH correctly). Users with non-standard setups can override via `ASK_LLM_PATH` env var in MCP config.
+
 ## ADR-046: Add --full-auto to Codex CLI and Node.js Version Check
 - **Date:** 2026-04-08
 - **Status:** Accepted

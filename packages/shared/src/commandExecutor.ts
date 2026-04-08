@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { EXECUTION } from "./constants.js";
 import { Logger } from "./logger.js";
+import { getSpawnEnv } from "./shellPath.js";
 
 const IS_WINDOWS = process.platform === "win32";
 
@@ -36,7 +37,7 @@ export async function executeCommand(
     const safeArgs = IS_WINDOWS ? quoteArgsForWindows(args) : args;
 
     const childProcess = spawn(command, safeArgs, {
-      env: process.env,
+      env: getSpawnEnv(),
       shell: IS_WINDOWS,
       stdio: ["pipe", "pipe", "pipe"],
     });

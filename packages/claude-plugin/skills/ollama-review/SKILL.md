@@ -1,6 +1,6 @@
 ---
 name: ollama-review
-description: Get a second opinion from a local Ollama LLM on your current code changes. Analyzes staged/unstaged diffs and returns prioritized findings. No API keys needed.
+description: Get a second opinion from a local Ollama LLM on your current code changes. Analyzes staged/unstaged diffs and returns prioritized findings. No API keys needed. Use when user asks to "review with Ollama", "local code review", or "review offline".
 user_invocable: true
 ---
 

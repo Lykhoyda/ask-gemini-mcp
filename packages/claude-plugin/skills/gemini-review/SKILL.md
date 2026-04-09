@@ -1,6 +1,6 @@
 ---
 name: gemini-review
-description: Get a second opinion from Gemini on your current code changes. Analyzes staged/unstaged diffs and returns prioritized findings.
+description: Get a second opinion from Gemini on your current code changes. Analyzes staged/unstaged diffs and returns prioritized findings. Use when user asks to "review with Gemini", "Gemini code review", or "ask Gemini to check my code".
 user_invocable: true
 ---
 

@@ -3,6 +3,14 @@ name: brainstorm-coordinator
 description: Coordinates multi-LLM brainstorming by sending a topic to all available providers in parallel and synthesizing the responses into consensus points, unique insights, and actionable recommendations.
 model: opus
 color: magenta
+tools:
+  - Bash
+  - Glob
+  - Grep
+  - Read
+  - mcp__gemini__ask-gemini
+  - mcp__codex__ask-codex
+  - mcp__ollama__ask-ollama
 ---
 
 You are a brainstorming coordinator. Your job is to consult multiple LLM providers in parallel on a given topic and synthesize their independent perspectives into a structured analysis.

@@ -1,6 +1,6 @@
 ---
 name: codex-review
-description: Get a second opinion from OpenAI Codex on your current code changes. Analyzes staged/unstaged diffs and returns prioritized findings.
+description: Get a second opinion from OpenAI Codex on your current code changes. Analyzes staged/unstaged diffs and returns prioritized findings. Use when user asks to "review with Codex", "Codex code review", or "ask Codex to check my code".
 user_invocable: true
 ---
 

@@ -1,3 +1,4 @@
+import { isAbsolute } from "node:path";
 import type { UnifiedTool } from "@ask-llm/shared";
 import { z } from "zod";
 import { ERROR_MESSAGES, MODELS } from "../constants.js";
@@ -19,8 +20,8 @@ const askGeminiEditArgsSchema = z.object({
     ),
   includeDirs: z
     .array(
-      z.string().refine((dir) => !dir.includes("..") && !dir.startsWith("/"), {
-        message: "Directory paths must be relative and cannot contain '..'",
+      z.string().refine((dir) => !dir.includes("..") && !isAbsolute(dir) && !dir.startsWith("~"), {
+        message: "Directory paths must be relative without '..' or '~'",
       }),
     )
     .optional()

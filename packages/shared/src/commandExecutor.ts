@@ -5,13 +5,22 @@ import { getSpawnEnv } from "./shellPath.js";
 
 const IS_WINDOWS = process.platform === "win32";
 
+const QUOTA_PASSTHROUGH_PATTERNS = [
+  "RESOURCE_EXHAUSTED",
+  "TerminalQuotaError",
+  "exhausted your capacity",
+  "rate_limit_exceeded",
+  "quota_exceeded",
+  "insufficient_quota",
+];
+
 export function sanitizeErrorForLLM(stderr: string, command: string): string {
   if (stderr.includes("Invalid regular expression flags") && stderr.includes("Node.js v")) {
     const nodeVersion = stderr.match(/Node\.js (v[\d.]+)/)?.[1] ?? "unknown";
     return `${command} CLI requires Node.js v20+ but is running on ${nodeVersion}. The user should update their Node version or set ASK_LLM_PATH in their MCP config to point to a Node v20+ installation.`;
   }
 
-  if (stderr.includes("command not found") || stderr.includes("ENOENT")) {
+  if (stderr.includes("command not found") || stderr.includes(`spawn ${command} ENOENT`)) {
     return `${command} CLI not found on PATH. Ensure it is installed and accessible. Run "which ${command}" in a terminal to verify.`;
   }
 
@@ -19,9 +28,15 @@ export function sanitizeErrorForLLM(stderr: string, command: string): string {
     return `Permission denied when running ${command} CLI. Check file permissions and try running with appropriate access.`;
   }
 
-  const firstLine = stderr.split("\n")[0].trim();
-  if (firstLine.length > 0 && firstLine.length < 300) {
-    return firstLine;
+  const lower = stderr.toLowerCase();
+  if (QUOTA_PASSTHROUGH_PATTERNS.some((p) => lower.includes(p.toLowerCase()))) {
+    return stderr.length > 500 ? `${stderr.slice(0, 500)}... (truncated)` : stderr;
+  }
+
+  const lines = stderr.split("\n").filter((l) => l.trim().length > 0);
+  const preview = lines.slice(0, 3).join("\n");
+  if (preview.length > 0 && preview.length < 500) {
+    return preview;
   }
 
   return stderr.length > 500 ? `${stderr.slice(0, 500)}... (truncated)` : stderr;

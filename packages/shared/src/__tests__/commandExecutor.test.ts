@@ -78,8 +78,30 @@ Node.js v18.15.0`;
     expect(result).toContain("truncated");
   });
 
-  it("returns first line for short unknown errors", () => {
-    const result = sanitizeErrorForLLM("Some error\nStack trace line 1\nLine 2", "gemini");
-    expect(result).toBe("Some error");
+  it("returns first 3 lines for short unknown errors", () => {
+    const result = sanitizeErrorForLLM("Some error\nCause: something broke\nAt module.ts:42", "gemini");
+    expect(result).toContain("Some error");
+    expect(result).toContain("Cause: something broke");
+    expect(result).toContain("At module.ts:42");
+  });
+
+  it("passes through quota errors unmodified for downstream fallback", () => {
+    const stderr = "Some prefix output\nRandom line\nRESOURCE_EXHAUSTED: quota exceeded for model";
+    const result = sanitizeErrorForLLM(stderr, "gemini");
+    expect(result).toContain("RESOURCE_EXHAUSTED");
+  });
+
+  it("passes through TerminalQuotaError for downstream fallback", () => {
+    const stderr = "Error running model\nTerminalQuotaError: You have exhausted your capacity";
+    const result = sanitizeErrorForLLM(stderr, "gemini");
+    expect(result).toContain("TerminalQuotaError");
+  });
+
+  it("does not match ENOENT from CLI file errors", () => {
+    const result = sanitizeErrorForLLM(
+      "Error: ENOENT: no such file or directory, open '/missing/config.json'",
+      "gemini",
+    );
+    expect(result).not.toContain("not found on PATH");
   });
 });

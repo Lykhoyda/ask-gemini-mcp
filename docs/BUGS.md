@@ -103,6 +103,12 @@
 
 ## Claude Code Plugin — Known Limitations (from Gemini & Codex review)
 
+### ~~npx -y ask-llm-mcp fails under npm 9 with EUNSUPPORTEDPROTOCOL workspace:*~~ RESOLVED (ADR-052)
+- **Severity:** Critical
+- **Files:** `packages/{gemini,codex,ollama,llm}-mcp/package.json`
+- **Description:** Claude Desktop ships with Node 18 / npm 9.7.1. `npx -y ask-llm-mcp` (the recommended install command in `claude_desktop_config.json`) fails immediately with `npm ERR! code EUNSUPPORTEDPROTOCOL — Unsupported URL Type "workspace:": workspace:*` and the server never boots. Root cause: the published MCP packages had `"@ask-llm/shared": "workspace:*"` literally in their `dependencies` field. The `npm exec`/`npx` path fetches the registry manifest and parses its deps BEFORE downloading the tarball, so `bundledDependencies` doesn't help. Empirically reproduced on Node 18.15.0 / npm 9.7.1. Works fine on npm 10/11 (hence "works for me" pattern).
+- **Resolution:** Added `scripts/prepack-bundle.mjs` + `scripts/postpack-restore.mjs` that rewrite `workspace:*` → `*` in the published tarball's package.json (both top-level and bundled nested ones) at pack time, and restore the dev-time `workspace:*` in the working tree after pack. Published `ask-llm-mcp@0.2.6` / `ask-codex-mcp@0.2.6` / `ask-ollama-mcp@0.2.6` / `ask-gemini-mcp@1.5.6` with the fix. Verified install and binary execution under Node 18.15.0 / npm 9.7.1. See ADR-052 for full rationale.
+
 ### ~~Untracked files not included in Stop hook review~~ RESOLVED (removed)
 - **Severity:** Medium
 - **File:** `packages/claude-plugin/hooks/hooks.json`

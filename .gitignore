@@ -35,3 +35,6 @@ CLAUDE.md
 .agent/
 skills-lock.json
 .playwright-mcp
+
+# Transient backup from ADR-052 prepack-bundle workflow
+packages/*/package.json.bak

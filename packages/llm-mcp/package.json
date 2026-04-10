@@ -1,6 +1,6 @@
 {
   "name": "ask-llm-mcp",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "mcpName": "io.github.Lykhoyda/ask-llm",
   "description": "Unified MCP server for multi-LLM consultation — registers tools from all available providers (Gemini, Codex, Ollama) behind runtime availability checks",
   "type": "module",
@@ -15,7 +15,8 @@
     "dev": "tsc -b && node dist/cli.js",
     "test": "vitest run",
     "lint": "biome check src/ && tsc --noEmit",
-    "prepack": "mkdir -p node_modules/@ask-llm/shared && cp -r ../../packages/shared/dist node_modules/@ask-llm/shared/ && cp ../../packages/shared/package.json node_modules/@ask-llm/shared/ && mkdir -p node_modules/ask-gemini-mcp && cp -r ../../packages/gemini-mcp/dist node_modules/ask-gemini-mcp/ && cp ../../packages/gemini-mcp/package.json node_modules/ask-gemini-mcp/ && mkdir -p node_modules/ask-codex-mcp && cp -r ../../packages/codex-mcp/dist node_modules/ask-codex-mcp/ && cp ../../packages/codex-mcp/package.json node_modules/ask-codex-mcp/ && mkdir -p node_modules/ask-ollama-mcp && cp -r ../../packages/ollama-mcp/dist node_modules/ask-ollama-mcp/ && cp ../../packages/ollama-mcp/package.json node_modules/ask-ollama-mcp/"
+    "prepack": "node ../../scripts/prepack-bundle.mjs shared gemini-mcp codex-mcp ollama-mcp",
+    "postpack": "node ../../scripts/postpack-restore.mjs"
   },
   "keywords": [
     "mcp",

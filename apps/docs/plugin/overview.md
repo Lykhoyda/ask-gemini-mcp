@@ -44,8 +44,8 @@ This gives you `gemini:ask-gemini` rather than `plugin:ask-llm:gemini:ask-gemini
 | `/gemini-review` | Gemini | Get a second opinion on your current changes |
 | `/codex-review` | Codex | Get a second opinion from GPT-5.4 |
 | `/ollama-review` | Ollama | Local review — no data leaves your machine |
-| `/brainstorm` | Multi | Send a topic to multiple providers in parallel |
-| `/brainstorm-all` | All | Brainstorm with all three providers |
+| `/brainstorm` | Multi + Claude Opus | Claude Opus researches the topic against real files in parallel with external providers, then synthesizes findings |
+| `/brainstorm-all` | All + Claude Opus | Brainstorm with all three external providers plus Claude Opus research |
 
 > `/codex-review`, `/ollama-review`, and `/brainstorm` require the respective CLI tools to be installed and authenticated.
 
@@ -56,7 +56,7 @@ This gives you `gemini:ask-gemini` rather than `plugin:ask-llm:gemini:ask-gemini
 | `gemini-reviewer` | Isolated Gemini code review with confidence-based filtering |
 | `codex-reviewer` | Isolated Codex code review with confidence-based filtering |
 | `ollama-reviewer` | Local Ollama code review — no data leaves your machine |
-| `brainstorm-coordinator` | Multi-LLM brainstorm: sends topic to providers in parallel, synthesizes consensus |
+| `brainstorm-coordinator` | First-class research participant: runs its own Claude Opus research (reads real files, traces code, fetches docs) in parallel with external providers, then synthesizes consensus. Verified findings weighted higher than inferred ones. |
 
 ### Hooks
 

@@ -34,6 +34,7 @@
 - See [design doc](plans/2026-02-26-ask-llm-mcp-design.md)
 
 ## Priority 9: Bug Fixes (GitHub Issues)
+- [x] **#22 brainstorm-coordinator** — Claude Opus as first-class research participant (Phase 3B), not just orchestrator; verified findings weighted higher than inferred (ADR-049)
 - [x] **#21 Gemini fallback** — Multi-pattern quota detection for newer CLI versions (ADR-044)
 - [x] **#20 Claude Desktop timeout** — Lowered default timeout to 210s, actionable error messages (ADR-045)
 - [x] **ANT-242 Codex hangs + Node detection** — Added `--full-auto` flag, Node.js v20+ startup check (ADR-046)

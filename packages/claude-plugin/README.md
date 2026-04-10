@@ -35,8 +35,8 @@ claude mcp add --scope user ollama -- npx -y ask-ollama-mcp
 | `/gemini-review` | Gemini-only code review with confidence filtering |
 | `/codex-review` | Codex-only code review |
 | `/ollama-review` | Local review — no data leaves your machine |
-| `/brainstorm` | Multi-LLM brainstorm (default: gemini,codex) |
-| `/brainstorm-all` | Brainstorm with all three providers |
+| `/brainstorm` | Multi-LLM brainstorm with Claude Opus as a first-class research participant (default external: gemini,codex) |
+| `/brainstorm-all` | Brainstorm with all three external providers + Claude Opus research |
 
 ## Agents
 
@@ -45,7 +45,7 @@ claude mcp add --scope user ollama -- npx -y ask-ollama-mcp
 | gemini-reviewer | cyan | 4-phase: context, prompt, synthesis, validation |
 | codex-reviewer | green | 4-phase: context, prompt, synthesis, validation |
 | ollama-reviewer | yellow | 4-phase: context, prompt, synthesis, validation (local) |
-| brainstorm-coordinator | magenta | Parallel multi-LLM consultation with synthesis |
+| brainstorm-coordinator | magenta | Claude Opus research + parallel multi-LLM consultation with synthesis; verified findings weighted higher than inferred |
 
 ## Hooks
 

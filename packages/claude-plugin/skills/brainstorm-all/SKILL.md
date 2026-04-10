@@ -1,12 +1,12 @@
 ---
 name: brainstorm-all
-description: Send a topic to ALL LLM providers (Gemini, Codex, Ollama) in parallel. Shortcut for /brainstorm gemini,codex,ollama <topic>. Requires Ollama to be running locally.
+description: Send a topic to ALL LLM providers (Gemini, Codex, Ollama) in parallel while Claude Opus performs its own independent research in parallel. Synthesizes findings from up to four participants. Shortcut for /brainstorm gemini,codex,ollama <topic>. Requires Ollama to be running locally.
 user_invocable: true
 ---
 
 # Multi-LLM Brainstorm (All Providers)
 
-Consult all available LLM providers (Gemini, Codex, Ollama) simultaneously and synthesize their perspectives.
+Consult all available external LLM providers (Gemini, Codex, Ollama) simultaneously while Claude Opus performs its own independent research on the topic, then synthesize perspectives from all four participants.
 
 ## Instructions
 
@@ -17,4 +17,7 @@ Consult all available LLM providers (Gemini, Codex, Ollama) simultaneously and s
 
 2. If no topic is clear, ask the user what they'd like to brainstorm about.
 
-3. Launch the `brainstorm-coordinator` agent with the topic, providers set to `gemini,codex,ollama`, and any gathered context.
+3. Launch the `brainstorm-coordinator` agent with the topic, external providers set to `gemini,codex,ollama`, and any gathered context. The coordinator will:
+   - Run its own Claude Opus research phase in parallel with the external dispatches (Phase 3B — reads actual files, traces code, uses WebFetch/WebSearch on referenced external docs)
+   - Dispatch the topic to the three external providers in parallel (Phase 3A)
+   - Synthesize all findings with Claude's verified findings weighted higher than inferred ones

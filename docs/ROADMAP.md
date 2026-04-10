@@ -34,6 +34,7 @@
 - See [design doc](plans/2026-02-26-ask-llm-mcp-design.md)
 
 ## Priority 9: Bug Fixes (GitHub Issues)
+- [x] **Smoke test rate-limit-self-defeating loop** — Pre-push smoke tests burned the very Gemini quota the next push needed, causing intermittent push failures within ~10-minute windows. Added quota-detection escape (`scripts/smoke-test.sh`) that treats 429/quota errors as skip-with-warning, with `FORCE_SMOKE=1` opt-in to restore hard-fail (ADR-051)
 - [x] **#23 brainstorm-coordinator** — Sub-agent background job lifecycle bug: Codex at high reasoning was SIGKILLed silently when the coordinator's turn ended. Rewrote Phase 3 to run sequentially (3B then 3A) with a single foreground blocking Bash dispatch using direct backgrounding + per-PID wait + 10-minute timeout (ADR-050)
 - [x] **#22 brainstorm-coordinator** — Claude Opus as first-class research participant (Phase 3B), not just orchestrator; verified findings weighted higher than inferred (ADR-049)
 - [x] **#21 Gemini fallback** — Multi-pattern quota detection for newer CLI versions (ADR-044)

@@ -60,12 +60,18 @@ jobs:
         run: |
           curl -sL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_linux_amd64.tar.gz" | tar xz mcp-publisher
 
-      - name: Sync versions from tag to server.json and marketplace.json
+      - name: Sync versions from package.json to server.json and marketplace.json
         run: |
-          VERSION=${GITHUB_REF#refs/tags/v}
-          for f in server.json packages/codex-mcp/server.json packages/ollama-mcp/server.json packages/llm-mcp/server.json; do
-            jq --arg v "$VERSION" '(.version = $v) | (.packages[0].version = $v)' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+          # Gemini's server.json uses the tag version (tag naming follows gemini-mcp historically)
+          TAG_VERSION=${GITHUB_REF#refs/tags/v}
+          jq --arg v "$TAG_VERSION" '(.version = $v) | (.packages[0].version = $v)' server.json > server.json.tmp && mv server.json.tmp server.json
+
+          # Other MCP packages are on separate version tracks — read each package.json
+          for dir in codex-mcp ollama-mcp llm-mcp; do
+            PKG_VERSION=$(node -p "require('./packages/$dir/package.json').version")
+            jq --arg v "$PKG_VERSION" '(.version = $v) | (.packages[0].version = $v)' "packages/$dir/server.json" > "packages/$dir/server.json.tmp" && mv "packages/$dir/server.json.tmp" "packages/$dir/server.json"
           done
+
           PLUGIN_VERSION=$(node -p "require('./packages/claude-plugin/package.json').version")
           jq --arg v "$PLUGIN_VERSION" '(.plugins[0].version = $v)' .claude-plugin/marketplace.json > .claude-plugin/marketplace.json.tmp && mv .claude-plugin/marketplace.json.tmp .claude-plugin/marketplace.json
 

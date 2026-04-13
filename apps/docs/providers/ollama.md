@@ -1,3 +1,7 @@
+---
+description: Run local LLMs via Ollama for fully private AI code review. No API keys, zero cost — data never leaves your machine.
+---
+
 # Ollama
 
 Run local LLMs via Ollama's HTTP API. No API keys needed, fully private, zero cost. Uses native `fetch` against Ollama's local server.

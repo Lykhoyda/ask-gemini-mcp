@@ -1,3 +1,7 @@
+---
+description: Automated pre-commit code review via Gemini. Advisory hook that reviews staged changes before git commit without blocking.
+---
+
 # Hooks
 
 Hooks are automated actions that trigger on specific Claude Code events. The plugin configures one hook that provides passive, advisory code review via Gemini without any manual invocation.

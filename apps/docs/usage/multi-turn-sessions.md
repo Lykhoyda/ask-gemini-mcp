@@ -1,3 +1,7 @@
+---
+description: Continue conversations with Gemini across multiple tool calls using session IDs. Retain full conversation history for iterative analysis.
+---
+
 # Multi-Turn Sessions
 
 Continue conversations with Gemini across multiple tool calls. Instead of starting fresh every time, pass a session ID to resume where you left off — Gemini retains the full conversation history.

@@ -1,3 +1,7 @@
+---
+description: Proven strategies for AI-to-AI code review, architecture debates, and large codebase analysis using the @ file syntax and multi-provider workflows.
+---
+
 # Strategies & Examples
 
 Get the most out of Ask Gemini MCP by leveraging its massive 1M+ token context window. Here are proven strategies and workflows.

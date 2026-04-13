@@ -1,3 +1,7 @@
+---
+description: Isolated sub-agents for AI code review and multi-LLM brainstorming. Confidence-based filtering (80%+ threshold) across Gemini, Codex, and Ollama.
+---
+
 # Agents
 
 Agents are specialized sub-processes that Claude Code dispatches to handle complex tasks. Each agent runs in an isolated context window, preventing review noise from polluting your main conversation.

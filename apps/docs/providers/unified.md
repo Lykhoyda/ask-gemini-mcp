@@ -1,3 +1,7 @@
+---
+description: All LLM providers in one MCP server. Auto-detects installed CLIs (Gemini, Codex, Ollama) and registers available tools behind runtime checks.
+---
+
 # Unified (ask-llm-mcp)
 
 All providers in one MCP server. Auto-detects which CLIs are installed and registers only the available tools. One install, all providers.

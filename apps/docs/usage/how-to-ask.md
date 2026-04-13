@@ -1,3 +1,7 @@
+---
+description: Natural language prompts for AI-to-AI collaboration. Use the @ file syntax to include code, diffs, and entire directories in your prompts.
+---
+
 # How to Ask Gemini
 
 You don't need to memorize commands or rigid syntax to use this tool, because **Ask Gemini MCP** is designed for natural language collaboration.

@@ -1,3 +1,7 @@
+---
+description: Bridge Claude with OpenAI Codex CLI for GPT-5.4 code review and analysis. Automatic fallback to GPT-5.4-mini on quota limits.
+---
+
 # Codex
 
 Bridge Claude with OpenAI's Codex CLI. Access GPT-5.4 for code generation, analysis, and review with automatic fallback to GPT-5.4-mini on quota limits.

@@ -1,3 +1,7 @@
+---
+description: Slash commands for AI code review and brainstorming — /gemini-review, /codex-review, /ollama-review, /multi-review, and /brainstorm.
+---
+
 # Skills
 
 Skills are slash commands you can invoke directly in Claude Code. Each skill triggers a structured workflow that gathers context, calls a provider, and returns prioritized findings.

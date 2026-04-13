@@ -1,3 +1,7 @@
+---
+description: Run Gemini CLI in sandbox mode for safer code execution. How sandboxing works and when to use it.
+---
+
 # Sandbox Mode
 
 Run Gemini CLI in sandbox mode for safer code execution.

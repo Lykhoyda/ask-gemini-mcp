@@ -1,14 +1,23 @@
 import { defineConfig } from "vitepress";
 import { withMermaid } from "vitepress-plugin-mermaid";
 
+const SITE_URL = "https://lykhoyda.github.io/ask-llm";
+const SITE_HOSTNAME = "https://lykhoyda.github.io/ask-llm/";
+const SITE_TITLE = "Ask LLM";
+const SITE_DESCRIPTION =
+  "MCP servers for AI-to-AI collaboration — Gemini, Codex, Ollama";
+
 export default withMermaid(
   defineConfig({
-    title: "Ask LLM",
-    description:
-      "MCP servers for AI-to-AI collaboration — Gemini, Codex, Ollama",
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
     base: "/ask-llm/",
 
     appearance: "force-dark",
+
+    sitemap: {
+      hostname: SITE_HOSTNAME,
+    },
 
     vite: {
       build: {
@@ -16,54 +25,11 @@ export default withMermaid(
       },
     },
 
+    // Global head — non-page-specific tags only.
+    // Page-specific OG/Twitter/canonical tags are generated per-page
+    // via transformPageData below (prevents duplicate meta tags).
     head: [
       ["meta", { name: "theme-color", content: "#0a0a0b" }],
-      [
-        "meta",
-        {
-          property: "og:title",
-          content: "Ask LLM — AI-to-AI Collaboration via MCP",
-        },
-      ],
-      [
-        "meta",
-        {
-          property: "og:description",
-          content:
-            "MCP servers bridging Claude with Gemini, Codex, and Ollama. Get second opinions, debate plans, and review code across AI providers.",
-        },
-      ],
-      ["meta", { property: "og:type", content: "website" }],
-      [
-        "meta",
-        {
-          property: "og:url",
-          content: "https://lykhoyda.github.io/ask-llm/",
-        },
-      ],
-      [
-        "meta",
-        {
-          property: "og:image",
-          content: "https://lykhoyda.github.io/ask-llm/og-image.png",
-        },
-      ],
-      ["meta", { name: "twitter:card", content: "summary_large_image" }],
-      [
-        "meta",
-        {
-          name: "twitter:title",
-          content: "Ask LLM — AI-to-AI Collaboration via MCP",
-        },
-      ],
-      [
-        "meta",
-        {
-          name: "twitter:description",
-          content:
-            "MCP servers bridging Claude with Gemini, Codex, and Ollama. Get second opinions, debate plans, and review code across AI providers.",
-        },
-      ],
       ["link", { rel: "preconnect", href: "https://fonts.googleapis.com" }],
       [
         "link",
@@ -85,11 +51,57 @@ export default withMermaid(
         {
           rel: "alternate",
           type: "text/plain",
-          href: "https://lykhoyda.github.io/ask-llm/llms.txt",
+          href: `${SITE_URL}/llms.txt`,
           title: "LLM-readable documentation",
         },
       ],
+      [
+        "script",
+        { type: "application/ld+json" },
+        JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "WebSite",
+          name: SITE_TITLE,
+          url: `${SITE_URL}/`,
+          description: SITE_DESCRIPTION,
+          publisher: {
+            "@type": "Organization",
+            name: "Ask LLM",
+            url: "https://github.com/Lykhoyda/ask-llm",
+          },
+        }),
+      ],
     ],
+
+    // Generate per-page OG, Twitter, and canonical tags dynamically.
+    transformPageData(pageData) {
+      const title = pageData.title
+        ? `${pageData.title} | ${SITE_TITLE}`
+        : SITE_TITLE;
+      const description = pageData.description || SITE_DESCRIPTION;
+
+      // Build the canonical URL from the relative path.
+      // index.md → /ask-llm/ ; providers/gemini.md → /ask-llm/providers/gemini.html
+      const pagePath = pageData.relativePath
+        .replace(/index\.md$/, "")
+        .replace(/\.md$/, ".html");
+      const canonicalUrl = `${SITE_URL}/${pagePath}`;
+      const ogImageUrl = `${SITE_URL}/og-image.png`;
+
+      pageData.frontmatter.head ??= [];
+      pageData.frontmatter.head.push(
+        ["link", { rel: "canonical", href: canonicalUrl }],
+        ["meta", { property: "og:title", content: title }],
+        ["meta", { property: "og:description", content: description }],
+        ["meta", { property: "og:type", content: "website" }],
+        ["meta", { property: "og:url", content: canonicalUrl }],
+        ["meta", { property: "og:image", content: ogImageUrl }],
+        ["meta", { name: "twitter:card", content: "summary_large_image" }],
+        ["meta", { name: "twitter:title", content: title }],
+        ["meta", { name: "twitter:description", content: description }],
+        ["meta", { name: "twitter:image", content: ogImageUrl }],
+      );
+    },
 
     themeConfig: {
       siteTitle: "Ask LLM",

@@ -1,3 +1,7 @@
+---
+description: Install and configure Ask LLM MCP servers for Claude Code, Claude Desktop, Cursor, and other MCP clients in three steps.
+---
+
 # Getting Started
 
 Follow these three steps to integrate Gemini deeply inside your favorite AI coding assistant.

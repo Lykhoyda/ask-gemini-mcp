@@ -1,3 +1,7 @@
+---
+description: Architecture and execution flow of Ask LLM — from natural language prompts through the MCP protocol to Gemini, Codex, and Ollama providers.
+---
+
 # How It Works
 
 ## Natural Language Workflow Integration

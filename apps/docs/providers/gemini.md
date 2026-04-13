@@ -1,3 +1,7 @@
+---
+description: Bridge Claude with Google Gemini via the official CLI. 1M+ token context window for large codebase analysis, structured edits, and quota-aware model fallback.
+---
+
 # Gemini
 
 Bridge Claude with Google's Gemini via the official Gemini CLI. Leverages Gemini's massive 1M+ token context window for large file and codebase analysis while Claude handles interaction and code editing.

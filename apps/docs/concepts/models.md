@@ -1,3 +1,7 @@
+---
+description: Choose the right AI model for your task. Default models, fallback chains, and overrides for Gemini, Codex, and Ollama providers.
+---
+
 # Model Selection
 
 Choose the right Gemini model for your task.

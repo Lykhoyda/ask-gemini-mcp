@@ -1,3 +1,7 @@
+---
+description: Frequently asked questions about Ask LLM MCP servers — setup, usage, provider differences, troubleshooting, and Claude Desktop configuration.
+---
+
 # Frequently Asked Questions
 
 ## General

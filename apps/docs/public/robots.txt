@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /assets/
+
+Sitemap: https://lykhoyda.github.io/ask-llm/sitemap.xml

@@ -1,3 +1,7 @@
+---
+description: Test your MCP server connection, send your first prompt to Gemini or Codex, and explore file analysis with the @ syntax.
+---
+
 # First Steps
 
 Once installed, here's how to get started with Gemini MCP Tool.

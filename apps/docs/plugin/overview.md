@@ -1,3 +1,7 @@
+---
+description: Claude Code plugin for AI-to-AI collaboration. Multi-provider code review, brainstorming agents, pre-commit hooks, and CLI binaries for Gemini, Codex, and Ollama.
+---
+
 # Claude Code Plugin
 
 The `@ask-llm/plugin` package integrates Ask LLM providers into Claude Code as a first-class plugin. It adds review skills, brainstorm agents, automated hooks, and CLI binaries for piping code to any provider.

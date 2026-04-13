@@ -1,3 +1,7 @@
+---
+description: Install Ask LLM via npx, npm global, or Docker. Prerequisites, platform support, and MCP client configuration.
+---
+
 # Installation
 
 Multiple ways to install Gemini MCP Tool, depending on your needs.

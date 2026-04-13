@@ -1,3 +1,7 @@
+---
+description: Common issues and solutions for Ask LLM MCP servers. Connection errors, timeouts, quota limits, and provider-specific fixes.
+---
+
 # Troubleshooting
 
 Common issues and their solutions. Click any issue below to see the detailed solution.

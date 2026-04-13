@@ -33,18 +33,38 @@ MCP servers that bridge your AI client with multiple LLM providers for AI-to-AI 
 ### Claude Code
 
 ```bash
-# Individual providers
+# All-in-one — auto-detects installed providers
+claude mcp add --scope user ask-llm -- npx -y ask-llm-mcp
+```
+
+<details>
+<summary>Or install providers individually</summary>
+
+```bash
 claude mcp add --scope user gemini -- npx -y ask-gemini-mcp
 claude mcp add --scope user codex -- npx -y ask-codex-mcp
 claude mcp add --scope user ollama -- npx -y ask-ollama-mcp
-
-# Or all-in-one (auto-detects installed providers)
-claude mcp add --scope user ask-llm -- npx -y ask-llm-mcp
 ```
+
+</details>
 
 ### Claude Desktop
 
 Add to `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "ask-llm": {
+      "command": "npx",
+      "args": ["-y", "ask-llm-mcp"]
+    }
+  }
+}
+```
+
+<details>
+<summary>Or install providers individually</summary>
 
 ```json
 {
@@ -65,6 +85,8 @@ Add to `claude_desktop_config.json`:
 }
 ```
 
+</details>
+
 <details>
 <summary>Cursor, Codex CLI, OpenCode, and other clients</summary>
 
@@ -72,24 +94,24 @@ Add to `claude_desktop_config.json`:
 ```json
 {
   "mcpServers": {
-    "gemini": { "command": "npx", "args": ["-y", "ask-gemini-mcp"] }
+    "ask-llm": { "command": "npx", "args": ["-y", "ask-llm-mcp"] }
   }
 }
 ```
 
 **Codex CLI** (`~/.codex/config.toml`):
 ```toml
-[mcp_servers.gemini]
+[mcp_servers.ask-llm]
 command = "npx"
-args = ["-y", "ask-gemini-mcp"]
+args = ["-y", "ask-llm-mcp"]
 ```
 
 **Any MCP Client** (STDIO transport):
 ```json
-{ "command": "npx", "args": ["-y", "ask-gemini-mcp"] }
+{ "command": "npx", "args": ["-y", "ask-llm-mcp"] }
 ```
 
-Replace `ask-gemini-mcp` with `ask-codex-mcp`, `ask-ollama-mcp`, or `ask-llm-mcp` as needed.
+Replace `ask-llm-mcp` with `ask-gemini-mcp`, `ask-codex-mcp`, or `ask-ollama-mcp` for a single provider.
 
 </details>
 

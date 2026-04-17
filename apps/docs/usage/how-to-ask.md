@@ -1,52 +1,128 @@
 ---
-description: Natural language prompts for AI-to-AI collaboration. Use the @ file syntax to include code, diffs, and entire directories in your prompts.
+description: Natural language patterns for AI-to-AI collaboration. Use the @ file syntax to include code in prompts. Reference for every Ask LLM MCP tool.
 ---
 
-# How to Ask Gemini
+# How to Ask
 
-You don't need to memorize commands or rigid syntax to use this tool, because **Ask Gemini MCP** is designed for natural language collaboration.
+You don't need to memorize commands or rigid syntax to use Ask LLM. The MCP tools work via natural language — your AI client decides when to delegate and which provider to use.
 
-## 🗣️ Just Ask Naturally
+## Just Ask Naturally
 
-Because Claude natively integrates with MCP tools, it knows when to route your request to Gemini. You can just speak to it normally:
+Because Claude (and any other MCP-enabled assistant) natively integrates MCP tools, it knows when to route requests to Gemini, Codex, or Ollama based on what you say:
 
 - *"Hey, can Gemini check if my config.js is valid?"*
-- *"Use Gemini to explain how this auth flow works."*
-- *"Ask Gemini to suggest 3 ways to optimize my database queries."*
-- *"Have Gemini review my latest changes for security issues."*
+- *"Use Codex to suggest a better algorithm for @src/sort.ts"*
+- *"Ask Ollama to explain how this auth flow works (keep it local)."*
+- *"Have multi-llm send this question to Gemini and Codex in parallel — I want to compare their answers."*
+- *"What do Gemini and Codex think about this architectural decision? Give me their raw responses, no synthesis."* → triggers `/compare` if you have the plugin
+- *"Review my latest changes for security issues."* → triggers `/multi-review` (verified findings) if you have the plugin
 
 ### Mixing Tool Context Automatically
-You can combine an error log you are debugging with a request to Gemini without needing to manually pass files:
 
-`"I'm getting a null pointer error in my auth handler here. Gemini, can you help me find the bug?"`
-*(Claude will automatically extract the relevant files from its context and send them to Gemini for you).*
+You can combine context (an error log, a stack trace, a diff) with a request without manually attaching files:
+
+> *"I'm getting a null pointer error in my auth handler here. Have Gemini help me find the bug."*
+
+Your AI client extracts the relevant files from its conversation context and passes them to Gemini for you.
 
 ---
 
-## ⚙️ Under The Hood (The MCP Tools)
+## The `@` File Syntax (Gemini)
 
-For advanced users or when creating automated AI agent workflows, these are the actual MCP tools that the server exposes to your client.
+When you want to explicitly include files in a prompt sent to Gemini, use the `@` symbol:
 
-### `ask-gemini`
-The core tool that sends your prompts and context to the Gemini API.
+```text
+Ask Gemini to summarize @README.md
+Ask Gemini to review @src/auth.ts and @src/session.ts together
+Ask Gemini to give me a high-level overview of @. (current directory)
+Ask Gemini to scan @routes/**/*.js for OWASP issues
+```
+
+This is a Gemini CLI feature — `@` syntax is interpreted by `gemini`, not by the MCP server. Codex and Ollama don't have direct equivalents (the relevant code should be quoted or pasted into the prompt).
+
+---
+
+## Under the Hood — MCP Tools
+
+For advanced users or when building automated AI workflows, these are the MCP tools the servers expose:
+
+### Unified orchestrator (`ask-llm-mcp`)
+
+#### `ask-llm`
+
+Send a prompt to any installed provider, picked via the `provider` parameter.
 
 **Parameters:**
-- `prompt` (required): The question or analysis request. Supports the `@` syntax for direct file inclusion.
-- `model` (optional): The Gemini model to use (`gemini-3.1-pro-preview` or `gemini-3-flash-preview`). Automatically falls back to Flash if Pro quotas are exceeded.
-- `sandbox` (optional): Set to `true` to run your prompt inside Gemini's isolated code execution sandbox (`-s` flag).
-- `changeMode` (optional): Set to `true` to strongly encourage Gemini to format its output as structured code edits.
-- `sessionId` (optional): Resume a previous conversation. Pass the session ID from a prior response to continue a [multi-turn session](/usage/multi-turn-sessions).
-- `includeDirs` (optional): An array of additional directory paths to include in Gemini's context via `--include-directories`. Useful for monorepos where the code you want analyzed lives outside the current working directory (e.g., `["packages/api", "packages/shared"]`).
+- `prompt` (required): The question, code review request, or analysis task.
+- `provider` (required): One of `gemini`, `codex`, `ollama` (only providers detected at startup are accepted).
+- `model` (optional): Override the default model. Usually unnecessary — defaults are sensible per provider with auto-fallback.
+- `sessionId` (optional): Resume a previous conversation. Pass the value from a prior response's `[Session ID: ...]` or `[Thread ID: ...]` footer (or `result.structuredContent.sessionId` for programmatic clients).
 
-### `fetch-chunk`
-Used automatically by your AI client. When Gemini returns a response larger than a single MCP message allows, it is cached. The AI uses this tool to paginate through the rest of the response.
+**Returns:** Both human-readable text (`content[0].text`) AND a structured `AskResponse` (`structuredContent`) with `{provider, response, model, sessionId, usage}` — programmatic clients can extract fields directly without regex-parsing the footer.
 
-**Parameters:**
-- `chunkCacheKey` (required): The unique ID of the cached response.
-- `chunkIndex` (optional): Which chunk to return (1-based index).
+#### `multi-llm`
 
-### `ping`
-A zero-cost diagnostic tool to verify the MCP server is running correctly.
+Dispatch the same prompt to multiple providers in parallel; returns all responses in one structured payload.
 
 **Parameters:**
-- `message` (optional): An echo message.
+- `prompt` (required): The prompt to send to all selected providers.
+- `providers` (optional): Array of providers to dispatch to. Defaults to all available.
+
+**Returns:** `MultiLlmReport` with `{dispatchedAt, totalDurationMs, successCount, failureCount, results: [{provider, ok, response?, model?, sessionId?, usage?, durationMs, error?}, ...]}`. Per-provider failures are isolated — one provider's quota issue doesn't fail the whole call. See [ADR-066](https://github.com/Lykhoyda/ask-llm/blob/main/docs/DECISIONS.md).
+
+#### `get-usage-stats`
+
+Per-session token totals, fallback counts, breakdowns by provider/model. In-memory, no persistence — resets when the MCP server restarts.
+
+#### `diagnose`
+
+Self-diagnosis: Node version, PATH resolution, provider CLI presence + versions. Read-only. Returns both human-readable text and a structured `DiagnosticReport`.
+
+#### `ping`
+
+Zero-cost connection test. Lists detected providers.
+
+### Per-provider servers (`ask-gemini-mcp`, `ask-codex-mcp`, `ask-ollama-mcp`)
+
+Each per-provider server exposes its provider's `ask-*` tool with the richer per-provider parameter set, plus the shared `get-usage-stats` and `ping`.
+
+#### `ask-gemini`
+
+Same shape as `ask-llm` but always Gemini. Adds Gemini-specific behavior: `@` file syntax, `--include-directories` support via `includeDirs`, `stream-json` live progressive output ([ADR-057](https://github.com/Lykhoyda/ask-llm/blob/main/docs/DECISIONS.md)).
+
+#### `ask-gemini-edit`
+
+Returns structured OLD/NEW edit blocks rather than free-form text. Use this when you want Gemini to suggest specific code changes you can apply directly.
+
+**Parameters:**
+- `prompt` (required): Describe the change you want.
+- `model`, `includeDirs` — same as `ask-gemini`.
+
+#### `fetch-chunk`
+
+Used automatically when Gemini's response is larger than a single MCP message allows. Returns subsequent chunks from the cached response.
+
+#### `ask-codex` / `ask-ollama`
+
+Same shape as `ask-llm` but pre-bound to the provider. Each accepts `prompt`, `model`, `sessionId`. Codex maps `sessionId` to its `thread_id`; Ollama uses server-side message replay.
+
+---
+
+## MCP Resources
+
+The orchestrator exposes one MCP Resource for live introspection:
+
+- `usage://current-session` — JSON snapshot of the in-memory `SessionUsage` accumulator. Read at any time for current totals. Same data as the `get-usage-stats` tool but accessible via `resources/read` instead of a tool call.
+
+---
+
+## Plugin Slash Commands (Claude Code only)
+
+If you've installed [the Ask LLM plugin](/plugin/overview), additional slash commands are available:
+
+- `/multi-review` — parallel Gemini + Codex review **with source verification** of each finding
+- `/gemini-review`, `/codex-review`, `/ollama-review` — single-provider reviews
+- `/brainstorm` — multi-LLM brainstorm with Claude Opus as a first-class research participant
+- `/compare` — side-by-side responses, no synthesis (raw outputs)
+
+See the [Skills page](/plugin/skills) for full descriptions.

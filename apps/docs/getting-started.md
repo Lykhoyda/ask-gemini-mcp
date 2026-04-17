@@ -1,55 +1,58 @@
 ---
-description: Install and configure Ask LLM MCP servers for Claude Code, Claude Desktop, Cursor, and other MCP clients in three steps.
+description: Install and configure Ask LLM MCP servers for Claude Code, Claude Desktop, Cursor, and other MCP clients. Choose one provider to start, add more anytime.
 ---
 
 # Getting Started
 
-Follow these three steps to integrate Gemini deeply inside your favorite AI coding assistant.
+Three steps: install Node, install at least one provider, register the MCP server with your client. You can start with one provider (Gemini, Codex, or Ollama) and add the others anytime.
 
 ## Step 1: Install Prerequisites
 
-Before configuring your client, ensure your system has the required dependencies.
+1. **[Node.js](https://nodejs.org/) v20.0.0 or higher** (LTS 20 or 22).
+2. **At least one provider** — pick whichever fits your use case:
 
-1. **[Node.js](https://nodejs.org/)**: You must have Node `v20.0.0` or higher installed (LTS versions 20 and 22 are actively supported).
-2. **[Google Gemini CLI](https://github.com/google-gemini/gemini-cli)**: Install the CLI globally.
-
-   ```bash
-   # Using npm
-   npm install -g @google/gemini-cli
-
-   # Using Homebrew (macOS/Linux)
-   brew install gemini-cli
-   ```
-
-## Step 2: Authenticate Gemini
-
-The MCP server piggybacks entirely off of the official Gemini CLI authentication, meaning you never need to copy, paste, or expose your API keys in config files.
-
-Run the following command in your terminal and follow the browser prompts to log in via OAuth:
+::: tip Which provider should I install first?
+- **Gemini** — best for huge-context analysis (1M+ tokens). Great for whole-codebase reviews. Free tier via OAuth.
+- **Codex** — strong at code reasoning (GPT-5.4). Good for targeted fixes and architecture critique.
+- **Ollama** — local, private, zero-cost. Good when data can't leave your machine.
+:::
 
 ```bash
-gemini login
+# Gemini
+npm install -g @google/gemini-cli && gemini login
+
+# Codex (requires OpenAI account)
+npm install -g @openai/codex
+# follow the codex CLI's auth instructions
+
+# Ollama
+# install from https://ollama.com, then:
+ollama pull qwen2.5-coder:7b
 ```
 
-_Tip: Verify it works by running `gemini "Hello world"` in your terminal._
+You can install one or all three. The MCP server auto-detects which providers are available and only registers tools for the ones it finds.
 
----
+## Step 2: Configure Your MCP Client
 
-## Step 3: Configure Your MCP Client
+The recommended package is **`ask-llm-mcp`** — the unified orchestrator that auto-detects all installed providers and exposes them through a single `ask-llm` MCP tool plus `multi-llm`, `get-usage-stats`, `diagnose`, and `ping`.
 
-Now you need to tell your primary AI assistant (like Claude) where the MCP server is.
+If you only want one provider, you can also install the per-provider packages directly: `ask-gemini-mcp`, `ask-codex-mcp`, `ask-ollama-mcp`. They expose provider-specific tools (`ask-gemini` with `@` file syntax + sandbox + edit mode, `ask-codex`, `ask-ollama`).
 
-### Option A: Claude Code (Recommended) ❋
-
-Claude Code is Anthropic's terminal-native tool. It offers the fastest, most cohesive experience simply by running a single command:
+### Option A: Claude Code (Recommended)
 
 ```bash
-claude mcp add --scope user gemini-cli -- npx -y ask-gemini-mcp
+# Unified — picks up all installed providers
+claude mcp add --scope user ask-llm -- npx -y ask-llm-mcp
+
+# Or per-provider (longer tool names, more granular control)
+claude mcp add --scope user gemini -- npx -y ask-gemini-mcp
+claude mcp add --scope user codex  -- npx -y ask-codex-mcp
+claude mcp add --scope user ollama -- npx -y ask-ollama-mcp
 ```
 
-### Option B: Claude Desktop 🖥️
+### Option B: Claude Desktop
 
-To install the server in the Claude Desktop app, add the following to your configuration file:
+Add to `claude_desktop_config.json`:
 
 <details>
 <summary><strong>Where is my config file located?</strong></summary>
@@ -63,62 +66,74 @@ To install the server in the Claude Desktop app, add the following to your confi
 ```json
 {
   "mcpServers": {
-    "gemini-cli": {
+    "ask-llm": {
       "command": "npx",
-      "args": ["-y", "ask-gemini-mcp"]
+      "args": ["-y", "ask-llm-mcp"]
     }
   }
 }
 ```
 
-_⚠️ **Important:** You must restart Claude Desktop completely for changes to take effect._
+::: warning
+You must restart Claude Desktop completely for changes to take effect.
+:::
 
-### Option C: Antigravity 🚀
+### Option C: Cursor / Warp / Copilot / generic STDIO
 
-Add the server to your `~/.gemini/mcp.json` configuration file:
-
-```json
-{
-  "mcpServers": {
-    "gemini-cli": {
-      "command": "npx",
-      "args": ["-y", "ask-gemini-mcp"]
-    }
-  }
-}
-```
-
-### Option D: Generic STDIO Transport (Cursor, Warp, Copilot, etc.) 📂
-
-Ask Gemini MCP works with **[40+ MCP-compatible clients](https://modelcontextprotocol.io/clients)**. Almost all of them use the standard STDIO transport pattern. Provide your client with this configuration:
+Ask LLM works with [40+ MCP-compatible clients](https://modelcontextprotocol.io/clients). Standard STDIO config:
 
 ```json
 {
   "command": "npx",
-  "args": ["-y", "ask-gemini-mcp"],
-  "env": {}
+  "args": ["-y", "ask-llm-mcp"]
 }
 ```
 
+For Cursor specifically, this goes in `.cursor/mcp.json`. For Warp/Copilot, see your client's MCP integration docs.
+
 ---
 
-## Verify Your Setup
+## Step 3: Verify Your Setup
 
-Once installed, verify the connection works by asking Claude to use the `ping` tool:
+Two ways to verify, depending on whether the MCP server is running:
+
+**From inside any MCP client** — ask the assistant to call `ping`:
 
 ```text
-"Use Gemini ping to test the connection"
+Use ask-llm ping to test the connection
 ```
 
-If you get a _Pong!_ back, you're ready to start analyzing massive codebases with Gemini! Head over to the [How to Ask user guide](/usage/how-to-ask) to learn more.
+**From the terminal directly** — run the doctor:
+
+```bash
+npx ask-llm-mcp doctor
+```
+
+The doctor checks Node version, PATH resolution, every provider CLI's presence and version, and key env vars. Use it when MCP itself can't start (server not registered, broken auth, wrong Node version) — it works outside the MCP transport.
+
+If everything looks good, head to [How to Ask](/usage/how-to-ask) for usage patterns.
+
+---
+
+## Optional: Interactive REPL
+
+The orchestrator binary also exposes a multi-provider REPL — switch providers, persist sessions, see token usage live:
+
+```bash
+npx ask-llm-mcp repl
+```
+
+Slash commands include `/provider <name>`, `/new` (fresh session), `/sessions`, `/usage`, `/help`, `/quit`. Useful for quick sanity checks and side-by-side provider comparison without setting up an MCP client.
 
 ---
 
 ## Advanced Configuration (Environment Variables)
 
-You can configure the behavior of the server using environment variables in your MCP client's configuration block.
+You can configure the server with env vars in your MCP client's configuration block.
 
-| Variable           | Default  | Description                                                                                                                                                          |
-| ------------------ | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GMCPT_LOG_LEVEL`  | `warn`   | Minimum log level to output to `stderr`. Valid options: `debug`, `info`, `warn`, `error`. Increase to `debug` if you need to troubleshoot connection issues.         |
-| `GMCPT_TIMEOUT_MS` | `300000` | The maximum amount of time (in milliseconds) before the server assumes the Gemini CLI process has hung and forcibly terminates it. Defaults to `300000` (5 minutes). |
+| Variable           | Default  | Description |
+| ------------------ | -------- | ----------- |
+| `GMCPT_LOG_LEVEL`  | `warn`   | Minimum log level: `debug`, `info`, `warn`, `error`. Bump to `debug` if troubleshooting. |
+| `GMCPT_TIMEOUT_MS` | `210000` | Per-provider wall-clock timeout (3.5 min). Lowered from 5 min in [ADR-045](https://github.com/Lykhoyda/ask-llm/blob/main/docs/DECISIONS.md) so server-side timeouts return *before* Claude Desktop's 4-min client cap fires. Set higher for long analyses on locally-run REPL/doctor invocations. |
+| `OLLAMA_HOST`      | `http://localhost:11434` | Ollama server URL. Override if running Ollama elsewhere. |
+| `ASK_LLM_PATH`     | (auto)   | Override the resolved PATH used to find provider CLIs. Auto-resolved from your login shell on macOS GUI clients ([ADR-047](https://github.com/Lykhoyda/ask-llm/blob/main/docs/DECISIONS.md)) — only set explicitly if your shell setup is unusual. |

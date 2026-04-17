@@ -1,33 +1,81 @@
 ---
-description: Test your MCP server connection, send your first prompt to Gemini or Codex, and explore file analysis with the @ syntax.
+description: Verify your Ask LLM setup, send your first prompt to any provider, and explore multi-provider parallel dispatch.
 ---
 
 # First Steps
 
-Once installed, here's how to get started with Gemini MCP Tool.
+Once installed, here's how to confirm everything works and start using Ask LLM.
 
-## Test Connection
+## Test the Connection
 
+```text
+Use ask-llm ping to test the connection
 ```
-ask gemini to ping "Hello from Gemini!"
+
+You should see a `Pong!` reply listing the providers your server detected.
+
+If something's off, run the doctor from your terminal — it works even when the MCP server can't start:
+
+```bash
+npx ask-llm-mcp doctor
 ```
 
-## Basic File Analysis
+## Single-Provider Calls
 
-Analyze a single file:
+The unified `ask-llm` tool takes a `provider` parameter. In natural language:
+
+```text
+Use ask-llm to ask Gemini to explain @src/auth.ts
+Use ask-llm to ask Codex how to refactor this function
+Use ask-llm to ask Ollama to summarize this file (runs locally, no data sent anywhere)
 ```
+
+If you installed the per-provider packages instead of the orchestrator, the tools are named explicitly:
+
+```text
 ask gemini to summarize @README.md
+ask codex to review the staged changes
+ask ollama to explain this auth flow
 ```
 
-## Natural Language Usage
+## Multi-Provider Dispatch
 
-Just ask naturally:
-- "Use gemini to explain this codebase"
-- "Ask gemini to analyze the architecture"
-- "Have gemini review this function"
+Send the same prompt to multiple providers in one call and compare:
+
+```text
+Use multi-llm to ask Gemini and Codex whether this approach is thread-safe
+```
+
+Returns per-provider responses + token usage in one structured payload. Per-provider failures are isolated (one provider hitting quota doesn't fail the whole call).
+
+## Multi-Turn Conversations
+
+Every response includes a session ID. Pass it back to continue:
+
+```text
+Use ask-llm to ask Gemini to review @src/auth.ts for security issues
+# → Response includes [Session ID: abc-123-...]
+
+Use ask-llm to ask Gemini to fix the XSS issue you found, sessionId abc-123-...
+# → Gemini remembers the prior review
+```
+
+All three providers support sessions — Gemini and Codex use native CLI resume, Ollama uses server-side conversation replay. See [Multi-Turn Sessions](/usage/multi-turn-sessions) for details.
+
+## Interactive REPL
+
+For quick sanity checks without setting up an MCP client:
+
+```bash
+npx ask-llm-mcp repl
+```
+
+Multi-provider shell with `/provider <name>`, `/new`, `/usage`, `/sessions`, `/help`, `/quit` slash commands. Streams Gemini responses live.
 
 ## Next Steps
 
-- Learn about [@file syntax & examples](/usage/strategies-and-examples)
-- Explore [model selection](/concepts/models)
-- Read the [How to Ask user guide](/usage/how-to-ask)
+- [How to Ask](/usage/how-to-ask) — natural language patterns and the `@` file syntax
+- [Strategies & Examples](/usage/strategies-and-examples) — proven workflows for code review, debugging, and architecture analysis
+- [Multi-Turn Sessions](/usage/multi-turn-sessions) — continue conversations across calls
+- [Plugin Overview](/plugin/overview) — slash commands and subagents for Claude Code users
+- [Model Selection](/concepts/models) — Pro vs Flash, GPT-5.4 vs mini, Ollama model choices

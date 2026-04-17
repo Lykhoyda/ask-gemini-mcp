@@ -1,135 +1,161 @@
 ---
-description: Frequently asked questions about Ask LLM MCP servers — setup, usage, provider differences, troubleshooting, and Claude Desktop configuration.
+description: Frequently asked questions about Ask LLM MCP servers — setup, multi-provider usage, sessions, the Claude Code plugin, and troubleshooting.
 ---
 
 # Frequently Asked Questions
 
 ## General
 
-### What is Gemini MCP Tool?
-A bridge between Claude Desktop and Google's Gemini AI, enabling you to use Gemini's powerful capabilities directly within Claude.
+### What is Ask LLM?
 
-### Does it support windows?
-Windows testing is underway, some users have reported success and other failures.
+A set of MCP servers that bridge your AI client (Claude Code, Claude Desktop, Cursor, Warp, Copilot — any of [40+ MCP-compatible clients](https://modelcontextprotocol.io/clients)) with up to three LLM providers running locally on your machine: Google Gemini, OpenAI Codex, and Ollama. Plus a Claude Code plugin layer with slash commands, reviewer subagents, and a pre-commit hook.
 
-### Why use this instead of Gemini directly?
-- Integrated into your existing AI workflow
-- File analysis with @ syntax
-- Reduced context switching (gemini can store and recall memories!)
-- Best of both: Leverages both AIs' strengths
+### Why use this instead of the providers directly?
+
+- **One interface for all three providers** — you don't switch between three CLIs
+- **Multi-provider parallel dispatch** — `multi-llm` and `/compare` send the same prompt to multiple providers in one call
+- **Verified code review** — `/multi-review` cross-checks each finding against source before presenting (catches false positives)
+- **Session continuity across providers** — `sessionId` works the same way for all three
+- **Built-in operational hardening** — quota fallback, PATH resolution, stdin handling, stream-json output for live progressive content
+- **Diagnostic surface** — `npx ask-llm-mcp doctor` and the `diagnose` MCP tool tell you what's wrong before you have to investigate
 
 ### Is it free?
-The tool is open source and free. You need:
-- Gemini API key (has free tier) or Google Account
-- Claude Desktop or Claude Code or any MCP client
+
+The MCP servers are MIT-licensed and free. Provider costs depend on which provider you use:
+- **Gemini** — free tier via OAuth (`gemini login`), paid via API key
+- **Codex** — per OpenAI billing
+- **Ollama** — free (runs locally on your machine)
+
+### Does it work on Windows?
+
+Yes for the per-provider packages. The orchestrator (`ask-llm-mcp`) and plugin should work too but get less Windows testing. Open an issue if you hit a Windows-specific bug.
+
+---
 
 ## Setup
 
-### Do I need to install Gemini CLI separately?
-Yes, install it with:
-```bash
-npm install -g @google/gemini-cli
-```
-Then, run "gemini" and complete auth.
+### Do I need all three providers?
 
-### Can I use this with Claude Code?
-Yes! It works with both Claude Desktop and Claude Code.
+No. The orchestrator (`ask-llm-mcp`) auto-detects which CLIs are installed and only registers tools for available providers. Install one and add others anytime.
 
 ### What Node.js version do I need?
-Node.js v20.0.0 or higher (LTS).
+
+Node v20.0.0 or higher (LTS 20 or 22). The doctor command (`npx ask-llm-mcp doctor`) will warn if you're on an older version — Gemini CLI 0.36+ uses ES2024 regex features that crash on Node 18 ([ADR-046](https://github.com/Lykhoyda/ask-llm/blob/main/docs/DECISIONS.md)).
+
+### Should I use the orchestrator or per-provider packages?
+
+| Choose orchestrator (`ask-llm-mcp`) when | Choose per-provider when |
+|---|---|
+| You want one MCP server, all providers | You only use one provider |
+| You want `multi-llm` parallel dispatch | You need provider-specific tools (`ask-gemini-edit`, `fetch-chunk`) |
+| You want the doctor + REPL CLI subcommands | You want shorter tool names without a `provider` parameter |
+
+Both can coexist — install whatever fits your workflow.
+
+### Can I use this with Claude Code?
+
+Yes — that's the primary client. Use `claude mcp add --scope user ask-llm -- npx -y ask-llm-mcp`. The Claude Code plugin (`/plugin marketplace add Lykhoyda/ask-llm`) adds slash commands, subagents, and hooks on top.
+
+### Can I use this with Claude Desktop, Cursor, Warp, etc.?
+
+Yes — any STDIO MCP client works. See [Installation](/installation) for client-specific config.
+
+---
 
 ## Usage
 
-### What's the @ syntax?
-It's how you reference files for analysis:
-- `@file.js` - Single file
-- `@src/*.js` - Multiple files
-- `@**/*.ts` - All TypeScript files
-- *new:* `file:index.html` now works, fully bypassing @ integration
+### What's the `@` syntax?
 
-### Can I analyze multiple files? What about ALL the files?
-Yes! Gemini's 1M token context allows analyzing entire codebases.
+A Gemini CLI feature for including files in prompts:
+- `@file.js` — single file
+- `@src/*.js` — multiple files
+- `@**/*.ts` — all TypeScript files
+- `@.` — current directory
+
+It works with the `ask-gemini` tool (and the underlying Gemini CLI). Codex and Ollama don't have direct equivalents — quote or paste relevant code into the prompt instead.
+
+### How do multi-turn sessions work?
+
+Every `ask-*` tool returns a session ID. Pass it back via the `sessionId` parameter to continue. Gemini and Codex use native CLI resume; Ollama uses server-side message replay. See [Multi-Turn Sessions](/usage/multi-turn-sessions) for details.
+
+### How do I send a prompt to multiple providers at once?
+
+Use the `multi-llm` MCP tool:
+
+```text
+Use multi-llm to send "is this thread-safe?" to Gemini and Codex
+```
+
+Or the `/compare` skill (Claude Code plugin) for the same thing with a nicer interactive surface. Or `/multi-review` if you want verified code review findings rather than raw responses.
 
 ### Which model should I use?
-- **Daily work**: `gemini-3.1-pro-preview` (default)
-- **Large analysis**: `gemini-3.1-pro-preview`
-- **Quick tasks**: `gemini-3-flash-preview`
 
-## Features
+Defaults are tuned per provider with auto-fallback. Don't override unless you have a specific reason. See [Model Selection](/concepts/models) for the full breakdown.
 
-### What languages are supported?
-Any language code or human.
+### Can I track my token spending?
 
-### Does it work offline?
-No, it requires internet to connect to Gemini API.
+Yes — every `ask-*` response includes `result.structuredContent.usage` with token counts, duration, and fallback flag. For per-session totals, call the `get-usage-stats` MCP tool, read the `usage://current-session` MCP Resource, or type `/usage` in the REPL.
+
+### Can I use this in CI/CD?
+
+The MCP server is designed for interactive development. For CI workflows, you can call the executor packages directly via Node:
+
+```js
+import { executeGeminiCLI } from "ask-gemini-mcp/executor";
+const result = await executeGeminiCLI({ prompt: "review this diff" });
+```
+
+A dedicated GitHub Action was built and then withdrawn ([ADR-061](https://github.com/Lykhoyda/ask-llm/blob/main/docs/DECISIONS.md)) — focus shifted to MCP/plugin usage for CLI workflows. CI integration may return as a future feature.
+
+---
+
+## Privacy & Security
+
+### Is my code sent to Google / OpenAI?
+
+Only when you explicitly use `ask-gemini` (Google) or `ask-codex` (OpenAI). For private code, use `ask-ollama` — it runs entirely locally and never makes external network calls.
+
+### Where do session files live?
+
+- **Gemini sessions** — managed by the Gemini CLI in its own storage (`~/.gemini/`)
+- **Codex sessions** — managed by Codex CLI in `~/.codex/`
+- **Ollama sessions** — server-side replay store at `/tmp/ask-llm-sessions/<id>.json`, owner-only permissions (0o600 file / 0o700 dir), 24-hour TTL, atomic temp+rename writes ([ADR-063](https://github.com/Lykhoyda/ask-llm/blob/main/docs/DECISIONS.md))
+
+The Ollama session permissions specifically prevent other users on shared systems from reading your prompts.
+
+### Are my API keys exposed?
+
+Auth is delegated entirely to the provider CLIs (`gemini login`, Codex auth, Ollama doesn't need keys). The MCP server never reads, stores, or transmits your credentials — it just spawns the CLIs and the CLIs handle auth themselves.
+
+---
 
 ## Troubleshooting
 
 ### Why is it slow?
-- Large files take time to process
-- Try using Flash model for speed
-- Check your internet connection
 
-### Can I use my own models?
-Currently supports official Gemini models only.<br>
-*--> opencode integration coming soon*
+Large-context Gemini calls are inherently slow (the model is reading a lot). The Gemini executor uses `--output-format stream-json` so you see progressive output rather than a frozen wait — incoming text is forwarded to MCP progress notifications ([ADR-057](https://github.com/Lykhoyda/ask-llm/blob/main/docs/DECISIONS.md)). Codex at high reasoning effort can take several minutes — this is normal for the model, not a server issue.
 
-### Can I add new features?
-Yes! Check issues or propose your own ideas.
+### Where do I get logs?
 
-## Privacy & Security
+Set `GMCPT_LOG_LEVEL=debug` in your MCP client's env config to see verbose server logs. They go to stderr — Claude Desktop captures them at `~/Library/Logs/Claude/mcp-server-*.log` (macOS).
 
-### Is my code sent to Google?
-Only when you explicitly use Gemini commands. Code is processed according to Google's privacy policy.
+### My setup isn't working — what do I check first?
 
-### Are credentials secure?
-- We never look at or touch your keys!
+Run the doctor:
 
-### Can I use this for proprietary code?
-Check your organization's policies and Google's Gemini API terms of service.
+```bash
+npx ask-llm-mcp doctor
+```
 
-## Advanced
+It checks Node version, PATH, every provider CLI's presence and version, and key env vars. It works even when MCP itself can't start. 90%+ of setup issues show up here as a clear failed-check line.
 
-### Can I use this in CI/CD?
-Not recommended - designed for interactive development.
+If the doctor says everything's fine but tool calls still fail, check the Troubleshooting page for specific error patterns.
 
-<div style="text-align: center;">
-
-## Why Gemini MCP?
-
-</div>
-
-By bridging Claude Desktop with Google's powerful models, Gemini MCP Tool lets you leverage the following advanced capabilities right in your existing workflow:
-
-<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; margin: 24px 0;">
-  <div style="background: var(--vp-c-bg-soft); padding: 16px; border-radius: 8px; border: 1px solid var(--vp-c-divider);">
-    <h4 style="margin: 0 0 8px 0; color: var(--vp-c-brand);">💰 Cost-Effective</h4>
-    <p style="margin: 0; font-size: 14px; line-height: 1.5;">Delegate tasks to a more cost-effective model to reduce expensive token usage.</p>
-  </div>
-  
-  <div style="background: var(--vp-c-bg-soft); padding: 16px; border-radius: 8px; border: 1px solid var(--vp-c-divider);">
-    <h4 style="margin: 0 0 8px 0; color: var(--vp-c-brand);">🎯 Multimodal Native</h4>
-    <p style="margin: 0; font-size: 14px; line-height: 1.5;">Process text, images, audio, video, and code seamlessly within your workflow.</p>
-  </div>
-  
-  <div style="background: var(--vp-c-bg-soft); padding: 16px; border-radius: 8px; border: 1px solid var(--vp-c-divider);">
-    <h4 style="margin: 0 0 8px 0; color: var(--vp-c-brand);">🚀 High Performance</h4>
-    <p style="margin: 0; font-size: 14px; line-height: 1.5;">Leverage a large context window and powerful built-in tools, including web search.</p>
-  </div>
-  
-  <div style="background: var(--vp-c-bg-soft); padding: 16px; border-radius: 8px; border: 1px solid var(--vp-c-divider);">
-    <h4 style="margin: 0 0 8px 0; color: var(--vp-c-brand);">🧠 Advanced Reasoning</h4>
-    <p style="margin: 0; font-size: 14px; line-height: 1.5;">Gain a different analytical perspective for sophisticated analysis of complex information.</p>
-  </div>
-  
-  <div style="background: var(--vp-c-bg-soft); padding: 16px; border-radius: 8px; border: 1px solid var(--vp-c-divider);">
-    <h4 style="margin: 0 0 8px 0; color: var(--vp-c-brand);">🔒 Privacy First</h4>
-    <p style="margin: 0; font-size: 14px; line-height: 1.5;">Open-source and telemetry-free. Committed to transparency and responsible AI.</p>
-  </div>
-</div>
+---
 
 ## More Questions?
 
-- Check [Documentation](/)
-- Browse [GitHub Issues](https://github.com/Lykhoyda/ask-llm/issues)
-- Ask in [Discussions](https://github.com/Lykhoyda/ask-llm/discussions)
+- [Documentation](/) — start here for general usage
+- [GitHub Issues](https://github.com/Lykhoyda/ask-llm/issues) — known bugs and feature requests
+- [GitHub Discussions](https://github.com/Lykhoyda/ask-llm/discussions) — Q&A and ideas
+- [DECISIONS.md](https://github.com/Lykhoyda/ask-llm/blob/main/docs/DECISIONS.md) — every architectural decision documented as an ADR

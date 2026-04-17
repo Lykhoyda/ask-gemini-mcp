@@ -1,56 +1,87 @@
 ---
-description: Choose the right AI model for your task. Default models, fallback chains, and overrides for Gemini, Codex, and Ollama providers.
+description: Choose the right model across providers. Default models, fallback chains, and overrides for Gemini, Codex, and Ollama.
 ---
 
 # Model Selection
 
-Choose the right Gemini model for your task.
+Each provider auto-selects a sensible default model with automatic fallback to a lighter model on quota or availability errors. **Most users should never override the model parameter** — the defaults are tuned for quality and the fallback chain handles failures.
 
-## Available Models
+## Defaults & Fallbacks
 
-### gemini-3.1-pro-preview (Default)
-- **Best for**: Complex analysis, large codebases, architectural reviews
-- **Context**: 1M tokens
-- **Use when**: You need the strongest reasoning, code review, or architectural analysis
+| Provider | Default | Fallback | Trigger |
+|---|---|---|---|
+| Gemini | `gemini-3.1-pro-preview` | `gemini-3-flash-preview` | `RESOURCE_EXHAUSTED` quota error or "exhausted your capacity" pattern ([ADR-044](https://github.com/Lykhoyda/ask-llm/blob/main/docs/DECISIONS.md)) |
+| Codex | `gpt-5.4` | `gpt-5.4-mini` | Quota errors (`rate_limit_exceeded`, `429`, `insufficient_quota`) ([ADR-028](https://github.com/Lykhoyda/ask-llm/blob/main/docs/DECISIONS.md)) |
+| Ollama | `qwen2.5-coder:7b` | `qwen2.5-coder:1.5b` | Model-not-found error (e.g., 7b not pulled but 1.5b is) |
 
-### gemini-3-flash-preview (Fallback)
-- **Best for**: Quick responses, routine tasks, fast iteration
-- **Context**: 1M tokens
-- **Use when**: Speed matters more than depth, or Pro quota is exhausted
+The fallback fires automatically inside the executor — your client sees a successful response with `usage.fellBack: true` in the structured output, and a `[Gemini stats: ... fell back]` annotation in the formatted text.
 
-### Legacy Models
-Older models (`gemini-2.5-pro`, `gemini-2.5-flash`) are still supported by the Gemini CLI. You can explicitly request them via the `model` parameter, but they are no longer the default.
+## Choosing a Provider
 
-## Setting Models
-```bash
-You need use natural language: "...using gemini flash"
+Different providers excel at different things. Pick by what you're doing, not by which is "best":
+
+| Task | Suggested provider | Why |
+|---|---|---|
+| Whole-codebase review | **Gemini** | 1M+ token context fits things others can't |
+| Targeted code reasoning, refactor critique | **Codex** | GPT-5.4's strength is dense code reasoning at moderate context size |
+| Private / air-gapped analysis | **Ollama** | Runs locally, nothing leaves your machine |
+| "What do they all think?" comparison | **Multi-LLM** (`multi-llm` tool or `/compare` skill) | Parallel dispatch, see all responses side-by-side |
+| Code review with verified findings | **`/multi-review` skill** | Gemini + Codex in parallel, then verifies each finding against source |
+
+## Overriding the Model
+
+Pass `model` explicitly when you have a reason to:
+
+```text
+Use ask-llm with provider gemini and model gemini-3-flash-preview to quickly check this CSS file
 ```
-```bash
-You can also append with '-m' or ask specifically with
+
+Or programmatically:
+
+```json
+{ "name": "ask-llm", "arguments": { "provider": "gemini", "model": "gemini-3-flash-preview", "prompt": "..." } }
 ```
 
-## Model Comparison
+For Codex, common overrides:
 
-| Model | Speed | Context | Best Use Case |
-|-------|-------|---------|---------------|
-| `gemini-3.1-pro-preview` | Slower | 1M tokens | Complex reasoning, big ideas |
-| `gemini-3-flash-preview` | Fast | 1M tokens | Quick, specific changes |
+```text
+Use ask-codex with model gpt-5.4-mini to summarize this commit
+```
 
-## Cost Optimization
+For Ollama, you can request any model you've pulled:
 
-1. **Start with Pro** (default) for most tasks — best quality
-2. **Use Flash** when you need faster responses or hit Pro quota limits
-3. The tool **automatically falls back** to Flash when Pro quota is exceeded
+```bash
+ollama pull deepseek-coder:6.7b
+```
 
-## Token Limits
+```text
+Use ask-ollama with model deepseek-coder:6.7b to review this implementation
+```
 
-- **Pro**: ~1 million tokens (~250k lines of code)
-- **Flash**: ~1 million tokens (~250k lines of code)
+## Token Limits & Cost
 
-## Recommendations
+| Provider | Context window | Cost model |
+|---|---|---|
+| Gemini Pro | ~1M tokens (~250k LOC) | Free tier via OAuth, paid tiers via API key |
+| Gemini Flash | ~1M tokens | Cheaper than Pro; fallback target for quota relief |
+| Codex GPT-5.4 | Per OpenAI's published context window | Per OpenAI billing |
+| Codex GPT-5.4-mini | Smaller context | Cheaper; fallback target |
+| Ollama | Per model (e.g., 32k for qwen2.5-coder) | Free — runs locally |
 
-- **Code Review**: Pro (default)
-- **Architecture Analysis**: Pro
-- **Quick Fixes**: Flash
-- **Documentation**: Flash
-- **Security Audit**: Pro
+## Track What You're Spending
+
+Token usage is exposed live via:
+
+- **Per-call**: `result.structuredContent.usage` on every `ask-*` tool response (provider, model, inputTokens, outputTokens, cachedTokens, thinkingTokens, durationMs, fellBack) — see [ADR-054](https://github.com/Lykhoyda/ask-llm/blob/main/docs/DECISIONS.md)
+- **Per-session aggregate**: call the `get-usage-stats` MCP tool, or read the `usage://current-session` MCP Resource for a JSON snapshot
+- **In the REPL**: type `/usage` for a markdown-formatted breakdown
+
+This is in-memory only — no persistence to disk, resets when the MCP server restarts.
+
+## Recommendations by Use Case
+
+- **General code review** → defaults are correct; let the fallback chain handle quota
+- **Whole-codebase analysis** → `ask-gemini` (Pro) — Flash auto-kicks in if Pro is exhausted
+- **Quick fixes, fast iteration** → request Flash or `gpt-5.4-mini` explicitly to skip the Pro→fallback round-trip
+- **Privacy-sensitive code** → `ask-ollama`, never leaves your machine
+- **Multi-perspective debate** → `multi-llm` or `/brainstorm` skill — Claude weighs verified vs inferred

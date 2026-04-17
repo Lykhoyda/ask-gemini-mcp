@@ -1,10 +1,15 @@
 ---
-description: Common issues and solutions for Ask LLM MCP servers. Connection errors, timeouts, quota limits, and provider-specific fixes.
+description: Common issues and solutions for Ask LLM MCP servers. Connection errors, timeouts, quota limits, provider auth, and platform-specific fixes.
 ---
 
 # Troubleshooting
 
-Common issues and their solutions. Click any issue below to see the detailed solution.
+> **Run the doctor first.** `npx ask-llm-mcp doctor` checks Node version, PATH, every provider CLI's presence + version, and env vars. It works even when MCP can't start. 90%+ of setup issues are caught here with a clear failed-check line — fix from the bottom of the report up.
+
+```bash
+npx ask-llm-mcp doctor          # human-readable
+npx ask-llm-mcp doctor --json   # machine-readable, exit 1 on error
+```
 
 <script setup>
 import TroubleshootingModal from '../.vitepress/components/TroubleshootingModal.vue'
@@ -12,345 +17,301 @@ import TroubleshootingModal from '../.vitepress/components/TroubleshootingModal.
 
 ## Installation Issues
 
-<TroubleshootingModal 
-  title='"Command not found: gemini"'
-  preview="The Gemini CLI is not installed or not in your PATH"
+<TroubleshootingModal
+  title='"Command not found: gemini" / "codex" / "ollama"'
+  preview="Provider CLI is not installed or not on PATH"
 >
 
-The Gemini CLI is not installed. Install it first:
+A provider CLI is missing or not on PATH. Install:
+
 ```bash
-npm install -g @google/gemini-cli
+# Gemini
+npm install -g @google/gemini-cli && gemini login
+
+# Codex
+npm install -g @openai/codex
+# then follow the codex CLI's auth instructions
+
+# Ollama (https://ollama.com)
+ollama pull qwen2.5-coder:7b
 ```
 
-After installation, verify it works:
+Verify:
+
 ```bash
-gemini --version
+gemini --version    # or: which gemini
+codex --version
+ollama list
 ```
 
-If you still get "command not found", restart your terminal or add npm global bin to your PATH.
+If `npx ask-llm-mcp doctor` reports a CLI as "not found on PATH" but `which <cli>` works in your terminal, the issue is PATH inheritance — see the next entry.
 
 </TroubleshootingModal>
 
-<TroubleshootingModal 
-  title="Windows NPX Installation Issues"
-  preview='Error: unknown option "-y" when using Claude Code on Windows'
+<TroubleshootingModal
+  title='"PATH issue" — CLI works in terminal but MCP server says "not found"'
+  preview="macOS GUI apps don't inherit your shell PATH"
 >
 
-**Problem**: `error: unknown option '-y'` when using Claude Code on Windows
+macOS GUI applications (Claude Desktop, Cursor, etc.) don't source `.zshrc` / `.bashrc`, so nvm / Homebrew / Volta paths aren't visible to the MCP server. Ask LLM resolves this automatically per [ADR-047](https://github.com/Lykhoyda/ask-llm/blob/main/docs/DECISIONS.md) by extracting the real PATH from your login shell at startup.
 
-**Solution**: Use one of these alternative installation methods:
+If it's still failing:
 
-```bash
-# Method 1: Install globally first
-npm install -g ask-gemini-mcp
-claude mcp add --scope user gemini-cli -- ask-gemini-mcp
+1. Confirm `npx ask-llm-mcp doctor` shows a non-empty `Resolved PATH` with the CLI's directory in it.
+2. If it doesn't, set `ASK_LLM_PATH` explicitly in your MCP client's env config:
 
-# Method 2: Use --yes instead of -y
-claude mcp add --scope user gemini-cli -- npx --yes ask-gemini-mcp
-
-# Method 3: Remove the -y flag entirely
-claude mcp add --scope user gemini-cli -- npx ask-gemini-mcp
-```
-
-</TroubleshootingModal>
-
-<TroubleshootingModal 
-  title='"MCP server not responding"'
-  preview="Claude Desktop can't connect to the MCP server"
->
-
-**Step-by-step solution**:
-
-1. **Check your Claude Desktop config file location**
-   - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
-   - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
-
-2. **Verify JSON syntax is correct**
-   - Use a JSON validator online
-   - Check for missing commas, brackets, or quotes
-
-3. **Restart Claude Desktop completely**
-   - Quit completely (Cmd+Q on Mac)
-   - Wait 5 seconds
-   - Restart Claude Desktop
-
-4. **Check logs for detailed errors**
-   - macOS: `~/Library/Logs/Claude/`
-   - Windows: `%APPDATA%\Claude\logs\`
-
-</TroubleshootingModal>
-
-## Connection Issues
-
-<TroubleshootingModal 
-  title='"Failed to connect to Gemini"'
-  preview="API connection issues or authentication problems"
->
-
-**Step-by-step solution**:
-
-1. **Verify your API key is configured**:
-   ```bash
-   gemini config get api_key
-   ```
-
-2. **Check your internet connection**
-   - Try accessing google.com in your browser
-   - Test with a simple request: `gemini "test"`
-
-3. **Verify firewall settings**
-   - Ensure your firewall isn't blocking requests to Google APIs
-   - Check corporate proxy settings if applicable
-
-4. **Test basic connectivity**:
-   ```bash
-   /gemini-cli:ping "test"
-   ```
-
-5. **If still failing, regenerate your API key**
-   - Go to [Google AI Studio](https://aistudio.google.com/app/apikey)
-   - Create a new API key
-   - Update your config: `gemini config set api_key YOUR_NEW_KEY`
-
-</TroubleshootingModal>
-
-<TroubleshootingModal 
-  title='"Timeout errors"'
-  preview="Requests taking too long or timing out"
->
-
-**Common causes and solutions**:
-
-1. **Large files naturally take time** - Be patient with large file analysis
-
-2. **Switch to Gemini Flash for faster responses**:
-   ```bash
-   gemini config set model gemini-3-flash-preview
-   ```
-
-3. **Break up large requests into smaller chunks**:
-   ```bash
-   # Instead of analyzing entire file
-   /gemini-cli:analyze @large-file.js "explain the main function"
-   
-   # Target specific sections
-   /gemini-cli:analyze @large-file.js "explain lines 50-100"
-   ```
-
-4. **For very large codebases, the tool prevents timeouts automatically**:
-   - Progress updates keep the connection alive
-   - Clear status messages show processing is active
-   - No manual configuration needed
-
-</TroubleshootingModal>
-
-<TroubleshootingModal 
-  title='"MCP error -32000: Connection closed"'
-  preview="Server fails to start and connection closes immediately (Claude Code)"
->
-
-**Common causes**:
-
-1. **Node.js version compatibility** - Ensure Node.js ≥ v20.0.0
-2. **Gemini CLI not installed** - Install with `npm install -g @google/gemini-cli`
-3. **API key not configured** - Run `gemini config set api_key YOUR_API_KEY`
-4. **PATH issues** - Restart terminal after installing Node.js/npm
-
-**Debug steps**:
-
-```bash
-# 1. Check Node.js version
-node --version
-
-# 2. Test Gemini CLI directly
-gemini "Hello"
-
-# 3. Reinstall if needed
-npm uninstall -g ask-gemini-mcp
-npm install -g ask-gemini-mcp
-
-# 4. Verify Claude Code can find the command
-claude mcp list
-```
-
-**Still not working?** Check the Claude Desktop logs for detailed error messages:
-- macOS: `~/Library/Logs/Claude/`
-- Windows: `%APPDATA%\Claude\logs\`
-
-</TroubleshootingModal>
-
-### "Gemini gets cut off" / Early Termination
-**Problem**: Responses appear truncated or Claude reports "Gemini was thinking but got cut off"
-
-**Causes**:
-- Large codebase analysis taking longer than expected
-- Complex operations requiring extended processing time
-- Client connection management issues
-
-**Solutions**:
-```bash
-# The tool automatically prevents timeouts with progress updates
-# You'll see messages like:
-# "🔍 Starting analysis (may take 5-15 minutes for large codebases)"
-# "🧠 Gemini is analyzing your request..."
-
-# Use faster Flash model for large requests
-/gemini-cli:analyze -m gemini-3-flash-preview @large-file.js
-
-# Break up large analysis into smaller chunks
-/gemini-cli:analyze @specific-function.js explain this function
-```
-
-## File Analysis Issues
-
-### "File not found"
-- Use absolute paths when possible
-- Check file permissions
-- Verify working directory
-
-### "Token limit exceeded" / "Response exceeds maximum allowed tokens (25000)"
-**Problem**: Error shows response of 45,735 tokens even for small prompts
-
-**Root cause**: Model-specific bug observed in `gemini-2.5-pro` (former default model). May not affect newer models.
-
-**Working models**:
-- ✅ `gemini-3-flash-preview` - Works perfectly
-- ✅ `gemini-3.1-pro-preview` - Current default, not affected
-- ❌ `gemini-2.5-pro` - Always returns 45k+ tokens (known bug)
-
-**Solutions**:
-```bash
-# Use Flash model (recommended)
-/gemini-cli:analyze -m gemini-3-flash-preview "your prompt"
-
-# For large contexts, break into smaller chunks
-/gemini-cli:analyze -m gemini-3-flash-preview @file1.js @file2.js
-
-# The default model (gemini-3.1-pro-preview) should not have this issue
-/gemini-cli:analyze "brief analysis only"
-```
-
-## Configuration Issues
-
-### Changes not taking effect
-1. Save config file
-2. Completely quit Claude Desktop
-3. Restart Claude Desktop
-4. Verify with `/gemini-cli:help`
-
-### Environment variables not working
-```bash
-# Check current settings
-echo $GEMINI_MODEL
-echo $GOOGLE_GENERATIVE_AI_API_KEY
-```
-
-### Configurable Timeout for Large Codebases
-**Problem**: Default MCP client timeout too short for large analysis
-
-**Root Cause**: Claude Desktop/Claude Code has a hard-coded timeout that cannot be overridden by environment variables.
-
-**Solution**: The tool now automatically sends progress updates to prevent timeouts
-```bash
-# The tool will automatically send progress messages like:
-# "🔍 Starting analysis (may take 5-15 minutes for large codebases)"
-# "🧠 Gemini is analyzing your request..."
-# "📊 Processing files and generating insights..."
-# "⏳ Still processing... Gemini is working on your request"
-```
-
-**What happens during long operations**:
-- Progress updates every 25 seconds during active processing
-- Backup heartbeat every 20 seconds to ensure connection stays alive
-- Clear status messages showing the tool is working
-- Automatic completion notification when done
-
-**For very large codebases** (10,000+ files):
-- Consider breaking analysis into smaller chunks
-- Use more specific file patterns with `@` syntax
-- Switch to `gemini-3-flash-preview` for faster processing
-
-## Debug Mode
-
-Enable debug logging:
 ```json
 {
   "mcpServers": {
-    "gemini-cli": {
-      "command": "gemini-mcp",
+    "ask-llm": {
+      "command": "npx",
+      "args": ["-y", "ask-llm-mcp"],
       "env": {
-        "DEBUG": "true"
+        "ASK_LLM_PATH": "/usr/local/bin:/opt/homebrew/bin:$HOME/.nvm/versions/node/v22.0.0/bin"
       }
     }
   }
 }
 ```
 
+3. Restart your MCP client completely (not just reload).
+
+</TroubleshootingModal>
+
+<TroubleshootingModal
+  title="Windows NPX flag issues"
+  preview='error: unknown option "-y" when using Claude Code on Windows'
+>
+
+**Solutions** (try in order):
+
+```bash
+# Method 1: Install globally first (skips npx entirely)
+npm install -g ask-llm-mcp
+claude mcp add --scope user ask-llm -- ask-llm-mcp
+
+# Method 2: --yes instead of -y
+claude mcp add --scope user ask-llm -- npx --yes ask-llm-mcp
+
+# Method 3: Drop the flag entirely
+claude mcp add --scope user ask-llm -- npx ask-llm-mcp
+```
+
+</TroubleshootingModal>
+
+<TroubleshootingModal
+  title="MCP server not responding (Claude Desktop cannot connect)"
+  preview="Server fails to start or connection drops"
+>
+
+**Step-by-step:**
+
+1. **Check Node.js version** — must be ≥ v20:
+   ```bash
+   node --version
+   ```
+2. **Run the doctor** to identify what's missing:
+   ```bash
+   npx ask-llm-mcp doctor
+   ```
+3. **Verify Claude Desktop config syntax** — use a JSON validator. Common bugs: trailing commas, missing brackets.
+4. **Restart Claude Desktop completely**:
+   - Quit (Cmd+Q on Mac), wait 5s, reopen.
+   - Just reloading the window is not enough.
+5. **Check logs** for the actual error:
+   - macOS: `~/Library/Logs/Claude/mcp-server-*.log`
+   - Windows: `%APPDATA%\Claude\logs\`
+
+</TroubleshootingModal>
+
+<TroubleshootingModal
+  title='"npm install fails: EUNSUPPORTEDPROTOCOL workspace:*"'
+  preview='npm 9 or older choking on workspace:* in published packages'
+>
+
+You're on npm 9 (probably bundled with Node 18 in Claude Desktop). [ADR-052](https://github.com/Lykhoyda/ask-llm/blob/main/docs/DECISIONS.md) fixed this in published packages 1.5.7 / 0.2.7 and later — the `workspace:*` protocol is rewritten to `*` at publish time so npm 9's arborist parses it correctly.
+
+If you're still hitting this:
+
+1. Confirm your installed version is recent: `npm view ask-llm-mcp version`
+2. Clear the npx cache: `rm -rf ~/.npm/_npx`
+3. Reinstall: `npx -y ask-llm-mcp@latest`
+
+If still broken, upgrade Node to ≥ v20 (npm 10+) — older npm versions have other quirks too.
+
+</TroubleshootingModal>
+
+## Connection & Auth
+
+<TroubleshootingModal
+  title='"Authentication failed" / "401 Unauthorized"'
+  preview="Provider CLI isn't authenticated"
+>
+
+Each provider has its own auth flow:
+
+- **Gemini**: `gemini login` (OAuth) or set `GEMINI_API_KEY` env var
+- **Codex**: follow `codex` CLI's auth instructions (varies by version)
+- **Ollama**: no auth needed; Ollama just needs to be running locally
+
+Verify each CLI works directly before blaming the MCP server:
+
+```bash
+gemini "Hello"
+codex exec --skip-git-repo-check "Hello"
+curl http://localhost:11434/api/tags    # Ollama
+```
+
+</TroubleshootingModal>
+
+<TroubleshootingModal
+  title='Quota / rate limit errors (Gemini RESOURCE_EXHAUSTED, Codex 429)'
+  preview="Provider quota exhausted"
+>
+
+**The executor handles this automatically** — Gemini falls back from `gemini-3.1-pro-preview` to `gemini-3-flash-preview` per [ADR-044](https://github.com/Lykhoyda/ask-llm/blob/main/docs/DECISIONS.md), Codex falls back from `gpt-5.4` to `gpt-5.4-mini` per [ADR-028](https://github.com/Lykhoyda/ask-llm/blob/main/docs/DECISIONS.md). You'll see `usage.fellBack: true` in the structured response.
+
+If both Pro and Flash (or both gpt-5.4 and mini) hit quota, the call fails with both errors surfaced. Wait for the quota window to reset, or:
+
+- Switch to a different provider for the meantime: `Use ask-llm with provider codex ...` instead of Gemini
+- Use Ollama locally: `Use ask-llm with provider ollama ...`
+
+</TroubleshootingModal>
+
+<TroubleshootingModal
+  title='"Timeout after 210000ms"'
+  preview="Provider call exceeded server timeout"
+>
+
+The default per-provider timeout is 210s (3.5 min) — set just below Claude Desktop's 4-min client cap so server-side errors return before client gives up ([ADR-045](https://github.com/Lykhoyda/ask-llm/blob/main/docs/DECISIONS.md)).
+
+For long analyses (large diffs, complex Codex reasoning):
+
+1. **Override the timeout** via env var:
+   ```json
+   { "env": { "GMCPT_TIMEOUT_MS": "600000" } }    // 10 minutes
+   ```
+   Note: Claude Desktop will still cut you off at ~4 minutes regardless. For longer runs, use the REPL or call the executor directly.
+
+2. **For multi-provider review skills** (`/multi-review`, `/brainstorm`), large diffs may take 5–15 min — use the diff size policy in those skills (filter docs/binaries, truncate above 150KB) to keep them tractable.
+
+3. **For very large prompts**, consider splitting the work or using `ask-gemini` with `includeDirs` instead of one giant prompt.
+
+</TroubleshootingModal>
+
+## Tool & API Issues
+
+<TroubleshootingModal
+  title='"Provider X is not available" / tool call rejects provider'
+  preview="The orchestrator didn't detect the provider at startup"
+>
+
+The orchestrator (`ask-llm-mcp`) detects available providers at startup. If a provider you expected isn't there:
+
+1. Run `npx ask-llm-mcp doctor` to see what it detects.
+2. The most common cause is PATH not finding the provider CLI — see the PATH issue entry above.
+3. For Ollama specifically, it must be **running** at `http://localhost:11434` (or wherever `OLLAMA_HOST` points). Not just installed.
+4. Restart your MCP client to re-detect providers.
+
+</TroubleshootingModal>
+
+<TroubleshootingModal
+  title='"Sub-agent silently produces 0-byte output" / brainstorm coordinator hang'
+  preview="Provider process killed by sub-agent lifecycle"
+>
+
+This is the bug class [ADR-050](https://github.com/Lykhoyda/ask-llm/blob/main/docs/DECISIONS.md) addresses — Claude Code sub-agents can't own background processes that outlive their turn, so `(cmd &) && wait` patterns or `run_in_background: true` on dispatch calls cause processes to be SIGKILLed silently.
+
+The brainstorm-coordinator agent uses the correct pattern (single foreground blocking Bash with direct backgrounding + per-PID wait + `timeout: 600000`). If you're seeing this in custom skills you're writing, follow the same pattern — see the agent prompt in `packages/claude-plugin/agents/brainstorm-coordinator.md` for the canonical template.
+
+</TroubleshootingModal>
+
+## Model & Response Issues
+
+<TroubleshootingModal
+  title="Response gets cut off mid-stream"
+  preview="MCP message size limits or executor timeout"
+>
+
+For Gemini, large responses are chunked automatically — Claude can call `fetch-chunk` to retrieve subsequent chunks from the cached response.
+
+For Codex / Ollama, very large responses can hit the MCP message limit. Workarounds:
+
+- Ask for shorter responses ("3 bullets max", "1-paragraph summary")
+- Split the work — run the prompt twice with narrower scope
+- Use the REPL where output streams directly to stdout without MCP message size limits
+
+</TroubleshootingModal>
+
+## Plugin Issues
+
+<TroubleshootingModal
+  title="Plugin slash commands not appearing in Claude Code"
+  preview="Plugin not installed or not loaded"
+>
+
+Verify the plugin is installed and active:
+
+```text
+/plugin list
+```
+
+If `ask-llm` isn't there, install it:
+
+```text
+/plugin marketplace add Lykhoyda/ask-llm
+/plugin install ask-llm@ask-llm-plugins
+/reload-plugins
+```
+
+The plugin's MCP servers also need to be registered — typically done at user scope:
+
+```bash
+claude mcp add --scope user gemini -- npx -y ask-gemini-mcp
+claude mcp add --scope user codex  -- npx -y ask-codex-mcp
+claude mcp add --scope user ollama -- npx -y ask-ollama-mcp
+```
+
+</TroubleshootingModal>
+
+<TroubleshootingModal
+  title="Pre-commit hook running on every Bash call, not just git commit"
+  preview="The hook matches Bash but filters by command content"
+>
+
+Expected behavior — the hook is a `PreToolUse` matcher on `Bash`, but the script body checks the command for `git commit` and exits 0 immediately if it doesn't match. So it fires on every Bash call but does nothing for non-commit commands. Latency overhead is one shell invocation per Bash call (negligible).
+
+If you want to disable it: edit `packages/claude-plugin/hooks/hooks.json` in your local plugin install (or fork) and remove the `PreToolUse` block.
+
+</TroubleshootingModal>
+
+## Debug Mode
+
+Enable verbose logging:
+
+```json
+{
+  "mcpServers": {
+    "ask-llm": {
+      "command": "npx",
+      "args": ["-y", "ask-llm-mcp"],
+      "env": {
+        "GMCPT_LOG_LEVEL": "debug"
+      }
+    }
+  }
+}
+```
+
+Logs go to stderr. Claude Desktop captures them in:
+
+- macOS: `~/Library/Logs/Claude/mcp-server-*.log`
+- Windows: `%APPDATA%\Claude\logs\`
+- Linux: `~/.config/claude/logs/`
+
 ## Getting Help
 
-1. Check [GitHub Issues](https://github.com/Lykhoyda/ask-llm/issues)
-2. Enable debug mode
-3. Collect error logs
-4. Open a new issue with details
-
-## Model-Specific Issues
-
-### Gemini-2.5-Pro Issues (Legacy)
-**Known problems** (when using `gemini-2.5-pro`):
-- Always returns 45,735 token responses (bug)
-- May cause "response exceeds limit" errors
-- Not recommended for file analysis
-
-**Workaround**: Use the default model (`gemini-3.1-pro-preview`) or Flash
-```bash
-/gemini-cli:analyze -m gemini-3-flash-preview "your prompt"
-```
-
-### Model Recommendations
-| **Use Case** | **Recommended Model** | **Reason** |
-|--------------|----------------------|------------|
-| General use | `gemini-3.1-pro-preview` | Default, latest Pro model |
-| File analysis | `gemini-3-flash-preview` | Faster, stable responses |
-| Code review | `gemini-3.1-pro-preview` | Best quality reasoning |
-| Large codebase | `gemini-3-flash-preview` | Better timeout handling |
-| Quick questions | `gemini-3-flash-preview` | Fast responses |
-
-## Quick Fixes
-
-### Reset Everything
-```bash
-# Remove and reinstall
-npm uninstall -g ask-gemini-mcp
-npm install -g ask-gemini-mcp
-
-# Reset Gemini CLI
-gemini config reset
-gemini config set api_key YOUR_API_KEY
-```
-
-### Test Basic Functionality
-```bash
-# Test Gemini CLI
-gemini "Hello"
-
-# Test MCP Tool with Flash model
-/gemini-cli:ping
-
-# Test file analysis with working model
-/gemini-cli:analyze -m gemini-3-flash-preview @README.md summarize
-```
-
-## Platform-Specific Issues
-
-### Windows 11
-- **NPX flag issues**: Use `--yes` instead of `-y`
-- **Path problems**: Restart terminal after Node.js installation
-- **Connection issues**: Ensure Windows Defender isn't blocking Node.js
-
-### macOS
-- **Permission issues**: Use `sudo` if npm install fails
-- **Terminal restart**: Required after installing dependencies
-
-### Linux
-- **Node.js version**: Install via NodeSource for latest version
-- **npm permissions**: Configure npm to avoid sudo usage
+1. **Run the doctor first**: `npx ask-llm-mcp doctor`
+2. Check [GitHub Issues](https://github.com/Lykhoyda/ask-llm/issues) for similar reports
+3. Open a new issue with: doctor output, your client (Claude Code/Desktop/Cursor/etc.), Node version, OS, and what you ran
+4. Ask in [GitHub Discussions](https://github.com/Lykhoyda/ask-llm/discussions) for usage questions

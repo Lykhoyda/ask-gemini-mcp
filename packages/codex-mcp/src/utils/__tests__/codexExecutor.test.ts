@@ -228,3 +228,34 @@ describe("quota fallback", () => {
     expect(mockExecuteCommand).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("session continuity (ADR-058 hardening per ADR-063)", () => {
+  it("includes --ephemeral when no sessionId is provided", async () => {
+    await executeCodexCLI({ prompt: "hello" });
+    const [, args] = mockExecuteCommand.mock.calls[0];
+    expect(args).toContain(CLI.FLAGS.EPHEMERAL);
+  });
+
+  it("OMITS --ephemeral when sessionId is provided so resume can persist (ADR-063 fix)", async () => {
+    await executeCodexCLI({ prompt: "hello", sessionId: "thread-abc-123" });
+    const [, args] = mockExecuteCommand.mock.calls[0];
+    expect(args).not.toContain(CLI.FLAGS.EPHEMERAL);
+  });
+
+  it("uses 'exec resume <id>' subcommand sequence when sessionId is set", async () => {
+    await executeCodexCLI({ prompt: "follow-up", sessionId: "thread-abc-123" });
+    const [, args] = mockExecuteCommand.mock.calls[0];
+    expect(args[0]).toBe(CLI.COMMANDS.EXEC);
+    expect(args[1]).toBe(CLI.COMMANDS.RESUME);
+    expect(args).toContain("thread-abc-123");
+  });
+
+  it("disables response cache when sessionId is the empty string (ADR-063 fix)", async () => {
+    responseCache.clear();
+    await executeCodexCLI({ prompt: "x" });
+    expect(mockExecuteCommand).toHaveBeenCalledTimes(1);
+
+    await executeCodexCLI({ prompt: "x", sessionId: "" });
+    expect(mockExecuteCommand).toHaveBeenCalledTimes(2);
+  });
+});

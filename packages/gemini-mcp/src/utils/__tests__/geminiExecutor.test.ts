@@ -53,7 +53,7 @@ describe("executeGeminiCLI argument construction", () => {
       CLI.FLAGS.MODEL,
       MODELS.PRO,
       CLI.FLAGS.OUTPUT_FORMAT,
-      CLI.OUTPUT_FORMATS.JSON,
+      CLI.OUTPUT_FORMATS.STREAM_JSON,
       CLI.FLAGS.PROMPT,
       "hello",
     ]);
@@ -67,7 +67,7 @@ describe("executeGeminiCLI argument construction", () => {
       CLI.FLAGS.MODEL,
       "gemini-3-flash-preview",
       CLI.FLAGS.OUTPUT_FORMAT,
-      CLI.OUTPUT_FORMATS.JSON,
+      CLI.OUTPUT_FORMATS.STREAM_JSON,
       CLI.FLAGS.PROMPT,
       "hello",
     ]);
@@ -82,7 +82,7 @@ describe("executeGeminiCLI argument construction", () => {
       MODELS.PRO,
       CLI.FLAGS.SANDBOX,
       CLI.FLAGS.OUTPUT_FORMAT,
-      CLI.OUTPUT_FORMATS.JSON,
+      CLI.OUTPUT_FORMATS.STREAM_JSON,
       CLI.FLAGS.PROMPT,
       "hello",
     ]);
@@ -97,7 +97,7 @@ describe("executeGeminiCLI argument construction", () => {
       "gemini-3-flash-preview",
       CLI.FLAGS.SANDBOX,
       CLI.FLAGS.OUTPUT_FORMAT,
-      CLI.OUTPUT_FORMATS.JSON,
+      CLI.OUTPUT_FORMATS.STREAM_JSON,
       CLI.FLAGS.PROMPT,
       "hello",
     ]);
@@ -134,7 +134,7 @@ describe("executeGeminiCLI quota fallback", () => {
       CLI.FLAGS.MODEL,
       MODELS.FLASH,
       CLI.FLAGS.OUTPUT_FORMAT,
-      CLI.OUTPUT_FORMATS.JSON,
+      CLI.OUTPUT_FORMATS.STREAM_JSON,
       CLI.FLAGS.PROMPT,
       "hello",
     ]);
@@ -153,7 +153,7 @@ describe("executeGeminiCLI quota fallback", () => {
       MODELS.FLASH,
       CLI.FLAGS.SANDBOX,
       CLI.FLAGS.OUTPUT_FORMAT,
-      CLI.OUTPUT_FORMATS.JSON,
+      CLI.OUTPUT_FORMATS.STREAM_JSON,
       CLI.FLAGS.PROMPT,
       "hello",
     ]);
@@ -242,15 +242,15 @@ describe("executeGeminiCLI changeMode", () => {
 });
 
 describe("executeGeminiCLI JSON output format", () => {
-  it("always passes --output-format json flag", async () => {
+  it("always passes --output-format stream-json flag", async () => {
     await executeGeminiCLI({ prompt: "hello" });
 
     const [, args] = mockExecuteCommand.mock.calls[0];
     expect(args).toContain("--output-format");
-    expect(args).toContain("json");
+    expect(args).toContain("stream-json");
   });
 
-  it("passes --output-format json before -p flag", async () => {
+  it("passes --output-format stream-json before -p flag", async () => {
     await executeGeminiCLI({ prompt: "hello" });
 
     const [, args] = mockExecuteCommand.mock.calls[0];
@@ -259,7 +259,7 @@ describe("executeGeminiCLI JSON output format", () => {
     expect(formatIndex).toBeLessThan(promptIndex);
   });
 
-  it("includes --output-format json in fallback args", async () => {
+  it("includes --output-format stream-json in fallback args", async () => {
     mockExecuteCommand
       .mockRejectedValueOnce(new Error("RESOURCE_EXHAUSTED"))
       .mockResolvedValueOnce(JSON.stringify({ response: "Flash response" }));
@@ -268,7 +268,7 @@ describe("executeGeminiCLI JSON output format", () => {
 
     const [, fallbackArgs] = mockExecuteCommand.mock.calls[1];
     expect(fallbackArgs).toContain("--output-format");
-    expect(fallbackArgs).toContain("json");
+    expect(fallbackArgs).toContain("stream-json");
   });
 
   it("parses JSON response and extracts response text", async () => {
@@ -510,7 +510,7 @@ describe("executeGeminiCLI session support", () => {
       CLI.FLAGS.RESUME,
       "abc-123",
       CLI.FLAGS.OUTPUT_FORMAT,
-      CLI.OUTPUT_FORMATS.JSON,
+      CLI.OUTPUT_FORMATS.STREAM_JSON,
       CLI.FLAGS.PROMPT,
       "hello",
     ]);
@@ -709,7 +709,7 @@ describe("executeGeminiCLI includeDirs support", () => {
       CLI.FLAGS.INCLUDE_DIRECTORIES,
       "packages/api",
       CLI.FLAGS.OUTPUT_FORMAT,
-      CLI.OUTPUT_FORMATS.JSON,
+      CLI.OUTPUT_FORMATS.STREAM_JSON,
       CLI.FLAGS.PROMPT,
       "hello",
     ]);

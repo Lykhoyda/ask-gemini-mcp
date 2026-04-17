@@ -1,12 +1,24 @@
 import { createRequire } from "node:module";
-import { createProgressTracker, Logger } from "@ask-llm/shared";
+import {
+  type AskResponse,
+  askResponseSchema,
+  createDiagnoseTool,
+  createProgressTracker,
+  createSessionUsage,
+  createUsageStatsTool,
+  Logger,
+  registerSessionUsageResource,
+  type UsageStats,
+} from "@ask-llm/shared";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import type { RequestHandlerExtra } from "@modelcontextprotocol/sdk/shared/protocol.js";
 import type { CallToolResult, ServerNotification, ServerRequest } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { INSTALL_HINTS, PROVIDERS } from "./constants.js";
+import { buildMultiLlmInputSchema, dispatchMultiLlm, formatMultiLlmReport, multiLlmReportSchema } from "./multiLlm.js";
 import { isCommandAvailable } from "./utils/availability.js";
+import { buildProviderSpecs } from "./utils/providerSpecs.js";
 
 function readPackageJson(): { name: string; version: string } {
   try {
@@ -22,11 +34,23 @@ export interface ProviderStatus {
   missing: string[];
 }
 
-type ExecutorFn = (options: { prompt: string; model?: string; onProgress?: (output: string) => void }) => Promise<{
+export type ExecutorFn = (options: {
+  prompt: string;
+  model?: string;
+  sessionId?: string;
+  onProgress?: (output: string) => void;
+}) => Promise<{
   response: string;
+  usage?: UsageStats;
+  sessionId?: string;
+  threadId?: string;
 }>;
 
 const loadedExecutors = new Map<string, ExecutorFn>();
+
+export function getLoadedExecutor(name: string): ExecutorFn | undefined {
+  return loadedExecutors.get(name);
+}
 
 export async function detectProviders(): Promise<ProviderStatus> {
   const available: string[] = [];
@@ -92,6 +116,12 @@ function buildAskLlmSchema(availableProviders: string[]) {
       .describe(`Which LLM provider to use. Available: ${providerDescriptions}`),
     prompt: z.string().min(1).max(100000).describe("The question, code review request, or analysis task to send"),
     model: z.string().optional().describe("Override the default model. Usually not needed."),
+    sessionId: z
+      .string()
+      .optional()
+      .describe(
+        "Optional session ID to resume a prior conversation. Pass the [Session ID: ...] or [Thread ID: ...] value from a previous response. Each provider handles sessions natively (Gemini --resume, Codex exec resume) or via server-side replay (Ollama).",
+      ),
   });
 }
 
@@ -111,6 +141,7 @@ export async function startServer() {
   const { available } = await detectProviders();
 
   const server = new McpServer({ name, version });
+  const sessionUsage = createSessionUsage();
 
   const askLlmSchema = buildAskLlmSchema(available);
 
@@ -118,14 +149,15 @@ export async function startServer() {
     "ask-llm",
     {
       description:
-        "Send a prompt to an LLM provider (Gemini, Codex, Ollama). Specify which provider to use. Each provider auto-selects its best model with fallback on errors.",
+        "Send a prompt to an LLM provider (Gemini, Codex, Ollama). Specify which provider to use. Each provider auto-selects its best model with fallback on errors. Returns both human-readable text and a structured response (provider, model, sessionId, usage) via outputSchema.",
       inputSchema: askLlmSchema.shape,
+      outputSchema: (askResponseSchema as z.ZodObject<z.ZodRawShape>).shape,
       annotations: { title: "Ask LLM", readOnlyHint: false, destructiveHint: false, openWorldHint: true },
     },
     async (args: Record<string, unknown>, extra: ToolExtra): Promise<CallToolResult> => {
       const progress = createProgressTracker("ask-llm", extra, PROGRESS_MESSAGES("ask-llm"));
       try {
-        const { provider, prompt, model } = askLlmSchema.parse(args);
+        const { provider, prompt, model, sessionId } = askLlmSchema.parse(args);
         Logger.toolInvocation("ask-llm", args);
 
         const executor = loadedExecutors.get(provider);
@@ -139,14 +171,34 @@ export async function startServer() {
         const result = await executor({
           prompt,
           model,
+          sessionId,
           onProgress: (output) => {
             progress.updateOutput(output);
           },
         });
 
+        if (result.usage) sessionUsage.record(result.usage);
+
         await progress.stop(true);
         const providerName = PROVIDERS[provider]?.name ?? provider;
-        return { content: [{ type: "text", text: `${providerName} response:\n${result.response}` }], isError: false };
+        const resolvedSessionId = result.sessionId ?? result.threadId;
+        const idLine = result.sessionId
+          ? `\n\n[Session ID: ${result.sessionId}]`
+          : result.threadId
+            ? `\n\n[Thread ID: ${result.threadId}]`
+            : "";
+        const structured: AskResponse = {
+          provider: provider as "gemini" | "codex" | "ollama",
+          response: result.response,
+          model: result.usage?.model ?? model ?? PROVIDERS[provider]?.defaultModel ?? "unknown",
+          sessionId: resolvedSessionId,
+          usage: result.usage,
+        };
+        return {
+          content: [{ type: "text", text: `${providerName} response:\n${result.response}${idLine}` }],
+          structuredContent: structured as unknown as Record<string, unknown>,
+          isError: false,
+        };
       } catch (error) {
         await progress.stop(false);
         const msg = error instanceof Error ? error.message : String(error);
@@ -175,7 +227,98 @@ export async function startServer() {
     },
   );
 
-  Logger.warn(`ask-llm-mcp v${version} — 2 tools, ${available.length} provider(s): ${available.join(", ") || "none"}`);
+  const usageTool = createUsageStatsTool(sessionUsage);
+  const usageOutputShape = usageTool.outputSchema
+    ? (usageTool.outputSchema as z.ZodObject<z.ZodRawShape>).shape
+    : undefined;
+  server.registerTool(
+    usageTool.name,
+    {
+      description: usageTool.description,
+      inputSchema: {},
+      ...(usageOutputShape ? { outputSchema: usageOutputShape } : {}),
+      annotations: usageTool.annotations,
+    },
+    async (): Promise<CallToolResult> => {
+      const result = await usageTool.execute({});
+      if (typeof result === "string") {
+        return { content: [{ type: "text", text: result }], isError: false };
+      }
+      return {
+        content: [{ type: "text", text: result.text }],
+        structuredContent: result.structuredContent,
+        isError: false,
+      };
+    },
+  );
+  registerSessionUsageResource(server, sessionUsage);
+
+  const multiLlmInputSchema = buildMultiLlmInputSchema(available);
+  server.registerTool(
+    "multi-llm",
+    {
+      description:
+        "Dispatch the same prompt to multiple LLM providers in parallel and return all responses in one structured payload. Use when you want to compare answers across Gemini, Codex, and Ollama, or when you want a multi-provider sanity check on a question. Returns per-provider success/failure, response text, model, sessionId, and token usage. Each call is fresh — no session continuity (use ask-llm for individual session-bearing calls).",
+      inputSchema: multiLlmInputSchema.shape,
+      outputSchema: (multiLlmReportSchema as z.ZodObject<z.ZodRawShape>).shape,
+      annotations: {
+        title: "Multi-LLM Parallel Dispatch",
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
+    },
+    async (args: Record<string, unknown>): Promise<CallToolResult> => {
+      const { prompt, providers: requestedProviders } = multiLlmInputSchema.parse(args) as {
+        prompt: string;
+        providers?: string[];
+      };
+      const providers = requestedProviders && requestedProviders.length > 0 ? requestedProviders : available;
+      Logger.toolInvocation("multi-llm", { prompt: prompt.slice(0, 80), providers });
+
+      const report = await dispatchMultiLlm({
+        prompt,
+        providers,
+        getExecutor: (name) => loadedExecutors.get(name),
+        recordUsage: (stats) => sessionUsage.record(stats),
+      });
+
+      return {
+        content: [{ type: "text", text: formatMultiLlmReport(report) }],
+        structuredContent: report as unknown as Record<string, unknown>,
+        isError: false,
+      };
+    },
+  );
+
+  const diagnoseSpecs = await buildProviderSpecs();
+  const diagnoseTool = createDiagnoseTool(diagnoseSpecs);
+  const diagnoseOutputShape = diagnoseTool.outputSchema
+    ? (diagnoseTool.outputSchema as z.ZodObject<z.ZodRawShape>).shape
+    : undefined;
+  server.registerTool(
+    diagnoseTool.name,
+    {
+      description: diagnoseTool.description,
+      inputSchema: {},
+      ...(diagnoseOutputShape ? { outputSchema: diagnoseOutputShape } : {}),
+      annotations: diagnoseTool.annotations,
+    },
+    async (): Promise<CallToolResult> => {
+      const result = await diagnoseTool.execute({});
+      if (typeof result === "string") {
+        return { content: [{ type: "text", text: result }], isError: false };
+      }
+      return {
+        content: [{ type: "text", text: result.text }],
+        structuredContent: result.structuredContent,
+        isError: false,
+      };
+    },
+  );
+
+  Logger.warn(`ask-llm-mcp v${version} — 5 tools, ${available.length} provider(s): ${available.join(", ") || "none"}`);
 
   const transport = new StdioServerTransport();
   await server.connect(transport);

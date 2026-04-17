@@ -10,23 +10,43 @@ Consult multiple external LLM providers simultaneously on a topic while Claude O
 
 ## Instructions
 
-1. Parse the arguments:
-   - If the first argument looks like a comma-separated provider list (e.g., `gemini,codex` or `gemini,codex,ollama`), use those as the external providers
-   - If no provider list is given, default to `gemini,codex`
-   - Valid external providers: `gemini`, `codex`, `ollama`
-   - Everything after the provider list (or all args if no list) is the topic
-   - Claude Opus is always a participant — it's not in the provider list because it runs inside the coordinator
+### Phase 1: Parse arguments
 
-2. Determine the brainstorm topic:
-   - If the user provided a topic directly, use it
-   - If the context is about code changes, gather the relevant diff with `git diff` and `git diff --cached`
-   - If the context is a design/plan, gather the relevant documentation or conversation context
+- If the first argument looks like a comma-separated provider list (e.g., `gemini,codex` or `gemini,codex,ollama`), use those as the external providers
+- If no provider list is given, default to `gemini,codex`
+- Valid external providers: `gemini`, `codex`, `ollama`
+- Everything after the provider list (or all args if no list) is the topic
+- Claude Opus is always a participant — it's not in the provider list because it runs inside the coordinator
 
-3. If no topic is clear, ask the user what they'd like to brainstorm about.
+### Phase 2: Determine and prepare the brainstorm topic
 
-4. Launch the `brainstorm-coordinator` agent with the topic, the selected external providers list, and any gathered context. The agent handles:
-   - Running its own Claude Opus research phase (Phase 3B — reads actual files, traces code, uses WebFetch/WebSearch on referenced external docs) in parallel with external dispatches
-   - Constructing the prompt for each external provider
-   - Sending to selected external providers in parallel (Phase 3A)
-   - Synthesizing consensus, unique insights, and contradictions across all participants — Claude's verified findings are weighted higher than inferred ones
-   - Producing prioritized recommendations
+- If the user provided a topic directly, use it
+- If the context is about code changes, gather the relevant diff:
+  - `git status --short` first to see what's modified/added/deleted
+  - `git add -N <new-files>` for untracked files the user wants included
+  - `git diff` + `git diff --cached` combined
+  - **Filter noise**: exclude `:!docs/` `:!apps/docs/` `:!*.md` `:!yarn.lock` `:!*.lock` `:!*.png` from the pathspec — providers don't need to review your ADR/doc additions
+  - **Size-check**: if combined diff > 150KB, ask the user before sending (the providers will take 5–15 min on payloads that large)
+- If the context is a design/plan, gather the relevant documentation or conversation context
+- If no topic is clear, ask the user what they'd like to brainstorm about
+
+### Phase 3: Launch the brainstorm-coordinator agent
+
+Launch with: the topic, the selected external providers list, any gathered context (diff/files/docs).
+
+The coordinator handles:
+- Phase 3B: its own Claude Opus research (reads actual files, traces code, uses WebFetch/WebSearch on referenced external docs) — runs FIRST so Claude doesn't anchor on external responses
+- Phase 3A: external provider dispatch via a single blocking foreground Bash call (ADR-050 dispatch pattern)
+- Phase 4: synthesis — consensus, unique insights, contradictions across all participants
+- Verified findings (backed by Claude's file reads) are weighted higher than inferred ones
+- Failed providers are surfaced inline with their stderr, not silently dropped
+
+### Phase 4: Present the coordinator's synthesis
+
+Pass through the coordinator's structured output. If the coordinator returned a partial result (some providers failed), present what landed and explicitly note what's missing — don't paraphrase or hide compromises.
+
+## Important — verification matters
+
+Confidence scores are not an oracle. The coordinator's Phase 3B exists specifically because external LLMs can return high-confidence findings that turn out to be factually wrong (a real example from 2026-04-17: Gemini returned 95/100-confidence claims that were contradicted by the actual `.d.ts` file). Claude's "Verified" findings carry more weight than external "Inferred" findings precisely for this reason.
+
+If you want a code-review-specific version of this with explicit per-finding source verification, use `/multi-review` instead.

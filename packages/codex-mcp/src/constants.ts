@@ -21,6 +21,7 @@ export const CLI = {
   COMMANDS: {
     CODEX: "codex",
     EXEC: "exec",
+    RESUME: "resume",
   },
   FLAGS: {
     MODEL: "-m",

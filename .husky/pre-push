@@ -1,5 +1,4 @@
 echo "Running smoke tests..."
-echo "(skip with: git push --no-verify)"
 echo ""
 
 sh scripts/smoke-test.sh

@@ -31,6 +31,9 @@ CLAUDE.md
 # MCP Registry tokens (created by mcp-publisher login)
 .mcpregistry_*
 
+# MCP Registry publisher binary — downloaded by .github/workflows/release.yml on demand
+mcp-publisher
+
 .agents/
 .agent/
 skills-lock.json

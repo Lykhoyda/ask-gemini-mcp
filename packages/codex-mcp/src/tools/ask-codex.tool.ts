@@ -1,4 +1,4 @@
-import type { UnifiedTool } from "@ask-llm/shared";
+import { type AskResponse, askResponseSchema, type UnifiedTool } from "@ask-llm/shared";
 import { z } from "zod";
 import { ERROR_MESSAGES, MODELS, STATUS_MESSAGES } from "../constants.js";
 import { executeCodexCLI } from "../utils/codexExecutor.js";
@@ -15,13 +15,20 @@ const askCodexArgsSchema = z.object({
     .describe(
       `DO NOT set this parameter. The tool automatically uses ${MODELS.DEFAULT} and falls back to ${MODELS.FALLBACK} on quota errors. Only set this if the user explicitly requests a specific model.`,
     ),
+  sessionId: z
+    .string()
+    .optional()
+    .describe(
+      "Optional Codex thread ID to resume a prior conversation. Use the [Thread ID: ...] value from a previous response to continue the same chat with full prior context.",
+    ),
 });
 
 export const askCodexTool: UnifiedTool = {
   name: "ask-codex",
   description:
-    "Send a prompt to OpenAI Codex CLI (defaults to gpt-5.4 with automatic fallback on quota errors). Use for code review, second opinions, analysis, and AI-to-AI collaboration. Do not override the model parameter unless the user explicitly asks.",
+    "Send a prompt to OpenAI Codex CLI (defaults to gpt-5.4 with automatic fallback on quota errors). Use for code review, second opinions, analysis, and AI-to-AI collaboration. Do not override the model parameter unless the user explicitly asks. Returns both human-readable text and a structured response (provider, model, sessionId, usage) via outputSchema. The returned sessionId field maps to Codex's thread_id and can be passed back as sessionId to continue the conversation.",
   zodSchema: askCodexArgsSchema,
+  outputSchema: askResponseSchema,
   annotations: {
     title: "Ask Codex",
     readOnlyHint: false,
@@ -33,8 +40,8 @@ export const askCodexTool: UnifiedTool = {
     description: "Execute Codex CLI to get OpenAI Codex's response for code review and analysis.",
   },
   category: "codex",
-  execute: async (args, onProgress) => {
-    const { prompt, model } = args;
+  execute: async (args, onProgress, onUsage) => {
+    const { prompt, model, sessionId } = args;
     if (!prompt?.trim()) {
       throw new Error(ERROR_MESSAGES.NO_PROMPT_PROVIDED);
     }
@@ -42,11 +49,21 @@ export const askCodexTool: UnifiedTool = {
     const result = await executeCodexCLI({
       prompt: prompt as string,
       model: model as string | undefined,
+      sessionId: sessionId as string | undefined,
       onProgress,
     });
 
-    const threadLine = result.threadId ? `\n\n[Thread ID: ${result.threadId}]` : "";
+    if (result.usage) onUsage?.(result.usage);
 
-    return `${STATUS_MESSAGES.CODEX_RESPONSE}\n${result.response}${threadLine}`;
+    const threadLine = result.threadId ? `\n\n[Thread ID: ${result.threadId}]` : "";
+    const text = `${STATUS_MESSAGES.CODEX_RESPONSE}\n${result.response}${threadLine}`;
+    const structured: AskResponse = {
+      provider: "codex",
+      response: result.response,
+      model: result.usage?.model ?? (model as string | undefined) ?? MODELS.DEFAULT,
+      sessionId: result.threadId,
+      usage: result.usage,
+    };
+    return { text, structuredContent: structured as unknown as Record<string, unknown> };
   },
 };

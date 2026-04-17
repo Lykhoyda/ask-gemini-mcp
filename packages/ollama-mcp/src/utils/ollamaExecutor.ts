@@ -1,4 +1,12 @@
-import { Logger, ResponseCache, responseCache } from "@ask-llm/shared";
+import {
+  appendAndSaveSession,
+  buildPriorMessages,
+  Logger,
+  ResponseCache,
+  responseCache,
+  type SessionMessage,
+  type UsageStats,
+} from "@ask-llm/shared";
 import {
   API,
   AVAILABILITY_TIMEOUT_MS,
@@ -28,12 +36,33 @@ interface OllamaTagsResponse {
 export interface OllamaExecutorOptions {
   prompt: string;
   model?: string;
+  sessionId?: string;
   onProgress?: (newOutput: string) => void;
 }
 
 export interface OllamaExecutorResult {
   response: string;
   model: string;
+  sessionId: string | undefined;
+  usage: UsageStats | undefined;
+}
+
+function buildUsageStats(
+  data: OllamaChatResponse,
+  resolvedModel: string,
+  durationMs: number,
+  fellBack: boolean,
+): UsageStats {
+  return {
+    provider: "ollama",
+    model: data.model ?? resolvedModel,
+    inputTokens: data.prompt_eval_count,
+    outputTokens: data.eval_count,
+    cachedTokens: undefined,
+    thinkingTokens: undefined,
+    durationMs,
+    fellBack,
+  };
 }
 
 function getBaseUrl(): string {
@@ -57,7 +86,7 @@ function formatStats(promptEvalCount: number | undefined, evalCount: number | un
   return parts.length > 0 ? `\n\n[Ollama stats: ${parts.join(", ")}]` : "";
 }
 
-async function callOllama(baseUrl: string, model: string, prompt: string): Promise<OllamaChatResponse> {
+async function callOllama(baseUrl: string, model: string, messages: SessionMessage[]): Promise<OllamaChatResponse> {
   const url = `${baseUrl}${API.CHAT}`;
   let response: Response;
 
@@ -65,11 +94,7 @@ async function callOllama(baseUrl: string, model: string, prompt: string): Promi
     response = await globalThis.fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model,
-        messages: [{ role: "user", content: prompt }],
-        stream: false,
-      }),
+      body: JSON.stringify({ model, messages, stream: false }),
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
@@ -123,35 +148,59 @@ export async function listModels(baseUrl?: string): Promise<string[]> {
 }
 
 export async function executeOllamaCLI(options: OllamaExecutorOptions): Promise<OllamaExecutorResult> {
-  const { prompt, onProgress } = options;
+  const { prompt, sessionId, onProgress } = options;
   const model = options.model || MODELS.DEFAULT;
   const baseUrl = getBaseUrl();
 
-  const cacheKey = ResponseCache.buildKey("ollama", prompt, model);
-  const cached = responseCache.get(cacheKey);
-  if (cached) {
-    Logger.debug("Response cache hit for ollama");
-    return { response: cached, model };
+  const priorMessages = buildPriorMessages(sessionId);
+  const messages: SessionMessage[] = [...priorMessages, { role: "user", content: prompt }];
+
+  const wantsSession = sessionId !== undefined;
+  const cacheKey = wantsSession ? null : ResponseCache.buildKey("ollama", prompt, model);
+  if (cacheKey) {
+    const cached = responseCache.get(cacheKey);
+    if (cached) {
+      Logger.debug("Response cache hit for ollama");
+      return { response: cached, model, sessionId: undefined, usage: undefined };
+    }
   }
 
+  const startedAt = Date.now();
   try {
-    const data = await callOllama(baseUrl, model, prompt);
+    const data = await callOllama(baseUrl, model, messages);
     const content = data.message?.content ?? "";
+    const durationMs = Date.now() - startedAt;
 
     if (!content) {
       Logger.debug("Ollama returned empty content, using raw response");
       const raw = JSON.stringify(data);
-      return { response: raw, model: data.model ?? model };
+      return {
+        response: raw,
+        model: data.model ?? model,
+        sessionId: undefined,
+        usage: buildUsageStats(data, model, durationMs, false),
+      };
     }
 
-    const response = content + formatStats(data.prompt_eval_count, data.eval_count, data.model ?? model);
+    const stored =
+      sessionId !== undefined
+        ? appendAndSaveSession(sessionId, "ollama", data.model ?? model, prompt, content)
+        : undefined;
+
+    const sessionLine = stored ? `\n\n[Session ID: ${stored.id}${stored.created ? " (new)" : ""}]` : "";
+    const response = content + formatStats(data.prompt_eval_count, data.eval_count, data.model ?? model) + sessionLine;
 
     if (onProgress) {
       onProgress(content.slice(-150));
     }
 
-    responseCache.set(cacheKey, response);
-    return { response, model: data.model ?? model };
+    if (cacheKey) responseCache.set(cacheKey, response);
+    return {
+      response,
+      model: data.model ?? model,
+      sessionId: stored?.id,
+      usage: buildUsageStats(data, model, durationMs, false),
+    };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
 
@@ -159,10 +208,19 @@ export async function executeOllamaCLI(options: OllamaExecutorOptions): Promise<
       Logger.warn(`${STATUS_MESSAGES.MODEL_NOT_FOUND_SWITCHING} Falling back to ${MODELS.FALLBACK}.`);
       Logger.debug(`Status: ${STATUS_MESSAGES.FALLBACK_RETRY}`);
 
+      const fallbackStartedAt = Date.now();
       try {
-        const data = await callOllama(baseUrl, MODELS.FALLBACK, prompt);
+        const data = await callOllama(baseUrl, MODELS.FALLBACK, messages);
         const content = data.message?.content ?? "";
-        const response = content + formatStats(data.prompt_eval_count, data.eval_count, data.model ?? MODELS.FALLBACK);
+        const stored =
+          sessionId !== undefined
+            ? appendAndSaveSession(sessionId, "ollama", data.model ?? MODELS.FALLBACK, prompt, content)
+            : undefined;
+
+        const sessionLine = stored ? `\n\n[Session ID: ${stored.id}${stored.created ? " (new)" : ""}]` : "";
+        const response =
+          content + formatStats(data.prompt_eval_count, data.eval_count, data.model ?? MODELS.FALLBACK) + sessionLine;
+        const durationMs = Date.now() - fallbackStartedAt;
 
         Logger.warn(`Successfully executed with ${MODELS.FALLBACK} fallback.`);
         Logger.debug(`Status: ${STATUS_MESSAGES.FALLBACK_SUCCESS}`);
@@ -171,7 +229,12 @@ export async function executeOllamaCLI(options: OllamaExecutorOptions): Promise<
           onProgress(content.slice(-150));
         }
 
-        return { response, model: data.model ?? MODELS.FALLBACK };
+        return {
+          response,
+          model: data.model ?? MODELS.FALLBACK,
+          sessionId: stored?.id,
+          usage: buildUsageStats(data, MODELS.FALLBACK, durationMs, true),
+        };
       } catch (fallbackError) {
         const fallbackMsg = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
         throw new Error(`${MODELS.DEFAULT} model not found, ${MODELS.FALLBACK} fallback also failed: ${fallbackMsg}`);

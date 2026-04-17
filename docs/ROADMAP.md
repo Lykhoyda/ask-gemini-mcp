@@ -56,7 +56,135 @@
 - **Streaming JSON output** — expose `--output-format stream-json` for real-time JSONL progress events (`init`, `message`, `tool_use`, `result`). Would replace keepalive messages with live content streaming. Now available in Gemini CLI 0.37.0.
 - **Gemini `--approval-mode`** — New in 0.37.0: `default`, `auto_edit`, `yolo`, `plan`. Could use in hooks for safer non-interactive mode.
 - **MCP `outputSchema`** — Structured responses via `structuredContent`. SDK supports it but clients may not handle it yet. Deferred.
-- ~~**Extract tool registration loop**~~ — Done (ADR-053). Shared `registerTools()` + `createSandboxServer()` in `@ask-llm/shared/serverFactory.ts`. ~130 lines eliminated.
+- ~~**Extract tool registration loop**~~ — Done (ADR-053). Shared `registerTools()` in `@ask-llm/shared/serverFactory.ts`. ~130 lines eliminated. (`createSandboxServer()` later removed in ADR-054.)
+
+## Priority 11: Session Usage Tracking & Smithery Removal (ADR-054)
+- [x] **Session usage accumulator** — `@ask-llm/shared/usage.ts` with `UsageStats`, `SessionUsage`, `formatUsageStats`, `formatSessionUsage` (16 unit tests)
+- [x] **Per-executor `UsageStats`** — Gemini, Codex, Ollama executors now return structured token + duration + fallback data alongside the response string
+- [x] **`onUsage` callback** — `UnifiedTool.execute` and `executeTool` thread an optional usage callback; `registerTools` records into a per-server `SessionUsage` accumulator
+- [x] **`get-usage-stats` MCP tool** — first-class `UnifiedTool` via `createUsageStatsTool(sessionUsage)` factory. Exposed by all 4 servers (Gemini 4→5 tools, Codex/Ollama/orchestrator 2→3 tools)
+- [x] **Multi-review caught ADR contradiction** — Codex flagged that the original `registerUsageStatsTool` helper bypassed the registry, contradicting ADR-004/029/034 tool-count claims AND diverging from the sandbox-scanned schema (ADR-017). Fix: promoted to first-class tool via factory + registry path
+- [x] **Smithery removal** — `createSandboxServer` infrastructure deleted from shared + all 3 provider `index.ts` files. Smithery was never adopted (skipped per "requires paid plan for stdio servers"); the abstraction was dead code formalized by ADR-053. ADR-017 superseded
+- [x] **MCP `outputSchema` on `get-usage-stats`** — `UnifiedTool` extended with optional `outputSchema` and `ToolResult = string | {text, structuredContent}` return type. The usage tool now emits both markdown and a Zod-validated `SessionUsageSnapshot` for programmatic consumers (ADR-055)
+- [x] **MCP Resource `usage://current-session`** — Live JSON snapshot exposed as a `resources/read` target via `registerSessionUsageResource` helper. Costs zero against the tool-token budget (ADR-029) since Resources sit in a separate namespace
+
+## Priority 12: Doctor / Diagnostic Surface (ADR-056)
+- [x] **Shared `runDiagnostics()` core** — `@ask-llm/shared/doctor.ts` with `DiagnosticReport`, per-check status, env + provider probe, formatter (16 unit tests)
+- [x] **`npx ask-llm-mcp doctor` CLI subcommand** — works when MCP server can't start; `--json` flag for machine output; exit code 0 on ok/warning, 1 on error
+- [x] **`diagnose` MCP tool on orchestrator** — 4th tool on `ask-llm-mcp`, structured `outputSchema` matching `DiagnosticReport`. Per-provider servers intentionally excluded (would only see their own provider)
+- [x] **Smoke-tested live** — detects Node v24.13.0, 52 PATH entries, gemini 0.37.0, codex-cli 0.118.0, Ollama endpoint reachable
+
+## Priority 13: Streaming Output for Gemini (ADR-057)
+- [x] **`--output-format stream-json`** — Gemini CLI 0.37+ emits JSONL events; executor now uses this instead of buffered `--output-format json`
+- [x] **Live progressive content** — `makeStreamingProgressForwarder` extracts assistant message deltas from the JSONL stream and forwards them to the existing `onProgress` callback. MCP clients now display the model's prose unfolding in real time inside progress notifications
+- [x] **`parseGeminiStreamJsonl`** — Aggregates stream events into the same `GeminiExecutorResult` shape (sessionId, response, usage stats). Stream stats format converted to canonical `GeminiCliStats` shape via small adapter
+- [x] **Backward-compat fallback** — Detects pre-0.37 Gemini output and falls back to legacy `parseGeminiJsonOutput`; existing tests using `JSON.stringify({response:...})` mocks continue to pass via this path
+- [ ] **Codex streaming** — Deferred to future ADR (Codex JSONL parses already, just needs progressive consumption)
+- [ ] **Ollama streaming** — Deferred to future ADR (HTTP `stream: true` body iteration)
+
+## Priority 14: Session Continuity Across All Providers (ADR-058)
+- [x] **Shared sessions store** — `@ask-llm/shared/sessions.ts` mirrors chunkCache pattern: 24h TTL, 200-file cap, 40-message cap, `isSafeSessionId` regex blocks path traversal (18 tests)
+- [x] **Codex native resume** — `codex exec resume <id> <prompt>` wired via `buildArgs(prompt, model, sessionId)`; the existing `thread.started` event capture surfaces the resumable id automatically
+- [x] **Ollama server-side replay** — `buildPriorMessages(id)` + `appendAndSaveSession()` maintain conversation history client-side; full message array sent on each turn, response footer includes `[Session ID: <id>]`
+- [x] **Re-added `sessionId` to all 4 tool schemas** — partial reversal of ADR-034's sessionId removal (intent preserved: optional param, clearly described). Orchestrator's `ExecutorFn` routes to native or replay path per provider
+- [x] **Cache disabled when sessionId is set** — same prompt in different conversations should yield different answers
+
+## Priority 15: Plugin Test Coverage (ADR-059)
+- [x] **Vitest added to plugin** — Replaces `"test": "echo 'No tests yet'"`. 57 new tests in 4 files
+- [x] **Manifest validation** — `plugin.json`, `marketplace.json`, `hooks.json` shapes; bin entries point to existing files
+- [x] **Skill + agent frontmatter validation** — Every skill's `name`/`description`, every agent's `name`/`description`/`model`/`color`; reviewer agents restricted from edit/write tools (over-privilege check)
+- [x] **brainstorm-coordinator regression coverage** — Tests assert the load-bearing sections from ADR-049 (Phase 3A/3B sequential structure, WebFetch+WebSearch tools) and ADR-050 (sub-agent background-job warning, blocking-foreground language)
+- [x] **pre-commit script safety patterns** — `set -euo pipefail`, secret pathspec exclusions, `trap` cleanup (ADR-040), `mktemp` use, PATH resolution (ADR-047), executable bit. Each maps to a documented historical bug
+- [x] **Minimal frontmatter parser** — `_helpers.ts` provides `parseMarkdownFrontmatter()` inline (~30 lines) — avoided pulling a YAML dep for what is fundamentally a regression-protection layer
+
+## Priority 16: `/compare` Skill — Side-by-Side Provider Responses (ADR-060)
+- [x] **New skill** — `packages/claude-plugin/skills/compare/SKILL.md`, user-invocable, no agent
+- [x] **Reuses ADR-050 dispatch pattern** — single foreground Bash call, direct backgrounding, per-PID wait, 10-minute timeout. Dispatches via plugin `dist/*-run.js` binaries (proper stdin + quota fallback)
+- [x] **Synthesis-rejection** — skill body explicitly forbids paraphrasing or adjudicating; differentiated from `/brainstorm` (which synthesizes) and `/multi-review` (which validates code reviews)
+- [x] **Test coverage** — 7 dedicated tests assert load-bearing structure (dispatch pattern, anti-pattern warnings, timeout requirement, dist/ runner usage); existing it.each gives the standard frontmatter coverage
+- [x] **Docs updated** — Root README, plugin README, docs site overview all list `/compare`
+
+## ~~Priority 17: GitHub Action — Multi-Provider Review in CI (ADR-061)~~
+**Withdrawn 2026-04-17** — strategic refocus to CLI/agentic workflows; CI integration deferred indefinitely. A `/multi-review` pass against the implementation caught a critical ESM path-resolution bug in `runner.mjs`, and the broader decision to deprioritize CI integration in favor of CLI-driven agentic development meant the action was removed rather than fixed. Files deleted: `.github/actions/review/` and `packages/claude-plugin/src/__tests__/github-action.test.ts`. Work is preserved in git history. See ADR-061 (Withdrawn) for the path-resolution lesson if anyone revives this.
+
+---
+
+# Triage Complete (2026-04-17 cycle)
+
+- ~~#1 Claude provider~~ — skip
+- ~~#2 Multimodal~~ — skip
+- ✅ #3 Plugin tests (ADR-059)
+- ✅ #4 Doctor (ADR-056)
+- ✅ #5 Streaming (ADR-057)
+- ~~#6~~ — skip
+- ⊘ #7 GitHub Action — implemented then withdrawn (ADR-061 Withdrawn). Strategic refocus to CLI agentic
+- ✅ #8 (handled in ADR-058 design)
+- ✅ #9 Sessions (ADR-058)
+- ✅ #10 mcp-publisher binary removal (Wave 1)
+- ✅ #11 CONTRIBUTING.md + SECURITY.md (Wave 1)
+- ✅ #12 Cost/usage (ADR-054 supersedes the original add)
+- ✅ #13 outputSchema + Resources (ADR-055)
+- ✅ #14 /compare (ADR-060)
+
+ADRs added in this triage cycle: ADR-052 through ADR-061 (9 accepted, 1 withdrawn).
+Net new tests: 136 (199 → 335; the action's 31 tests were removed when the action was withdrawn).
+
+# Strategic focus: MCP tools + Claude Code plugin
+
+The CLI/agentic exploration was scoped intentionally. The REPL (Priority 18 below) shipped as a working feature but is **scope-capped at its current state** — it serves as a maintainer dev tool and a minimal multi-provider differentiator, but is NOT being grown into a competitor to `claude` / `gemini` / `codex` CLIs. Future engineering effort goes into the MCP tool surface and the Claude Code plugin, where user energy is actually showing up.
+
+## Priority 18: Interactive CLI REPL (ADR-062) — SCOPE-CAPPED
+- [x] **`npx ask-llm-mcp repl` subcommand** — Joins `doctor` and the default server-start path in `cli.ts`
+- [x] **Per-provider session map** — Switching providers picks up that provider's last session (Gemini `--resume`, Codex `exec resume`, Ollama server-side replay all flow through the same code path)
+- [x] **Slash commands** — `/help`, `/provider`, `/providers`, `/new`, `/session`, `/sessions`, `/usage`, `/clear`, `/quit`. All pure-function-tested
+- [x] **Live streaming** — `onProgress` chunks from Gemini stream-json (ADR-057) write deltas directly to stdout
+- [x] **Live usage tracking** — `/usage` shows `formatSessionUsage` snapshot from ADR-054
+- [x] **End-to-end smoke-tested** — `printf "/help\n/quit" | node dist/cli.js repl` works against real provider detection
+- [x] **29 new tests** — covering every slash command path, state mutations, and `dispatchPrompt` happy/error/streaming paths
+- ⊘ **No further investment planned**. Multi-line input, persistent sessions across invocations, `@file` syntax, history navigation, syntax highlighting — all explicitly out of scope. Use `claude` / `gemini` / `codex` / Claude Code for richer terminal UX. Use the REPL specifically for multi-provider switching from one shell.
+
+## Priority 22: `multi-llm` MCP tool (ADR-066)
+- [x] **New `packages/llm-mcp/src/multiLlm.ts`** — `dispatchMultiLlm`, `formatMultiLlmReport`, `buildMultiLlmInputSchema`, schema definitions
+- [x] **Orchestrator-only tool** — registered inline as the 5th MCP tool on `ask-llm-mcp` (was 4); per-provider servers don't get it (they only have one executor)
+- [x] **Promise.all parallelism** — not Bash dispatch; the MCP tool handler runs in the persistent server process so ADR-050's sub-agent lifecycle concern doesn't apply
+- [x] **Per-provider failure isolation** — one provider's exception/timeout doesn't fail the whole call; `results[i].ok=false` with error message; consumer decides what to do
+- [x] **Structured outputSchema** — `MultiLlmReport` shape with `dispatchedAt`, `totalDurationMs`, `successCount`, `failureCount`, per-result `{provider, ok, response?, model?, sessionId?, usage?, durationMs, error?}`
+- [x] **Coexists with `/compare` skill** — different audiences (skill is Claude Code-only with Claude verification; tool is any-MCP-client with raw structured)
+- [x] **15 new tests** — happy path, usage callback, throws/missing handling, threadId fallback, parallelism timing, schema round-trip, formatter rendering, input schema validation
+- [ ] **Future**: per-provider sessionId continuity, per-provider model override, early-termination ("any N of M complete"), streaming the merged report
+
+## Priority 21: `outputSchema` on `ask-*` tools (ADR-065)
+- [x] **Canonical `AskResponse` shape** in `@ask-llm/shared/askResponse.ts` — `{ provider, response, model, sessionId?, usage? }` with Zod validation
+- [x] **`response` field is raw model text only** (no footer/prefix) — formatted text in `content[0].text` keeps backward-compat
+- [x] **Unified `sessionId` field across providers** — Codex's threadId and Gemini's sessionId both map here; clients can resume any provider with one field
+- [x] **All 4 free-form ask-* tools updated** — `ask-gemini`, `ask-codex`, `ask-ollama`, `ask-llm` (orchestrator). Each gains outputSchema + structured execute return
+- [x] **`ask-gemini-edit` deferred** — its output shape (changeMode edit blocks) is fundamentally different; deserves its own `editResponseSchema` in a follow-up
+- [x] **7 new schema validation tests** — all 3 providers accepted, unknown rejected, optional fields work, malformed usage rejected
+- [x] **Backward compat preserved** — `content[0].text` unchanged; `structuredContent` purely additive
+
+## Priority 20: Skill polish for /multi-review and /brainstorm (ADR-064)
+- [x] **Diff preprocessing** — `git add -N` for untracked, pathspec exclusion of docs/binaries/lockfiles, 3-tier size policy (<50KB / 50–150KB warn / >150KB ask)
+- [x] **Per-finding verification** — Phase 3 of /multi-review now requires Read-based source verification of every >=80 confidence finding; classifies as VERIFIED / REJECTED / UNVERIFIABLE. Built specifically to catch the 2026-04-17 case where Gemini returned two 95/100 false positives
+- [x] **Fallback dispatch** — when reviewer agents aren't available, skill instructs Claude to use the project's `dist/run.js` / `dist/codex-run.js` runners with the ADR-050 pattern; explicitly forbids raw `gemini -p` / `codex exec` (would bypass quota fallback + stdin handling + PATH resolution)
+- [x] **Failure resilience** — failed providers surface inline with stderr instead of silently dropping; partial results are explicit
+- [x] **brainstorm-coordinator Phase 4 cross-check** — coordinator now spot-checks high-confidence external claims against source before promoting to consensus; new Rejected section in synthesis surfaces false positives
+- [x] **16 new tests** — pin every load-bearing structural element across the three files so future edits can't silently regress the polish
+
+## Priority 19: Session Continuity Hardening (ADR-063)
+All three open issues from the 2026-04-17 multi-review are now fixed and tested:
+- [x] **Codex `--ephemeral` only when no session is wanted** — `buildArgs` drops the flag when `sessionId` is set so resume actually persists. Cache key gate also moved to `wantsSession = sessionId !== undefined`
+- [x] **Session file permissions hardened** — `0o700` on dir, `0o600` on files, atomic temp+rename write, lstat-based symlink rejection (defense-in-depth against tmp races)
+- [x] **Ollama empty-string sessionId disables cache** — Documented "pass empty string to start a new session" UX path now works end-to-end. The downstream `appendAndSaveSession` already handled empty string correctly; only the cache short-circuit needed the fix
+- [x] **10 new tests** — 4 in codex (ephemeral conditional, exec-resume sequence, empty-string cache), 4 in sessions (dir/file modes, retroactive tightening, no leftover tmp), 2 in ollama (undefined hits cache, empty bypasses)
+
+## Candidate next directions (MCP/plugin)
+
+After the open issues are fixed:
+- **Provider routing intelligence in `ask-llm` tool** — Auto-pick provider per task type (code review → Codex, large-context → Gemini, private/fast → Ollama). The orchestrator's `provider` parameter becomes optional with a routing function as fallback
+- **`/compare` and `/brainstorm` polish** — Apply lessons from real usage (the 2026-04-17 multi-review session showed both work but have rough edges around large diffs and timeout handling)
+- **`outputSchema` on more tools** — Currently only `get-usage-stats` and `diagnose` have it. Adding to `ask-gemini`, `ask-codex`, `ask-ollama` would let MCP clients structurally extract sessionId, threadId, usage rather than parsing the response text
+- **Subagent orchestration patterns as MCP** — Formalize the brainstorm-coordinator pattern as `spawn-subagent` + `wait-for-subagent` MCP tools instead of skill instructions. Lets any MCP client compose multi-agent workflows
+- **Marketplace publish polish** — Better `/plugin install ask-llm` UX, version pinning guidance, upgrade story
 
 ## Completed
 
@@ -150,7 +278,7 @@
 - [x] Rename project from `claude-ask-gemini-mcp` to `ask-gemini-mcp` (ADR-012)
 - [x] MCP Registry publishing: `server.json`, `mcpName` in package.json (ADR-016)
 - [x] Fix stale server name/version in `src/index.ts` — now reads from `package.json` at runtime
-- [x] Fix Smithery CJS bundling: `createSandboxServer()` export, separate CLI entry point (ADR-017)
+- [x] ~~Fix Smithery CJS bundling: `createSandboxServer()` export, separate CLI entry point (ADR-017)~~ — Smithery removed entirely in ADR-054 (no consumers; project distributes via npm + MCP Registry + Claude Code marketplace)
 - [x] Fix `npx` bin resolution: renamed bin from `gemini-mcp` to `ask-gemini-mcp` to match package name
 - [x] Prevent AI clients from using outdated models: updated tool/param descriptions
 - [x] Expose thinking tokens in `formatStats` stats footer

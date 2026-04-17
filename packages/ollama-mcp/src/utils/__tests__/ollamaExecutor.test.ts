@@ -273,3 +273,23 @@ describe("listModels", () => {
     expect(models).toEqual([]);
   });
 });
+
+describe("session UX (ADR-063 fix for empty-string sessionId)", () => {
+  it("undefined sessionId hits the response cache (cache enabled by default)", async () => {
+    responseCache.clear();
+    mockFetch.mockImplementation(() => Promise.resolve(okResponse("hi")));
+
+    await executeOllamaCLI({ prompt: "p" });
+    await executeOllamaCLI({ prompt: "p" });
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("empty-string sessionId DISABLES the cache so a fresh session can be created each call", async () => {
+    responseCache.clear();
+    mockFetch.mockImplementation(() => Promise.resolve(okResponse("hi")));
+
+    await executeOllamaCLI({ prompt: "p", sessionId: "" });
+    await executeOllamaCLI({ prompt: "p", sessionId: "" });
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+});

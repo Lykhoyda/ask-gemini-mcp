@@ -128,13 +128,17 @@ cat "$workdir/ollama.err" 2>/dev/null
 
 ### Phase 4: Synthesis
 
-Now, and only now, parse the Phase 3A Bash output and combine it with your Phase 3B findings. Produce a structured synthesis:
+Now, and only now, parse the Phase 3A Bash output and combine it with your Phase 3B findings. Produce a structured synthesis.
 
-**Consensus Points** — Issues or suggestions that multiple participants independently identified. These carry highest confidence since independent reasoners agree. When Claude (verified) agrees with an external provider, weight the consensus higher still.
+**Cross-check high-confidence external claims first.** Before promoting any external-provider finding to "Consensus," spot-check it against the source if it cites a specific file/line/symbol. External providers can return high-confidence claims that are factually wrong — for example, on 2026-04-17 Gemini returned two findings at 95/100 confidence that were contradicted by the actual `.d.ts` and an existing fallback path. A 30-second `Read` or `Grep` is the difference between recommending a real fix and recommending a non-fix. Mark each cross-checked finding as **Verified** (matches source), **Rejected** (false positive — exclude from synthesis), or **Unverifiable** (no source citation or external-only knowledge — present as-is with a note).
 
-**Unique Insights** — Valuable points raised by only one participant. Flag which participant raised it and why it's worth considering. Claude's verified-only findings belong here when no external provider caught them.
+**Consensus Points** — Issues or suggestions that multiple participants independently identified AND survived cross-checking. These carry highest confidence since independent reasoners agree and the source confirms. When Claude (verified) agrees with an external provider whose finding also passed cross-check, that's the strongest signal.
+
+**Unique Insights** — Valuable points raised by only one participant (after cross-check). Flag which participant raised it and why it's worth considering. Claude's verified-only findings belong here when no external provider caught them.
 
 **Contradictions** — Points where participants disagree. Present both sides and assess which is more likely correct based on the evidence. When Claude's verified findings contradict an external provider's inference, lean toward the verified view and explain why.
+
+**Rejected (false positives)** — Surface high-confidence external claims that failed cross-check, with a brief note on what the provider missed. This protects the user from acting on confident-but-wrong findings and demonstrates the value of having Claude in the loop.
 
 **Recommendations** — Your synthesized recommendations based on the combined analysis, prioritized by impact and confidence.
 

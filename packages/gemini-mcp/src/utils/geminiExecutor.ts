@@ -11,6 +11,7 @@ import {
   ResponseCache,
   responseCache,
   summarizeChangeModeEdits,
+  type UsageStats,
   validateChangeModeEdits,
 } from "@ask-llm/shared";
 import { CLI, MODELS, QUOTA_PATTERNS, STATUS_MESSAGES } from "../constants.js";
@@ -52,6 +53,43 @@ export interface GeminiExecutorOptions {
 export interface GeminiExecutorResult {
   response: string;
   sessionId: string | undefined;
+  usage: UsageStats | undefined;
+}
+
+function pickPrimaryModelStats(
+  stats: GeminiCliStats | undefined,
+): { model: string; tokens: GeminiModelTokens } | undefined {
+  if (!stats?.models) return undefined;
+  const entries = Object.entries(stats.models);
+  if (entries.length === 0) return undefined;
+  let best: { model: string; tokens: GeminiModelTokens } | undefined;
+  for (const [model, modelData] of entries) {
+    const tokens = modelData?.tokens;
+    if (!tokens) continue;
+    const totalThis = (tokens.input ?? 0) + (tokens.candidates ?? 0);
+    const totalBest = best ? (best.tokens.input ?? 0) + (best.tokens.candidates ?? 0) : -1;
+    if (totalThis > totalBest) best = { model, tokens };
+  }
+  return best;
+}
+
+function buildUsageStats(
+  json: GeminiJsonResponse,
+  requestedModel: string,
+  durationMs: number,
+  fellBack: boolean,
+): UsageStats {
+  const primary = pickPrimaryModelStats(json.stats);
+  return {
+    provider: "gemini",
+    model: primary?.model ?? requestedModel,
+    inputTokens: primary?.tokens.input,
+    outputTokens: primary?.tokens.candidates,
+    cachedTokens: primary?.tokens.cached,
+    thinkingTokens: primary?.tokens.thoughts,
+    durationMs,
+    fellBack,
+  };
 }
 
 function formatStats(stats: GeminiCliStats | undefined): string {
@@ -126,11 +164,16 @@ function extractJson(raw: string): string | null {
   return fallback;
 }
 
-function parseGeminiJsonOutput(raw: string): GeminiExecutorResult {
+function parseGeminiJsonOutput(
+  raw: string,
+  requestedModel: string,
+  durationMs: number,
+  fellBack: boolean,
+): GeminiExecutorResult {
   const jsonStr = extractJson(raw);
   if (!jsonStr) {
     Logger.debug("Gemini output has no JSON object, using raw text");
-    return { response: raw, sessionId: undefined };
+    return { response: raw, sessionId: undefined, usage: undefined };
   }
 
   let parsed: unknown;
@@ -138,12 +181,12 @@ function parseGeminiJsonOutput(raw: string): GeminiExecutorResult {
     parsed = JSON.parse(jsonStr);
   } catch {
     Logger.debug("Gemini output is not valid JSON, using raw text");
-    return { response: raw, sessionId: undefined };
+    return { response: raw, sessionId: undefined, usage: undefined };
   }
 
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
     Logger.debug("Gemini output is not a JSON object, using raw text");
-    return { response: raw, sessionId: undefined };
+    return { response: raw, sessionId: undefined, usage: undefined };
   }
 
   const json = parsed as GeminiJsonResponse;
@@ -161,12 +204,154 @@ function parseGeminiJsonOutput(raw: string): GeminiExecutorResult {
 
   if (typeof json.response !== "string") {
     Logger.debug("Gemini JSON missing response field, using raw text");
-    return { response: raw, sessionId: undefined };
+    return { response: raw, sessionId: undefined, usage: undefined };
   }
 
   return {
     response: json.response + formatStats(json.stats),
     sessionId: json.session_id,
+    usage: buildUsageStats(json, requestedModel, durationMs, fellBack),
+  };
+}
+
+interface GeminiStreamModelStats {
+  total_tokens?: number;
+  input_tokens?: number;
+  output_tokens?: number;
+  cached?: number;
+  input?: number;
+  thoughts?: number;
+}
+
+interface GeminiStreamStats {
+  total_tokens?: number;
+  input_tokens?: number;
+  output_tokens?: number;
+  cached?: number;
+  duration_ms?: number;
+  tool_calls?: number;
+  models?: Record<string, GeminiStreamModelStats>;
+}
+
+interface GeminiStreamEvent {
+  type?: string;
+  session_id?: string;
+  model?: string;
+  role?: string;
+  content?: string;
+  delta?: boolean;
+  status?: string;
+  error?: unknown;
+  message?: string;
+  stats?: GeminiStreamStats;
+}
+
+function streamStatsToCliStats(stats: GeminiStreamStats | undefined): GeminiCliStats | undefined {
+  if (!stats?.models) return undefined;
+  const models: Record<string, { tokens?: GeminiModelTokens }> = {};
+  for (const [name, m] of Object.entries(stats.models)) {
+    models[name] = {
+      tokens: {
+        input: m.input_tokens ?? m.input,
+        candidates: m.output_tokens,
+        cached: m.cached,
+        thoughts: m.thoughts,
+      },
+    };
+  }
+  return { models };
+}
+
+export function parseGeminiStreamJsonl(
+  raw: string,
+  requestedModel: string,
+  durationMs: number,
+  fellBack: boolean,
+): GeminiExecutorResult {
+  const lines = raw.split("\n");
+  let assembled = "";
+  let sawAnyAssistantMessage = false;
+  let sessionId: string | undefined;
+  let stats: GeminiStreamStats | undefined;
+  let errorMsg: string | undefined;
+  let parsedAnyEvent = false;
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    if (!line.startsWith("{")) continue;
+    let event: GeminiStreamEvent;
+    try {
+      event = JSON.parse(line) as GeminiStreamEvent;
+    } catch {
+      continue;
+    }
+    if (typeof event.type !== "string") continue;
+    parsedAnyEvent = true;
+
+    if (event.type === "init" && typeof event.session_id === "string") {
+      sessionId = event.session_id;
+    } else if (event.type === "message" && event.role === "assistant" && typeof event.content === "string") {
+      if (event.delta) {
+        assembled += event.content;
+      } else {
+        assembled = event.content;
+      }
+      sawAnyAssistantMessage = true;
+    } else if (event.type === "result") {
+      stats = event.stats;
+      if (event.status === "error") {
+        const err = event.error;
+        errorMsg = typeof err === "string" ? err : err ? JSON.stringify(err) : "Gemini result reported error status";
+      }
+    } else if (event.type === "error") {
+      errorMsg = typeof event.message === "string" ? event.message : JSON.stringify(event);
+    }
+  }
+
+  if (!parsedAnyEvent) {
+    return parseGeminiJsonOutput(raw, requestedModel, durationMs, fellBack);
+  }
+
+  if (errorMsg) {
+    throw new Error(errorMsg);
+  }
+
+  if (!sawAnyAssistantMessage) {
+    Logger.debug("Gemini stream produced no assistant content; falling back to raw text");
+    return { response: raw, sessionId, usage: undefined };
+  }
+
+  const cliStats = streamStatsToCliStats(stats);
+  const fakeJson: GeminiJsonResponse = { session_id: sessionId, response: assembled, stats: cliStats };
+  return {
+    response: assembled + formatStats(cliStats),
+    sessionId,
+    usage: buildUsageStats(fakeJson, requestedModel, durationMs, fellBack),
+  };
+}
+
+export function makeStreamingProgressForwarder(onProgress?: (text: string) => void): (chunk: string) => void {
+  let buffer = "";
+  return (chunk: string) => {
+    if (!onProgress) return;
+    buffer += chunk;
+    let nl: number = buffer.indexOf("\n");
+    while (nl !== -1) {
+      const line = buffer.slice(0, nl).trim();
+      buffer = buffer.slice(nl + 1);
+      nl = buffer.indexOf("\n");
+      if (!line || !line.startsWith("{")) continue;
+      let event: GeminiStreamEvent;
+      try {
+        event = JSON.parse(line) as GeminiStreamEvent;
+      } catch {
+        continue;
+      }
+      if (event.type === "message" && event.role === "assistant" && typeof event.content === "string") {
+        onProgress(event.content);
+      }
+    }
   };
 }
 
@@ -186,7 +371,7 @@ function buildArgs(
       args.push(CLI.FLAGS.INCLUDE_DIRECTORIES, dir);
     }
   }
-  args.push(CLI.FLAGS.OUTPUT_FORMAT, CLI.OUTPUT_FORMATS.JSON);
+  args.push(CLI.FLAGS.OUTPUT_FORMAT, CLI.OUTPUT_FORMATS.STREAM_JSON);
   args.push(CLI.FLAGS.PROMPT, prompt);
   return args;
 }
@@ -290,13 +475,15 @@ ${promptProcessed}
     const cached = responseCache.get(cacheKey);
     if (cached) {
       Logger.debug("Response cache hit for gemini");
-      return { response: cached, sessionId: undefined };
+      return { response: cached, sessionId: undefined, usage: undefined };
     }
   }
 
+  const startedAt = Date.now();
   try {
-    const raw = await executeCommand(CLI.COMMANDS.GEMINI, args, onProgress, createGeminiStderrHandler());
-    const result = parseGeminiJsonOutput(raw);
+    const streamingForwarder = makeStreamingProgressForwarder(onProgress);
+    const raw = await executeCommand(CLI.COMMANDS.GEMINI, args, streamingForwarder, createGeminiStderrHandler());
+    const result = parseGeminiStreamJsonl(raw, resolvedModel, Date.now() - startedAt, false);
     if (cacheKey) {
       responseCache.set(cacheKey, result.response);
     }
@@ -308,11 +495,18 @@ ${promptProcessed}
       Logger.warn(`Gemini quota exceeded. Falling back to ${MODELS.FLASH}.`);
       Logger.debug(`Status: ${STATUS_MESSAGES.FLASH_RETRY}`);
       const fallbackArgs = buildArgs(promptProcessed, MODELS.FLASH, sandbox, sessionId, includeDirs);
+      const fallbackStartedAt = Date.now();
       try {
-        const raw = await executeCommand(CLI.COMMANDS.GEMINI, fallbackArgs, onProgress, createGeminiStderrHandler());
+        const fallbackForwarder = makeStreamingProgressForwarder(onProgress);
+        const raw = await executeCommand(
+          CLI.COMMANDS.GEMINI,
+          fallbackArgs,
+          fallbackForwarder,
+          createGeminiStderrHandler(),
+        );
         Logger.warn(`Successfully executed with ${MODELS.FLASH} fallback.`);
         Logger.debug(`Status: ${STATUS_MESSAGES.FLASH_SUCCESS}`);
-        return parseGeminiJsonOutput(raw);
+        return parseGeminiStreamJsonl(raw, MODELS.FLASH, Date.now() - fallbackStartedAt, true);
       } catch (fallbackError) {
         const fallbackErrorMessage = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
         throw new Error(`${MODELS.PRO} quota exceeded, ${MODELS.FLASH} fallback also failed: ${fallbackErrorMessage}`);

@@ -1,5 +1,11 @@
 import { createRequire } from "node:module";
-import { createSandboxServer as createSandboxServerFn, Logger, registerTools } from "@ask-llm/shared";
+import {
+  createSessionUsage,
+  createUsageStatsTool,
+  Logger,
+  registerSessionUsageResource,
+  registerTools,
+} from "@ask-llm/shared";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { executeTool, getPromptMessage, toolRegistry } from "./tools/index.js";
@@ -24,12 +30,18 @@ const PROGRESS_MESSAGES = (op: string) => [
 ];
 
 const server = new McpServer({ name, version });
+const sessionUsage = createSessionUsage();
+toolRegistry.push(createUsageStatsTool(sessionUsage));
 
-registerTools({ server, tools: toolRegistry, executeTool, getPromptMessage, progressMessages: PROGRESS_MESSAGES });
-
-export function createSandboxServer() {
-  return createSandboxServerFn({ name, version }, toolRegistry);
-}
+registerTools({
+  server,
+  tools: toolRegistry,
+  executeTool,
+  getPromptMessage,
+  progressMessages: PROGRESS_MESSAGES,
+  sessionUsage,
+});
+registerSessionUsageResource(server, sessionUsage);
 
 export async function startServer() {
   Logger.debug("init ask-codex-mcp");

@@ -41,6 +41,7 @@ export const CLI = {
   },
   OUTPUT_FORMATS: {
     JSON: "json",
+    STREAM_JSON: "stream-json",
   },
   DEFAULTS: {
     MODEL: "default",

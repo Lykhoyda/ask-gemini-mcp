@@ -1,4 +1,4 @@
-import { executeCommand, Logger, ResponseCache, responseCache } from "@ask-llm/shared";
+import { executeCommand, Logger, ResponseCache, responseCache, type UsageStats } from "@ask-llm/shared";
 import { CLI, ERROR_MESSAGES, MODELS, STATUS_MESSAGES } from "../constants.js";
 
 interface CodexItemCompleted {
@@ -28,12 +28,32 @@ type CodexJsonLine = CodexItemCompleted | CodexTurnCompleted | CodexThreadStarte
 export interface CodexExecutorOptions {
   prompt: string;
   model?: string;
+  sessionId?: string;
   onProgress?: (newOutput: string) => void;
 }
 
 export interface CodexExecutorResult {
   response: string;
   threadId: string | undefined;
+  usage: UsageStats | undefined;
+}
+
+function buildUsageStats(
+  usage: CodexTurnCompleted["usage"],
+  model: string,
+  durationMs: number,
+  fellBack: boolean,
+): UsageStats {
+  return {
+    provider: "codex",
+    model,
+    inputTokens: usage?.input_tokens,
+    outputTokens: usage?.output_tokens,
+    cachedTokens: usage?.cached_input_tokens,
+    thinkingTokens: undefined,
+    durationMs,
+    fellBack,
+  };
 }
 
 function formatStats(usage: CodexTurnCompleted["usage"]): string {
@@ -46,7 +66,7 @@ function formatStats(usage: CodexTurnCompleted["usage"]): string {
   return parts.length > 0 ? `\n\n[Codex stats: ${parts.join(", ")}]` : "";
 }
 
-function parseCodexJsonlOutput(raw: string): CodexExecutorResult {
+function parseCodexJsonlOutput(raw: string, model: string, durationMs: number, fellBack: boolean): CodexExecutorResult {
   const lines = raw.split("\n").filter((l) => l.trim().length > 0);
 
   let lastAgentMessage: string | undefined;
@@ -91,12 +111,13 @@ function parseCodexJsonlOutput(raw: string): CodexExecutorResult {
 
   if (!lastAgentMessage) {
     Logger.debug("No agent_message found in Codex JSONL output, using raw text");
-    return { response: raw, threadId };
+    return { response: raw, threadId, usage: buildUsageStats(usage, model, durationMs, fellBack) };
   }
 
   return {
     response: lastAgentMessage + formatStats(usage),
     threadId,
+    usage: buildUsageStats(usage, model, durationMs, fellBack),
   };
 }
 
@@ -105,46 +126,50 @@ function isQuotaError(error: unknown): boolean {
   return ERROR_MESSAGES.QUOTA_SIGNALS.some((signal) => msg.includes(signal));
 }
 
-function buildArgs(prompt: string, model: string): string[] {
-  return [
-    CLI.COMMANDS.EXEC,
-    CLI.FLAGS.SKIP_GIT,
-    CLI.FLAGS.EPHEMERAL,
-    CLI.FLAGS.FULL_AUTO,
-    CLI.FLAGS.JSON,
-    CLI.FLAGS.MODEL,
-    model,
-    prompt,
-  ];
+function buildArgs(prompt: string, model: string, sessionId?: string): string[] {
+  const base: string[] = [CLI.COMMANDS.EXEC];
+  if (sessionId) base.push(CLI.COMMANDS.RESUME);
+  base.push(CLI.FLAGS.SKIP_GIT);
+  if (!sessionId) base.push(CLI.FLAGS.EPHEMERAL);
+  base.push(CLI.FLAGS.FULL_AUTO, CLI.FLAGS.JSON, CLI.FLAGS.MODEL, model);
+  if (sessionId) base.push(sessionId);
+  base.push(prompt);
+  return base;
 }
 
 export async function executeCodexCLI(options: CodexExecutorOptions): Promise<CodexExecutorResult> {
   const model = options.model || MODELS.DEFAULT;
-  const cacheKey = ResponseCache.buildKey("codex", options.prompt, model);
+  const sessionId = options.sessionId;
+  const wantsSession = sessionId !== undefined;
+  const cacheKey = wantsSession ? null : ResponseCache.buildKey("codex", options.prompt, model);
 
-  const cached = responseCache.get(cacheKey);
-  if (cached) {
-    Logger.debug("Response cache hit for codex");
-    return { response: cached, threadId: undefined };
+  if (cacheKey) {
+    const cached = responseCache.get(cacheKey);
+    if (cached) {
+      Logger.debug("Response cache hit for codex");
+      return { response: cached, threadId: undefined, usage: undefined };
+    }
   }
 
-  const args = buildArgs(options.prompt, model);
+  const args = buildArgs(options.prompt, model, sessionId);
 
+  const startedAt = Date.now();
   try {
     const raw = await executeCommand(CLI.COMMANDS.CODEX, args, options.onProgress);
-    const result = parseCodexJsonlOutput(raw);
-    responseCache.set(cacheKey, result.response);
+    const result = parseCodexJsonlOutput(raw, model, Date.now() - startedAt, false);
+    if (cacheKey) responseCache.set(cacheKey, result.response);
     return result;
   } catch (error) {
     if (isQuotaError(error) && model !== MODELS.FALLBACK) {
       Logger.warn(`${STATUS_MESSAGES.QUOTA_SWITCHING} Falling back to ${MODELS.FALLBACK}.`);
       Logger.debug(`Status: ${STATUS_MESSAGES.FALLBACK_RETRY}`);
-      const fallbackArgs = buildArgs(options.prompt, MODELS.FALLBACK);
+      const fallbackArgs = buildArgs(options.prompt, MODELS.FALLBACK, sessionId);
+      const fallbackStartedAt = Date.now();
       try {
         const raw = await executeCommand(CLI.COMMANDS.CODEX, fallbackArgs, options.onProgress);
         Logger.warn(`Successfully executed with ${MODELS.FALLBACK} fallback.`);
         Logger.debug(`Status: ${STATUS_MESSAGES.FALLBACK_SUCCESS}`);
-        return parseCodexJsonlOutput(raw);
+        return parseCodexJsonlOutput(raw, MODELS.FALLBACK, Date.now() - fallbackStartedAt, true);
       } catch (fallbackError) {
         const fallbackMsg = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
         throw new Error(`${MODELS.DEFAULT} quota exceeded, ${MODELS.FALLBACK} fallback also failed: ${fallbackMsg}`);

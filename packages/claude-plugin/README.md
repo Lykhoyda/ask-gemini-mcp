@@ -37,6 +37,7 @@ claude mcp add --scope user ollama -- npx -y ask-ollama-mcp
 | `/ollama-review` | Local review — no data leaves your machine |
 | `/brainstorm` | Multi-LLM brainstorm with Claude Opus as a first-class research participant (default external: gemini,codex) |
 | `/brainstorm-all` | Brainstorm with all three external providers + Claude Opus research |
+| `/compare` | Side-by-side raw responses from multiple providers (no synthesis, no consensus extraction) |
 
 ## Agents
 

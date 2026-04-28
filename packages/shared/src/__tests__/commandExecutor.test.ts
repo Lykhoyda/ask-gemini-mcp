@@ -160,6 +160,11 @@ describe("executeCommand env propagation to spawned children (issue #32)", () =>
   // workspace-trust propagation — every existing trust-handling test mocks
   // executeCommand directly and never exercises the real spawn env merge.
   const PRINT_ENV = (varName: string) => ["-e", `console.log(process.env.${varName} || 'unset')`];
+  // Real-spawn tests need a generous timeout: Node 22 startup on Ubuntu CI
+  // runners has been observed at 8-13s under runner contention (vitest's
+  // default 5s causes false-positive timeouts). See PR #34 for the same
+  // pattern applied to the stdin-payload tests.
+  const SPAWN_TIMEOUT_MS = 30_000;
 
   let originalTrust: string | undefined;
   let originalCustom: string | undefined;
@@ -178,25 +183,37 @@ describe("executeCommand env propagation to spawned children (issue #32)", () =>
     else process.env.ASK_LLM_TEST_CUSTOM = originalCustom;
   });
 
-  it("propagates GEMINI_TRUST_WORKSPACE=true from parent process.env to spawned child", async () => {
-    process.env.GEMINI_TRUST_WORKSPACE = "true";
+  it(
+    "propagates GEMINI_TRUST_WORKSPACE=true from parent process.env to spawned child",
+    async () => {
+      process.env.GEMINI_TRUST_WORKSPACE = "true";
 
-    const result = await executeCommand("node", PRINT_ENV("GEMINI_TRUST_WORKSPACE"));
+      const result = await executeCommand("node", PRINT_ENV("GEMINI_TRUST_WORKSPACE"));
 
-    expect(result).toBe("true");
-  });
+      expect(result).toBe("true");
+    },
+    SPAWN_TIMEOUT_MS,
+  );
 
-  it("child sees 'unset' when parent env var is not set (verifies test isolation)", async () => {
-    const result = await executeCommand("node", PRINT_ENV("GEMINI_TRUST_WORKSPACE"));
+  it(
+    "child sees 'unset' when parent env var is not set (verifies test isolation)",
+    async () => {
+      const result = await executeCommand("node", PRINT_ENV("GEMINI_TRUST_WORKSPACE"));
 
-    expect(result).toBe("unset");
-  });
+      expect(result).toBe("unset");
+    },
+    SPAWN_TIMEOUT_MS,
+  );
 
-  it("propagates arbitrary env vars set on parent process.env at spawn time", async () => {
-    process.env.ASK_LLM_TEST_CUSTOM = "value-set-by-test";
+  it(
+    "propagates arbitrary env vars set on parent process.env at spawn time",
+    async () => {
+      process.env.ASK_LLM_TEST_CUSTOM = "value-set-by-test";
 
-    const result = await executeCommand("node", PRINT_ENV("ASK_LLM_TEST_CUSTOM"));
+      const result = await executeCommand("node", PRINT_ENV("ASK_LLM_TEST_CUSTOM"));
 
-    expect(result).toBe("value-set-by-test");
-  });
+      expect(result).toBe("value-set-by-test");
+    },
+    SPAWN_TIMEOUT_MS,
+  );
 });

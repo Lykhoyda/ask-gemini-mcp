@@ -26,6 +26,7 @@ export const EXECUTION = {
   DEFAULT_TIMEOUT_MS: 210_000,
   TIMEOUT_ENV_VAR: "GMCPT_TIMEOUT_MS",
   ERROR_TRUNCATE_LENGTH: 2000,
+  STDIN_THRESHOLD_BYTES: 16_384,
 } as const;
 
 export interface BaseToolArguments {

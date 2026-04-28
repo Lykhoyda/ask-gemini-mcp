@@ -368,6 +368,7 @@ function buildArgs(
   sandbox: boolean | undefined,
   sessionId: string | undefined,
   includeDirs: string[] | undefined,
+  useStdin?: boolean,
 ): string[] {
   const args: string[] = [];
   if (model) args.push(CLI.FLAGS.MODEL, model);
@@ -379,7 +380,9 @@ function buildArgs(
     }
   }
   args.push(CLI.FLAGS.OUTPUT_FORMAT, CLI.OUTPUT_FORMATS.STREAM_JSON);
-  args.push(CLI.FLAGS.PROMPT, prompt);
+  // Gemini requires -p for headless mode; when piping via stdin, pass an empty
+  // placeholder. Per Gemini CLI help, stdin content is concatenated with -p text.
+  args.push(CLI.FLAGS.PROMPT, useStdin ? "" : prompt);
   return args;
 }
 
@@ -488,7 +491,9 @@ ${promptProcessed}
     promptProcessed = changeModeInstructions;
   }
 
-  const args = buildArgs(promptProcessed, model || MODELS.PRO, sandbox, sessionId, includeDirs);
+  const useStdin = promptProcessed.length > EXECUTION.STDIN_THRESHOLD_BYTES;
+  const stdinPayload = useStdin ? promptProcessed : undefined;
+  const args = buildArgs(promptProcessed, model || MODELS.PRO, sandbox, sessionId, includeDirs, useStdin);
 
   const resolvedModel = model || MODELS.PRO;
   const isCacheable = !sessionId && !sandbox && !changeMode;
@@ -506,7 +511,13 @@ ${promptProcessed}
   const startedAt = Date.now();
   try {
     const streamingForwarder = makeStreamingProgressForwarder(onProgress);
-    const raw = await executeCommand(CLI.COMMANDS.GEMINI, args, streamingForwarder, createGeminiStderrHandler());
+    const raw = await executeCommand(
+      CLI.COMMANDS.GEMINI,
+      args,
+      streamingForwarder,
+      createGeminiStderrHandler(),
+      stdinPayload,
+    );
     const result = parseGeminiStreamJsonl(raw, resolvedModel, Date.now() - startedAt, false);
     if (cacheKey) {
       responseCache.set(cacheKey, result.response);
@@ -521,7 +532,7 @@ ${promptProcessed}
     if (isQuotaError && model !== MODELS.FLASH) {
       Logger.warn(`Gemini quota exceeded. Falling back to ${MODELS.FLASH}.`);
       Logger.debug(`Status: ${STATUS_MESSAGES.FLASH_RETRY}`);
-      const fallbackArgs = buildArgs(promptProcessed, MODELS.FLASH, sandbox, sessionId, includeDirs);
+      const fallbackArgs = buildArgs(promptProcessed, MODELS.FLASH, sandbox, sessionId, includeDirs, useStdin);
       const fallbackStartedAt = Date.now();
       try {
         const fallbackForwarder = makeStreamingProgressForwarder(onProgress);
@@ -530,6 +541,7 @@ ${promptProcessed}
           fallbackArgs,
           fallbackForwarder,
           createGeminiStderrHandler(),
+          stdinPayload,
         );
         Logger.warn(`Successfully executed with ${MODELS.FLASH} fallback.`);
         Logger.debug(`Status: ${STATUS_MESSAGES.FLASH_SUCCESS}`);

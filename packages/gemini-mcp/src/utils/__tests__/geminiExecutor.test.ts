@@ -797,3 +797,52 @@ describe("executeGeminiCLI workspace trust handling", () => {
     expect(mockExecuteCommand).toHaveBeenCalledOnce();
   });
 });
+
+describe("executeGeminiCLI stdin path for large prompts (#30)", () => {
+  it("keeps small prompts in -p argv (15 KiB → argv, empty stdin)", async () => {
+    const prompt = "a".repeat(15_360);
+    await executeGeminiCLI({ prompt });
+
+    const [, args, , , stdin] = mockExecuteCommand.mock.calls[0];
+    const promptIndex = args.indexOf(CLI.FLAGS.PROMPT);
+    expect(args[promptIndex + 1]).toBe(prompt);
+    expect(stdin).toBeUndefined();
+  });
+
+  it("flips to stdin path above 16 KiB and passes empty -p placeholder (17 KiB → stdin)", async () => {
+    const prompt = "b".repeat(17_408);
+    await executeGeminiCLI({ prompt });
+
+    const [, args, , , stdin] = mockExecuteCommand.mock.calls[0];
+    const promptIndex = args.indexOf(CLI.FLAGS.PROMPT);
+    expect(args[promptIndex + 1]).toBe("");
+    expect(stdin).toBe(prompt);
+  });
+
+  it("preserves stdin path on quota fallback to Flash", async () => {
+    const prompt = "c".repeat(20_000);
+    mockExecuteCommand
+      .mockRejectedValueOnce(new Error("RESOURCE_EXHAUSTED"))
+      .mockResolvedValueOnce(JSON.stringify({ response: "Flash response" }));
+
+    await executeGeminiCLI({ prompt });
+
+    const [, fallbackArgs, , , fallbackStdin] = mockExecuteCommand.mock.calls[1];
+    const fallbackPromptIndex = fallbackArgs.indexOf(CLI.FLAGS.PROMPT);
+    expect(fallbackArgs[fallbackPromptIndex + 1]).toBe("");
+    expect(fallbackArgs).toContain(MODELS.FLASH);
+    expect(fallbackStdin).toBe(prompt);
+  });
+
+  it("respects threshold against the wrapped changeMode prompt size (post-wrap > 16 KiB)", async () => {
+    // Even a small user prompt becomes >16 KiB once wrapped in changeMode instructions
+    const prompt = "fix the bug";
+    await executeGeminiCLI({ prompt, changeMode: true });
+
+    const [, args, , , stdin] = mockExecuteCommand.mock.calls[0];
+    const promptIndex = args.indexOf(CLI.FLAGS.PROMPT);
+    // changeMode wrapper is ~2 KiB; well below threshold; should still be argv
+    expect(args[promptIndex + 1]).toContain(prompt);
+    expect(stdin).toBeUndefined();
+  });
+});

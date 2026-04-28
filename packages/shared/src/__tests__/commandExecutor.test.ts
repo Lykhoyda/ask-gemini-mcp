@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { quoteArgsForWindows, sanitizeErrorForLLM } from "../commandExecutor.js";
+import { executeCommand, quoteArgsForWindows, sanitizeErrorForLLM } from "../commandExecutor.js";
 
 describe("quoteArgsForWindows", () => {
   it("leaves simple args unchanged", () => {
@@ -103,5 +103,31 @@ Node.js v18.15.0`;
       "gemini",
     );
     expect(result).not.toContain("not found on PATH");
+  });
+});
+
+describe("executeCommand stdin payload (issue #30)", () => {
+  const ECHO_STDIN = ["-e", "process.stdin.pipe(process.stdout)"];
+
+  it("writes stdin payload to child before EOF", async () => {
+    const result = await executeCommand("node", ECHO_STDIN, undefined, undefined, "hello from stdin");
+    expect(result).toBe("hello from stdin");
+  });
+
+  it("supports payloads above the 16 KiB ARG_MAX threshold", async () => {
+    const payload = `${"x".repeat(20_000)}END`;
+    const result = await executeCommand("node", ECHO_STDIN, undefined, undefined, payload);
+    expect(result).toBe(payload);
+    expect(result.length).toBe(20_003);
+  });
+
+  it("preserves existing zero-stdin behavior when payload is undefined", async () => {
+    const result = await executeCommand("node", ["-e", "console.log('hi')"]);
+    expect(result).toBe("hi");
+  });
+
+  it("treats empty-string stdin as no-op (still EOFs cleanly)", async () => {
+    const result = await executeCommand("node", ["-e", "console.log('hi')"], undefined, undefined, "");
+    expect(result).toBe("hi");
   });
 });

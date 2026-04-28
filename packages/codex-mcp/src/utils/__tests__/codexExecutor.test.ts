@@ -63,7 +63,13 @@ describe("executeCodexCLI argument construction", () => {
     const onProgress = vi.fn();
     await executeCodexCLI({ prompt: "hello", onProgress });
 
-    expect(mockExecuteCommand).toHaveBeenCalledWith(CLI.COMMANDS.CODEX, expect.any(Array), onProgress);
+    expect(mockExecuteCommand).toHaveBeenCalledWith(
+      CLI.COMMANDS.CODEX,
+      expect.any(Array),
+      onProgress,
+      undefined,
+      undefined,
+    );
   });
 });
 
@@ -257,5 +263,45 @@ describe("session continuity (ADR-058 hardening per ADR-063)", () => {
 
     await executeCodexCLI({ prompt: "x", sessionId: "" });
     expect(mockExecuteCommand).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("executeCodexCLI stdin path for large prompts (#30)", () => {
+  it("keeps small prompts in argv (15 KiB → positional argv)", async () => {
+    const prompt = "x".repeat(15_360);
+    await executeCodexCLI({ prompt });
+
+    const [, args, , , stdin] = mockExecuteCommand.mock.calls[0];
+    expect(args).toContain(prompt);
+    expect(stdin).toBeUndefined();
+  });
+
+  it("flips to stdin path above the 16 KiB threshold (17 KiB → stdin)", async () => {
+    const prompt = "y".repeat(17_408);
+    await executeCodexCLI({ prompt });
+
+    const [, args, , , stdin] = mockExecuteCommand.mock.calls[0];
+    expect(args).not.toContain(prompt);
+    expect(args[args.length - 1]).toBe(MODELS.DEFAULT);
+    expect(stdin).toBe(prompt);
+  });
+
+  it("preserves stdin path on quota fallback to mini", async () => {
+    const prompt = "z".repeat(20_000);
+    mockExecuteCommand
+      .mockRejectedValueOnce(new Error("rate_limit_exceeded"))
+      .mockResolvedValueOnce(
+        [
+          '{"type":"thread.started","thread_id":"abc"}',
+          '{"type":"item.completed","item":{"type":"agent_message","text":"ok"}}',
+        ].join("\n"),
+      );
+
+    await executeCodexCLI({ prompt });
+
+    const [, fallbackArgs, , , fallbackStdin] = mockExecuteCommand.mock.calls[1];
+    expect(fallbackArgs).not.toContain(prompt);
+    expect(fallbackArgs).toContain(MODELS.FALLBACK);
+    expect(fallbackStdin).toBe(prompt);
   });
 });

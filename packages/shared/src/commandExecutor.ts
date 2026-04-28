@@ -67,6 +67,7 @@ export async function executeCommand(
   args: string[],
   onProgress?: (newOutput: string) => void,
   onStderr?: (stderr: string) => void,
+  stdinPayload?: string,
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const commandId = Logger.commandExecution(command, args);
@@ -79,10 +80,15 @@ export async function executeCommand(
       stdio: ["pipe", "pipe", "pipe"],
     });
 
-    // Close stdin immediately to signal EOF. Using "pipe" + end() instead of
-    // "ignore" (/dev/null) prevents stdin pipe errors in CLIs that probe stdin
-    // (e.g., Codex CLI when spawned from agent sub-processes). See issue #19.
+    // Using "pipe" + end() instead of "ignore" (/dev/null) prevents stdin
+    // pipe errors in CLIs that probe stdin (e.g., Codex CLI when spawned
+    // from agent sub-processes). See issue #19. When a stdin payload is
+    // supplied (issue #30), we write it before closing — this lets large
+    // prompts bypass the ARG_MAX argv ceiling.
     childProcess.stdin.on("error", () => {});
+    if (stdinPayload !== undefined && stdinPayload.length > 0) {
+      childProcess.stdin.write(stdinPayload);
+    }
     childProcess.stdin.end();
 
     const stdoutChunks: Buffer[] = [];

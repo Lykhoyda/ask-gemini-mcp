@@ -797,3 +797,65 @@ describe("executeGeminiCLI workspace trust handling", () => {
     expect(mockExecuteCommand).toHaveBeenCalledOnce();
   });
 });
+
+describe("executeGeminiCLI stdin path for large prompts (#30)", () => {
+  it("keeps small prompts in -p argv (15 KiB → argv, empty stdin)", async () => {
+    const prompt = "a".repeat(15_360);
+    await executeGeminiCLI({ prompt });
+
+    const [, args, , , stdin] = mockExecuteCommand.mock.calls[0];
+    const promptIndex = args.indexOf(CLI.FLAGS.PROMPT);
+    expect(args[promptIndex + 1]).toBe(prompt);
+    expect(stdin).toBeUndefined();
+  });
+
+  it("flips to stdin path above 16 KiB and passes empty -p placeholder (17 KiB → stdin)", async () => {
+    const prompt = "b".repeat(17_408);
+    await executeGeminiCLI({ prompt });
+
+    const [, args, , , stdin] = mockExecuteCommand.mock.calls[0];
+    const promptIndex = args.indexOf(CLI.FLAGS.PROMPT);
+    expect(args[promptIndex + 1]).toBe("");
+    expect(stdin).toBe(prompt);
+  });
+
+  it("preserves stdin path on quota fallback to Flash", async () => {
+    const prompt = "c".repeat(20_000);
+    mockExecuteCommand
+      .mockRejectedValueOnce(new Error("RESOURCE_EXHAUSTED"))
+      .mockResolvedValueOnce(JSON.stringify({ response: "Flash response" }));
+
+    await executeGeminiCLI({ prompt });
+
+    const [, fallbackArgs, , , fallbackStdin] = mockExecuteCommand.mock.calls[1];
+    const fallbackPromptIndex = fallbackArgs.indexOf(CLI.FLAGS.PROMPT);
+    expect(fallbackArgs[fallbackPromptIndex + 1]).toBe("");
+    expect(fallbackArgs).toContain(MODELS.FLASH);
+    expect(fallbackStdin).toBe(prompt);
+  });
+
+  it("keeps small changeMode prompts in argv when wrapped size is well below threshold", async () => {
+    // Tiny user prompt + ~1.2 KiB changeMode wrapper = total <16 KiB → argv path.
+    const prompt = "fix the bug";
+    await executeGeminiCLI({ prompt, changeMode: true });
+
+    const [, args, , , stdin] = mockExecuteCommand.mock.calls[0];
+    const promptIndex = args.indexOf(CLI.FLAGS.PROMPT);
+    expect(args[promptIndex + 1]).toContain(prompt);
+    expect(stdin).toBeUndefined();
+  });
+
+  it("flips to stdin when changeMode-wrapped prompt exceeds 16 KiB", async () => {
+    // ~15 KiB user content + ~1.2 KiB wrapper → wrapped total > 16 KiB threshold.
+    // useStdin is computed on the wrapped prompt, so this is the live code path
+    // for any large user prompt going through changeMode.
+    const prompt = "x".repeat(15_360);
+    await executeGeminiCLI({ prompt, changeMode: true });
+
+    const [, args, , , stdin] = mockExecuteCommand.mock.calls[0];
+    const promptIndex = args.indexOf(CLI.FLAGS.PROMPT);
+    expect(args[promptIndex + 1]).toBe("");
+    expect(stdin).toContain(prompt);
+    expect(stdin).toContain("[CHANGEMODE INSTRUCTIONS]");
+  });
+});

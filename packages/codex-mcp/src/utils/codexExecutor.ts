@@ -1,4 +1,4 @@
-import { executeCommand, Logger, ResponseCache, responseCache, type UsageStats } from "@ask-llm/shared";
+import { EXECUTION, executeCommand, Logger, ResponseCache, responseCache, type UsageStats } from "@ask-llm/shared";
 import { CLI, ERROR_MESSAGES, MODELS, STATUS_MESSAGES } from "../constants.js";
 
 interface CodexItemCompleted {
@@ -126,14 +126,14 @@ function isQuotaError(error: unknown): boolean {
   return ERROR_MESSAGES.QUOTA_SIGNALS.some((signal) => msg.includes(signal));
 }
 
-function buildArgs(prompt: string, model: string, sessionId?: string): string[] {
+function buildArgs(prompt: string, model: string, sessionId?: string, useStdin?: boolean): string[] {
   const base: string[] = [CLI.COMMANDS.EXEC];
   if (sessionId) base.push(CLI.COMMANDS.RESUME);
   base.push(CLI.FLAGS.SKIP_GIT);
   if (!sessionId) base.push(CLI.FLAGS.EPHEMERAL);
   base.push(CLI.FLAGS.FULL_AUTO, CLI.FLAGS.JSON, CLI.FLAGS.MODEL, model);
   if (sessionId) base.push(sessionId);
-  base.push(prompt);
+  if (!useStdin) base.push(prompt);
   return base;
 }
 
@@ -151,11 +151,13 @@ export async function executeCodexCLI(options: CodexExecutorOptions): Promise<Co
     }
   }
 
-  const args = buildArgs(options.prompt, model, sessionId);
+  const useStdin = options.prompt.length > EXECUTION.STDIN_THRESHOLD_BYTES;
+  const stdinPayload = useStdin ? options.prompt : undefined;
+  const args = buildArgs(options.prompt, model, sessionId, useStdin);
 
   const startedAt = Date.now();
   try {
-    const raw = await executeCommand(CLI.COMMANDS.CODEX, args, options.onProgress);
+    const raw = await executeCommand(CLI.COMMANDS.CODEX, args, options.onProgress, undefined, stdinPayload);
     const result = parseCodexJsonlOutput(raw, model, Date.now() - startedAt, false);
     if (cacheKey) responseCache.set(cacheKey, result.response);
     return result;
@@ -163,10 +165,10 @@ export async function executeCodexCLI(options: CodexExecutorOptions): Promise<Co
     if (isQuotaError(error) && model !== MODELS.FALLBACK) {
       Logger.warn(`${STATUS_MESSAGES.QUOTA_SWITCHING} Falling back to ${MODELS.FALLBACK}.`);
       Logger.debug(`Status: ${STATUS_MESSAGES.FALLBACK_RETRY}`);
-      const fallbackArgs = buildArgs(options.prompt, MODELS.FALLBACK, sessionId);
+      const fallbackArgs = buildArgs(options.prompt, MODELS.FALLBACK, sessionId, useStdin);
       const fallbackStartedAt = Date.now();
       try {
-        const raw = await executeCommand(CLI.COMMANDS.CODEX, fallbackArgs, options.onProgress);
+        const raw = await executeCommand(CLI.COMMANDS.CODEX, fallbackArgs, options.onProgress, undefined, stdinPayload);
         Logger.warn(`Successfully executed with ${MODELS.FALLBACK} fallback.`);
         Logger.debug(`Status: ${STATUS_MESSAGES.FALLBACK_SUCCESS}`);
         return parseCodexJsonlOutput(raw, MODELS.FALLBACK, Date.now() - fallbackStartedAt, true);

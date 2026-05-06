@@ -15,7 +15,7 @@ QUOTA_PATTERN='rateLimitExceeded|RESOURCE_EXHAUSTED|TerminalQuotaError|exhausted
 # Quota errors get the immediate skip-with-warning above (retry won't help —
 # quota exhaustion isn't transient). Set NO_SMOKE_RETRY=1 to disable retries
 # and treat the first failure as final (useful for debugging real regressions).
-RETRY_DELAY_SEC=5
+RETRY_DELAY_SEC=${RETRY_DELAY_SEC:-5}
 
 TMPFILE="$(mktemp /tmp/ask-llm-smoke-XXXXXX)"
 trap 'rm -f "$TMPFILE"' EXIT HUP INT TERM
@@ -58,7 +58,7 @@ run_smoke() {
 
     if [ "$attempt" -lt "$max_attempts" ]; then
       echo ""
-      echo "⚠️  $label first attempt failed (exit $rc, not a rate limit). Retrying in ${RETRY_DELAY_SEC}s..."
+      echo "⚠️  $label attempt $attempt/$max_attempts failed (exit $rc, not a rate limit). Retrying in ${RETRY_DELAY_SEC}s..."
       sleep "$RETRY_DELAY_SEC"
     fi
     attempt=$((attempt + 1))

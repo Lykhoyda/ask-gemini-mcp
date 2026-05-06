@@ -39,12 +39,32 @@ const depsArg = process.argv.slice(2);
 for (const dep of depsArg) {
   const destName = dep === "shared" ? "@ask-llm/shared" : `ask-${dep}`;
   const dest = path.join("node_modules", destName);
-  if (!fs.existsSync(dest)) continue;
-  const stat = fs.lstatSync(dest);
+  // Single lstatSync (which never follows symlinks) inside a try/catch
+  // handles both not-exists and broken-symlink cases cleanly. The earlier
+  // existsSync+lstatSync two-step had a subtle gap: existsSync follows
+  // symlinks, so a broken symlink at dest returned false and bypassed the
+  // isSymbolicLink guard entirely.
+  let stat;
+  try {
+    stat = fs.lstatSync(dest);
+  } catch (err) {
+    if (err.code === "ENOENT") continue;
+    throw err;
+  }
   if (stat.isSymbolicLink()) {
     // Workspace symlink — leave it alone.
     continue;
   }
   fs.rmSync(dest, { recursive: true, force: true });
   console.log(`[postpack-restore] removed bundled ${dest}`);
+
+  // After removing a scoped package (e.g. @ask-llm/shared), the scope
+  // directory itself is left empty. Tidy it so we leave zero artefacts.
+  // The scopeDir !== "node_modules" guard prevents removing the whole
+  // node_modules dir if it ever happens to be empty after our removal.
+  const scopeDir = path.dirname(dest);
+  if (scopeDir !== "node_modules" && fs.readdirSync(scopeDir).length === 0) {
+    fs.rmdirSync(scopeDir);
+    console.log(`[postpack-restore] removed empty scope ${scopeDir}`);
+  }
 }

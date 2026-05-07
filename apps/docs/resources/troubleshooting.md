@@ -179,23 +179,36 @@ If both Pro and Flash (or both gpt-5.5 and mini) hit quota, the call fails with 
 </TroubleshootingModal>
 
 <TroubleshootingModal
-  title='"Timeout after 210000ms"'
-  preview="Provider call exceeded server timeout"
+  title='"Command timed out after Xs"'
+  preview="Provider call exceeded the per-provider wall-clock timeout"
 >
 
-The default per-provider timeout is 210s (3.5 min) — set just below Claude Desktop's 4-min client cap so server-side errors return before client gives up ([ADR-045](https://github.com/Lykhoyda/ask-llm/blob/main/docs/DECISIONS.md)).
+Defaults differ by provider ([ADR-074](https://github.com/Lykhoyda/ask-llm/blob/main/docs/DECISIONS.md)): **codex 800s** (reasoning models routinely take 5–10 min on substantive prompts), **gemini 210s** (stream-json emits tokens incrementally — usually fast enough). Resolution ladder: per-provider env var > `GMCPT_TIMEOUT_MS` > provider default.
 
-For long analyses (large diffs, complex Codex reasoning):
+For long analyses (large diffs, deep Codex reasoning):
 
-1. **Override the timeout** via env var:
+1. **Override codex's timeout** when only codex is slow:
    ```json
-   { "env": { "GMCPT_TIMEOUT_MS": "600000" } }    // 10 minutes
+   { "env": { "ASK_CODEX_TIMEOUT_MS": "1200000" } }   // 20 minutes
    ```
-   Note: Claude Desktop will still cut you off at ~4 minutes regardless. For longer runs, use the REPL or call the executor directly.
 
-2. **For multi-provider review skills** (`/multi-review`, `/brainstorm`), large diffs may take 5–15 min — use the diff size policy in those skills (filter docs/binaries, truncate above 150KB) to keep them tractable.
+2. **Override gemini's timeout** independently:
+   ```json
+   { "env": { "ASK_GEMINI_TIMEOUT_MS": "600000" } }   // 10 minutes
+   ```
 
-3. **For very large prompts**, consider splitting the work or using `ask-gemini` with `includeDirs` instead of one giant prompt.
+3. **Lift both at once** with the global override (kept for backward compatibility):
+   ```json
+   { "env": { "GMCPT_TIMEOUT_MS": "1200000" } }       // applies to gemini AND codex
+   ```
+
+4. **For multi-provider review skills** (`/multi-review`, `/brainstorm`), large diffs may take 5–15 min — use the diff size policy in those skills (filter docs/binaries, truncate above 150KB) to keep them tractable.
+
+5. **For very large prompts**, consider splitting the work or using `ask-gemini` with `includeDirs` instead of one giant prompt.
+
+Note: Claude Desktop has its own client-side timeout (~4 min on some setups) that runs independently of the server. Raising server-side timeouts past that gives the REPL and direct executor calls more headroom but won't help Claude Desktop sessions specifically.
+
+To check the resolved per-provider timeouts on your machine, run `ask-llm:diagnose` — its `Timeouts:` line shows the effective values for both codex and gemini.
 
 </TroubleshootingModal>
 

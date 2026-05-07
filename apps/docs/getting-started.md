@@ -134,6 +134,8 @@ You can configure the server with env vars in your MCP client's configuration bl
 | Variable           | Default  | Description |
 | ------------------ | -------- | ----------- |
 | `GMCPT_LOG_LEVEL`  | `warn`   | Minimum log level: `debug`, `info`, `warn`, `error`. Bump to `debug` if troubleshooting. |
-| `GMCPT_TIMEOUT_MS` | `210000` | Per-provider wall-clock timeout (3.5 min). Lowered from 5 min in [ADR-045](https://github.com/Lykhoyda/ask-llm/blob/main/docs/DECISIONS.md) so server-side timeouts return *before* Claude Desktop's 4-min client cap fires. Set higher for long analyses on locally-run REPL/doctor invocations. |
+| `GMCPT_TIMEOUT_MS` | (none)   | **Global** wall-clock timeout override for subprocess-spawned providers. When set, lifts both per-provider defaults below. Kept for backward compatibility — prefer the per-provider knobs for finer control. |
+| `ASK_CODEX_TIMEOUT_MS` | `800000` | Codex-specific timeout (13.3 min). Codex with reasoning models (`gpt-5.5` family) runs multi-turn tool-use loops where each turn includes reasoning, so substantive prompts routinely take 5–10 min. Default raised in [ADR-074](https://github.com/Lykhoyda/ask-llm/blob/main/docs/DECISIONS.md) (closes #45). |
+| `ASK_GEMINI_TIMEOUT_MS` | `210000` | Gemini-specific timeout (3.5 min). Gemini's stream-json mode emits tokens incrementally, so the existing default is usually adequate. Provided for symmetry with `ASK_CODEX_TIMEOUT_MS`. |
 | `OLLAMA_HOST`      | `http://localhost:11434` | Ollama server URL. Override if running Ollama elsewhere. |
 | `ASK_LLM_PATH`     | (auto)   | Override the resolved PATH used to find provider CLIs. Auto-resolved from your login shell on macOS GUI clients ([ADR-047](https://github.com/Lykhoyda/ask-llm/blob/main/docs/DECISIONS.md)) — only set explicitly if your shell setup is unusual. |

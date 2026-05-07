@@ -24,7 +24,14 @@ export const PROTOCOL = {
 
 export const EXECUTION = {
   DEFAULT_TIMEOUT_MS: 210_000,
+  // Codex with reasoning models (gpt-5.5 family) frequently needs more than
+  // the global default for substantive prompts — the model spends real wall
+  // time on reasoning before emitting any output. 800s aligns with the
+  // documented "≥800s for codex" guidance and addresses #45.
+  DEFAULT_CODEX_TIMEOUT_MS: 800_000,
   TIMEOUT_ENV_VAR: "GMCPT_TIMEOUT_MS",
+  CODEX_TIMEOUT_ENV_VAR: "ASK_CODEX_TIMEOUT_MS",
+  GEMINI_TIMEOUT_ENV_VAR: "ASK_GEMINI_TIMEOUT_MS",
   ERROR_TRUNCATE_LENGTH: 2000,
   STDIN_THRESHOLD_BYTES: 16_384,
 } as const;

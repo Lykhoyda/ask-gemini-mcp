@@ -90,6 +90,7 @@ describe("executeCodexCLI argument construction", () => {
       onProgress,
       undefined,
       undefined,
+      expect.any(Number),
     );
   });
 });
@@ -432,5 +433,67 @@ describe("executeCodexCLI ASK_CODEX_LOAD_USER_CONFIG opt-out (#31 follow-up)", (
     const [, args] = mockExecuteCommand.mock.calls[0];
     expect(args).toContain(CLI.FLAGS.IGNORE_USER_CONFIG);
     expect(args).toContain(CLI.FLAGS.IGNORE_RULES);
+  });
+});
+
+describe("executeCodexCLI per-provider timeout (#45)", () => {
+  // These tests pin the timeout-resolution policy at the executor boundary so
+  // it survives refactors. They mirror resolveTimeoutMs's unit tests but at the
+  // higher level (via the actual executor) — without these, swapping the
+  // resolver helper for a hardcoded 210s would silently regress #45.
+
+  let originalCodex: string | undefined;
+  let originalGlobal: string | undefined;
+
+  beforeEach(() => {
+    originalCodex = process.env.ASK_CODEX_TIMEOUT_MS;
+    originalGlobal = process.env.GMCPT_TIMEOUT_MS;
+    delete process.env.ASK_CODEX_TIMEOUT_MS;
+    delete process.env.GMCPT_TIMEOUT_MS;
+  });
+
+  afterEach(() => {
+    if (originalCodex === undefined) delete process.env.ASK_CODEX_TIMEOUT_MS;
+    else process.env.ASK_CODEX_TIMEOUT_MS = originalCodex;
+    if (originalGlobal === undefined) delete process.env.GMCPT_TIMEOUT_MS;
+    else process.env.GMCPT_TIMEOUT_MS = originalGlobal;
+  });
+
+  it("passes 800_000ms (codex default) to executeCommand when no env vars are set", async () => {
+    await executeCodexCLI({ prompt: "hello" });
+
+    const call = mockExecuteCommand.mock.calls[0];
+    // Positional arg #6 (0-indexed 5) is the timeoutMs parameter.
+    expect(call[5]).toBe(800_000);
+  });
+
+  it("uses GMCPT_TIMEOUT_MS when set", async () => {
+    process.env.GMCPT_TIMEOUT_MS = "300000";
+
+    await executeCodexCLI({ prompt: "hello" });
+
+    expect(mockExecuteCommand.mock.calls[0][5]).toBe(300_000);
+  });
+
+  it("ASK_CODEX_TIMEOUT_MS takes precedence over GMCPT_TIMEOUT_MS", async () => {
+    process.env.GMCPT_TIMEOUT_MS = "300000";
+    process.env.ASK_CODEX_TIMEOUT_MS = "900000";
+
+    await executeCodexCLI({ prompt: "hello" });
+
+    expect(mockExecuteCommand.mock.calls[0][5]).toBe(900_000);
+  });
+
+  it("propagates the same timeout through the quota-fallback retry path", async () => {
+    process.env.ASK_CODEX_TIMEOUT_MS = "900000";
+    mockExecuteCommand.mockRejectedValueOnce(new Error("rate_limit_exceeded")).mockResolvedValueOnce("Codex response");
+
+    await executeCodexCLI({ prompt: "hello" });
+
+    // First call: primary model, second call: fallback model — both must use
+    // the same resolved timeout. A regression where the fallback path drops
+    // the param is silent in production until someone hits a quota error.
+    expect(mockExecuteCommand.mock.calls[0][5]).toBe(900_000);
+    expect(mockExecuteCommand.mock.calls[1][5]).toBe(900_000);
   });
 });

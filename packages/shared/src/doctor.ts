@@ -1,5 +1,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { resolveTimeoutMs } from "./commandExecutor.js";
+import { EXECUTION } from "./constants.js";
 import { resolveShellPath } from "./shellPath.js";
 
 const execFileAsync = promisify(execFile);
@@ -34,6 +36,8 @@ export interface DiagnosticReport {
     resolvedPath: string;
     askLlmPath: string | undefined;
     timeoutMs: number;
+    codexTimeoutMs: number;
+    geminiTimeoutMs: number;
   };
   providers: ProviderProbe[];
   checks: DiagnosticCheck[];
@@ -197,6 +201,8 @@ export async function runDiagnostics(providers: ProviderSpec[]): Promise<Diagnos
 
   const timeoutEnv = process.env.GMCPT_TIMEOUT_MS;
   const timeoutMs = timeoutEnv ? Number.parseInt(timeoutEnv, 10) : 210_000;
+  const codexTimeoutMs = resolveTimeoutMs(EXECUTION.CODEX_TIMEOUT_ENV_VAR, EXECUTION.DEFAULT_CODEX_TIMEOUT_MS);
+  const geminiTimeoutMs = resolveTimeoutMs(EXECUTION.GEMINI_TIMEOUT_ENV_VAR, EXECUTION.DEFAULT_TIMEOUT_MS);
 
   const hasFailure = checks.some((c) => c.status === "fail");
   const hasWarn = checks.some((c) => c.status === "warn");
@@ -213,6 +219,8 @@ export async function runDiagnostics(providers: ProviderSpec[]): Promise<Diagnos
       resolvedPath,
       askLlmPath,
       timeoutMs,
+      codexTimeoutMs,
+      geminiTimeoutMs,
     },
     providers: providerProbes,
     checks,
@@ -239,7 +247,9 @@ export function formatDiagnosticReport(report: DiagnosticReport): string {
   lines.push("Environment:");
   lines.push(`  Node:     ${report.environment.nodeVersion}${report.environment.nodeOk ? "" : " (TOO OLD)"}`);
   lines.push(`  Platform: ${report.environment.platform}/${report.environment.arch}`);
-  lines.push(`  Timeout:  ${report.environment.timeoutMs}ms`);
+  lines.push(
+    `  Timeouts: codex=${report.environment.codexTimeoutMs}ms, gemini=${report.environment.geminiTimeoutMs}ms`,
+  );
   if (report.environment.askLlmPath) {
     lines.push(`  ASK_LLM_PATH: set (${report.environment.askLlmPath.split(":").length} entries)`);
   }

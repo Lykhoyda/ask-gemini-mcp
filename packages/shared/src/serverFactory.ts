@@ -36,6 +36,8 @@ const diagnosticReportSchema = z.object({
     resolvedPath: z.string(),
     askLlmPath: z.string().optional(),
     timeoutMs: z.number(),
+    codexTimeoutMs: z.number(),
+    geminiTimeoutMs: z.number(),
   }),
   providers: z.array(diagnosticProviderSchema),
   checks: z.array(diagnosticCheckSchema),

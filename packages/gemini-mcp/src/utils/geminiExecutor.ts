@@ -9,6 +9,7 @@ import {
   Logger,
   parseChangeModeOutput,
   ResponseCache,
+  resolveTimeoutMs,
   responseCache,
   summarizeChangeModeEdits,
   type UsageStats,
@@ -508,6 +509,12 @@ ${promptProcessed}
     }
   }
 
+  // Gemini's stream-json mode emits assistant tokens incrementally, so the
+  // global 210s default has historically been adequate. The provider knob
+  // (ASK_GEMINI_TIMEOUT_MS) exists for symmetry with codex and to give users
+  // a way to lengthen gemini's timeout independently of GMCPT_TIMEOUT_MS.
+  const timeoutMs = resolveTimeoutMs(EXECUTION.GEMINI_TIMEOUT_ENV_VAR, EXECUTION.DEFAULT_TIMEOUT_MS);
+
   const startedAt = Date.now();
   try {
     const streamingForwarder = makeStreamingProgressForwarder(onProgress);
@@ -517,6 +524,7 @@ ${promptProcessed}
       streamingForwarder,
       createGeminiStderrHandler(),
       stdinPayload,
+      timeoutMs,
     );
     const result = parseGeminiStreamJsonl(raw, resolvedModel, Date.now() - startedAt, false);
     if (cacheKey) {
@@ -542,6 +550,7 @@ ${promptProcessed}
           fallbackForwarder,
           createGeminiStderrHandler(),
           stdinPayload,
+          timeoutMs,
         );
         Logger.warn(`Successfully executed with ${MODELS.FLASH} fallback.`);
         Logger.debug(`Status: ${STATUS_MESSAGES.FLASH_SUCCESS}`);

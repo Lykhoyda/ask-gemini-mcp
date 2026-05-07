@@ -13,6 +13,8 @@ function makeReport(overrides: Partial<DiagnosticReport> = {}): DiagnosticReport
       resolvedPath: "/usr/local/bin:/opt/homebrew/bin",
       askLlmPath: undefined,
       timeoutMs: 210000,
+      codexTimeoutMs: 800000,
+      geminiTimeoutMs: 210000,
     },
     providers: [],
     checks: [
@@ -34,10 +36,13 @@ describe("formatDiagnosticReport", () => {
     expect(out).toContain("✗ ask-llm doctor — ERROR");
   });
 
-  it("includes platform and timeout in environment section", () => {
+  it("includes platform and per-provider timeouts in environment section (#45)", () => {
     const out = formatDiagnosticReport(makeReport());
     expect(out).toContain("Platform: darwin/arm64");
-    expect(out).toContain("Timeout:  210000ms");
+    // Per-provider line replaces the old single "Timeout:" line. Diagnose
+    // output is what users paste into bug reports — the provider breakdown
+    // makes "why did codex time out at 210s?" answerable at a glance.
+    expect(out).toContain("Timeouts: codex=800000ms, gemini=210000ms");
   });
 
   it("flags Node version as TOO OLD when nodeOk is false", () => {
@@ -51,6 +56,8 @@ describe("formatDiagnosticReport", () => {
           resolvedPath: "/usr/bin",
           askLlmPath: undefined,
           timeoutMs: 210000,
+          codexTimeoutMs: 800000,
+          geminiTimeoutMs: 210000,
         },
       }),
     );

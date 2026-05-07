@@ -142,10 +142,21 @@ Now, and only now, parse the Phase 3A Bash output and combine it with your Phase
 
 **Recommendations** — Your synthesized recommendations based on the combined analysis, prioritized by impact and confidence.
 
+**Grade the synthesis confidence overall.** After classifying findings, derive a single grade for the entire brainstorm using a four-level ladder (this is a port of the `/codex-verify` confidence ladder; the `FEEDBACK` grade from that ladder is intentionally dropped here because brainstorming has no fix-loop semantic — there is no `verifier_prompt` equivalent). Pick the most accurate level — false `PERFECT` is worse than honest `PARTIAL`:
+
+- **PERFECT** — Every consensus point was Verified by Claude against actual source. Zero unverifiable points in the synthesis. Recommendations rest entirely on checked evidence.
+- **VERIFIED** — Most consensus points are Verified; 1–2 minor Unverifiable points are OK if they don't change the recommendations.
+- **PARTIAL** — Significant Unverifiable points OR a critical recommendation rests on inferred-only findings. The brainstorm is useful but the user should re-check before acting on the inferred parts.
+- **FAILED** — Couldn't verify any external claims (no source citations, all generic) OR cross-check rejected most findings. Tell the user the harness is the bottleneck — better topic framing or specific file references would let the next pass produce stronger findings.
+
+Surface this grade as the first line of the synthesis output (see Output Format below). It tells the user how much of the brainstorm is grounded versus inferred at a glance, so they don't have to count Verified vs Inferred markers themselves.
+
 ## Output Format
 
 ```
 ## Brainstorm: [Topic]
+
+**Synthesis confidence:** [PERFECT | VERIFIED | PARTIAL | FAILED] — [one-line reason citing what was/wasn't verified]
 
 ### Participants Consulted
 - ✅ Claude Opus: researched (verified against real files: path/to/a, path/to/b)

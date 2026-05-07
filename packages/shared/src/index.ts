@@ -9,7 +9,7 @@ export {
   validateChangeModeEdits,
 } from "./changeMode/index.js";
 export { cacheChunks, getChunks } from "./chunkCache.js";
-export { executeCommand, quoteArgsForWindows } from "./commandExecutor.js";
+export { executeCommand, quoteArgsForWindows, resolveTimeoutMs } from "./commandExecutor.js";
 export type { BaseToolArguments } from "./constants.js";
 export { EXECUTION, LOG_LEVEL_ENV_VAR, LOG_PREFIX, PROTOCOL } from "./constants.js";
 export type {

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { executeCommand, quoteArgsForWindows, sanitizeErrorForLLM } from "../commandExecutor.js";
+import { executeCommand, quoteArgsForWindows, resolveTimeoutMs, sanitizeErrorForLLM } from "../commandExecutor.js";
+import { EXECUTION } from "../constants.js";
 
 describe("quoteArgsForWindows", () => {
   it("leaves simple args unchanged", () => {
@@ -104,6 +105,101 @@ Node.js v18.15.0`;
     );
     expect(result).not.toContain("not found on PATH");
   });
+});
+
+describe("resolveTimeoutMs — per-provider precedence ladder (issue #45)", () => {
+  let originalCodex: string | undefined;
+  let originalGemini: string | undefined;
+  let originalGlobal: string | undefined;
+
+  beforeEach(() => {
+    originalCodex = process.env.ASK_CODEX_TIMEOUT_MS;
+    originalGemini = process.env.ASK_GEMINI_TIMEOUT_MS;
+    originalGlobal = process.env.GMCPT_TIMEOUT_MS;
+    delete process.env.ASK_CODEX_TIMEOUT_MS;
+    delete process.env.ASK_GEMINI_TIMEOUT_MS;
+    delete process.env.GMCPT_TIMEOUT_MS;
+  });
+
+  afterEach(() => {
+    if (originalCodex === undefined) delete process.env.ASK_CODEX_TIMEOUT_MS;
+    else process.env.ASK_CODEX_TIMEOUT_MS = originalCodex;
+    if (originalGemini === undefined) delete process.env.ASK_GEMINI_TIMEOUT_MS;
+    else process.env.ASK_GEMINI_TIMEOUT_MS = originalGemini;
+    if (originalGlobal === undefined) delete process.env.GMCPT_TIMEOUT_MS;
+    else process.env.GMCPT_TIMEOUT_MS = originalGlobal;
+  });
+
+  it("falls back to the provider default when no env vars are set", () => {
+    expect(resolveTimeoutMs(EXECUTION.CODEX_TIMEOUT_ENV_VAR, EXECUTION.DEFAULT_CODEX_TIMEOUT_MS)).toBe(800_000);
+    expect(resolveTimeoutMs(EXECUTION.GEMINI_TIMEOUT_ENV_VAR, EXECUTION.DEFAULT_TIMEOUT_MS)).toBe(210_000);
+  });
+
+  it("uses GMCPT_TIMEOUT_MS when set and provider env var is unset", () => {
+    process.env.GMCPT_TIMEOUT_MS = "300000";
+    expect(resolveTimeoutMs(EXECUTION.CODEX_TIMEOUT_ENV_VAR, EXECUTION.DEFAULT_CODEX_TIMEOUT_MS)).toBe(300_000);
+    expect(resolveTimeoutMs(EXECUTION.GEMINI_TIMEOUT_ENV_VAR, EXECUTION.DEFAULT_TIMEOUT_MS)).toBe(300_000);
+  });
+
+  it("provider env var takes precedence over GMCPT_TIMEOUT_MS", () => {
+    process.env.GMCPT_TIMEOUT_MS = "300000";
+    process.env.ASK_CODEX_TIMEOUT_MS = "900000";
+    expect(resolveTimeoutMs(EXECUTION.CODEX_TIMEOUT_ENV_VAR, EXECUTION.DEFAULT_CODEX_TIMEOUT_MS)).toBe(900_000);
+    expect(resolveTimeoutMs(EXECUTION.GEMINI_TIMEOUT_ENV_VAR, EXECUTION.DEFAULT_TIMEOUT_MS)).toBe(300_000);
+  });
+
+  it("ignores invalid (non-numeric / non-positive) env values and falls through", () => {
+    process.env.ASK_CODEX_TIMEOUT_MS = "not-a-number";
+    process.env.GMCPT_TIMEOUT_MS = "0";
+    expect(resolveTimeoutMs(EXECUTION.CODEX_TIMEOUT_ENV_VAR, EXECUTION.DEFAULT_CODEX_TIMEOUT_MS)).toBe(800_000);
+  });
+
+  it("ignores negative env values", () => {
+    process.env.ASK_CODEX_TIMEOUT_MS = "-1000";
+    expect(resolveTimeoutMs(EXECUTION.CODEX_TIMEOUT_ENV_VAR, EXECUTION.DEFAULT_CODEX_TIMEOUT_MS)).toBe(800_000);
+  });
+});
+
+describe("executeCommand timeoutMs parameter overrides env (issue #45)", () => {
+  // Real-spawn test: pass a tiny timeoutMs and ensure the param wins over env.
+  // The 50ms value guarantees the timer fires before the spawned `node -e` can
+  // emit any output, regardless of what the env says.
+  const SPAWN_TIMEOUT_MS = 30_000;
+
+  let originalGlobal: string | undefined;
+
+  beforeEach(() => {
+    originalGlobal = process.env.GMCPT_TIMEOUT_MS;
+    process.env.GMCPT_TIMEOUT_MS = "60000";
+  });
+
+  afterEach(() => {
+    if (originalGlobal === undefined) delete process.env.GMCPT_TIMEOUT_MS;
+    else process.env.GMCPT_TIMEOUT_MS = originalGlobal;
+  });
+
+  it(
+    "param-passed timeoutMs wins over GMCPT_TIMEOUT_MS",
+    async () => {
+      // setTimeout with 5s should never fire because the param 50ms timer wins
+      const args = ["-e", "setTimeout(() => console.log('late'), 5000)"];
+      await expect(executeCommand("node", args, undefined, undefined, undefined, 50)).rejects.toThrow(
+        /Command timed out/,
+      );
+    },
+    SPAWN_TIMEOUT_MS,
+  );
+
+  it(
+    "timeout error message references both provider and global env vars",
+    async () => {
+      const args = ["-e", "setTimeout(() => 0, 5000)"];
+      await expect(executeCommand("node", args, undefined, undefined, undefined, 50)).rejects.toThrow(
+        /ASK_CODEX_TIMEOUT_MS \/ ASK_GEMINI_TIMEOUT_MS|GMCPT_TIMEOUT_MS/,
+      );
+    },
+    SPAWN_TIMEOUT_MS,
+  );
 });
 
 describe("executeCommand stdin payload (issue #30)", () => {

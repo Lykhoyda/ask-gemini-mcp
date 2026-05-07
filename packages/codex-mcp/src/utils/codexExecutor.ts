@@ -1,4 +1,12 @@
-import { EXECUTION, executeCommand, Logger, ResponseCache, responseCache, type UsageStats } from "@ask-llm/shared";
+import {
+  EXECUTION,
+  executeCommand,
+  Logger,
+  ResponseCache,
+  resolveTimeoutMs,
+  responseCache,
+  type UsageStats,
+} from "@ask-llm/shared";
 import { CLI, ERROR_MESSAGES, MODELS, STATUS_MESSAGES } from "../constants.js";
 
 interface CodexItemCompleted {
@@ -170,10 +178,15 @@ export async function executeCodexCLI(options: CodexExecutorOptions): Promise<Co
   const useStdin = options.prompt.length > EXECUTION.STDIN_THRESHOLD_BYTES;
   const stdinPayload = useStdin ? options.prompt : undefined;
   const args = buildArgs(options.prompt, model, sessionId, useStdin);
+  // Codex with reasoning models routinely needs >210s for substantive prompts
+  // (issue #45). Resolution order: ASK_CODEX_TIMEOUT_MS > GMCPT_TIMEOUT_MS >
+  // DEFAULT_CODEX_TIMEOUT_MS. The provider-specific knob lets users keep a
+  // tighter global default for gemini while granting codex more headroom.
+  const timeoutMs = resolveTimeoutMs(EXECUTION.CODEX_TIMEOUT_ENV_VAR, EXECUTION.DEFAULT_CODEX_TIMEOUT_MS);
 
   const startedAt = Date.now();
   try {
-    const raw = await executeCommand(CLI.COMMANDS.CODEX, args, options.onProgress, undefined, stdinPayload);
+    const raw = await executeCommand(CLI.COMMANDS.CODEX, args, options.onProgress, undefined, stdinPayload, timeoutMs);
     const result = parseCodexJsonlOutput(raw, model, Date.now() - startedAt, false);
     if (cacheKey) responseCache.set(cacheKey, result.response);
     return result;
@@ -184,7 +197,14 @@ export async function executeCodexCLI(options: CodexExecutorOptions): Promise<Co
       const fallbackArgs = buildArgs(options.prompt, MODELS.FALLBACK, sessionId, useStdin);
       const fallbackStartedAt = Date.now();
       try {
-        const raw = await executeCommand(CLI.COMMANDS.CODEX, fallbackArgs, options.onProgress, undefined, stdinPayload);
+        const raw = await executeCommand(
+          CLI.COMMANDS.CODEX,
+          fallbackArgs,
+          options.onProgress,
+          undefined,
+          stdinPayload,
+          timeoutMs,
+        );
         Logger.warn(`Successfully executed with ${MODELS.FALLBACK} fallback.`);
         Logger.debug(`Status: ${STATUS_MESSAGES.FALLBACK_SUCCESS}`);
         return parseCodexJsonlOutput(raw, MODELS.FALLBACK, Date.now() - fallbackStartedAt, true);

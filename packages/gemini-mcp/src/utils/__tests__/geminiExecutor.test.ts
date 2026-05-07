@@ -859,3 +859,61 @@ describe("executeGeminiCLI stdin path for large prompts (#30)", () => {
     expect(stdin).toContain("[CHANGEMODE INSTRUCTIONS]");
   });
 });
+
+describe("executeGeminiCLI per-provider timeout (#45)", () => {
+  // Symmetric coverage to codex executor's timeout tests. Gemini's default
+  // stays at 210s — the global default — so the only behavior change is the
+  // existence of ASK_GEMINI_TIMEOUT_MS as a finer override knob.
+
+  let originalGemini: string | undefined;
+  let originalGlobal: string | undefined;
+
+  beforeEach(() => {
+    originalGemini = process.env.ASK_GEMINI_TIMEOUT_MS;
+    originalGlobal = process.env.GMCPT_TIMEOUT_MS;
+    delete process.env.ASK_GEMINI_TIMEOUT_MS;
+    delete process.env.GMCPT_TIMEOUT_MS;
+  });
+
+  afterEach(() => {
+    if (originalGemini === undefined) delete process.env.ASK_GEMINI_TIMEOUT_MS;
+    else process.env.ASK_GEMINI_TIMEOUT_MS = originalGemini;
+    if (originalGlobal === undefined) delete process.env.GMCPT_TIMEOUT_MS;
+    else process.env.GMCPT_TIMEOUT_MS = originalGlobal;
+  });
+
+  it("passes 210_000ms (gemini default) to executeCommand when no env vars are set", async () => {
+    await executeGeminiCLI({ prompt: "hello" });
+
+    expect(mockExecuteCommand.mock.calls[0][5]).toBe(210_000);
+  });
+
+  it("uses GMCPT_TIMEOUT_MS when set", async () => {
+    process.env.GMCPT_TIMEOUT_MS = "300000";
+
+    await executeGeminiCLI({ prompt: "hello" });
+
+    expect(mockExecuteCommand.mock.calls[0][5]).toBe(300_000);
+  });
+
+  it("ASK_GEMINI_TIMEOUT_MS takes precedence over GMCPT_TIMEOUT_MS", async () => {
+    process.env.GMCPT_TIMEOUT_MS = "300000";
+    process.env.ASK_GEMINI_TIMEOUT_MS = "120000";
+
+    await executeGeminiCLI({ prompt: "hello" });
+
+    expect(mockExecuteCommand.mock.calls[0][5]).toBe(120_000);
+  });
+
+  it("propagates the resolved timeout through the flash quota-fallback path", async () => {
+    process.env.ASK_GEMINI_TIMEOUT_MS = "120000";
+    mockExecuteCommand
+      .mockRejectedValueOnce(new Error("RESOURCE_EXHAUSTED"))
+      .mockResolvedValueOnce(JSON.stringify({ response: "Flash response" }));
+
+    await executeGeminiCLI({ prompt: "hello" });
+
+    expect(mockExecuteCommand.mock.calls[0][5]).toBe(120_000);
+    expect(mockExecuteCommand.mock.calls[1][5]).toBe(120_000);
+  });
+});

@@ -42,15 +42,28 @@ export function sanitizeErrorForLLM(stderr: string, command: string): string {
   return stderr.length > 500 ? `${stderr.slice(0, 500)}... (truncated)` : stderr;
 }
 
+function parseTimeoutEnv(envVal: string | undefined): number | undefined {
+  if (!envVal) return undefined;
+  const parsed = Number(envVal);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
 function getTimeoutMs(): number {
-  const envVal = process.env[EXECUTION.TIMEOUT_ENV_VAR];
-  if (envVal) {
-    const parsed = Number(envVal);
-    if (Number.isFinite(parsed) && parsed > 0) {
-      return parsed;
-    }
-  }
-  return EXECUTION.DEFAULT_TIMEOUT_MS;
+  return parseTimeoutEnv(process.env[EXECUTION.TIMEOUT_ENV_VAR]) ?? EXECUTION.DEFAULT_TIMEOUT_MS;
+}
+
+// Resolves the effective timeout for a provider following the precedence:
+//   1. provider env var (e.g. ASK_CODEX_TIMEOUT_MS) — finest knob
+//   2. global env var GMCPT_TIMEOUT_MS — kept for backward compatibility
+//   3. provider's own default (codex: 800s; gemini/ollama: 210s)
+// The function is exported so each provider's executor owns its policy
+// without putting provider-specific knowledge in this shared module.
+export function resolveTimeoutMs(providerEnvVar: string, fallbackDefault: number): number {
+  const providerVal = parseTimeoutEnv(process.env[providerEnvVar]);
+  if (providerVal !== undefined) return providerVal;
+  const globalVal = parseTimeoutEnv(process.env[EXECUTION.TIMEOUT_ENV_VAR]);
+  if (globalVal !== undefined) return globalVal;
+  return fallbackDefault;
 }
 
 export function quoteArgsForWindows(args: string[]): string[] {
@@ -68,6 +81,7 @@ export async function executeCommand(
   onProgress?: (newOutput: string) => void,
   onStderr?: (stderr: string) => void,
   stdinPayload?: string,
+  timeoutMs?: number,
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const commandId = Logger.commandExecution(command, args);
@@ -95,25 +109,27 @@ export async function executeCommand(
     let stderr = "";
     let isResolved = false;
 
-    const timeoutMs = getTimeoutMs();
+    const effectiveTimeoutMs = timeoutMs ?? getTimeoutMs();
     const timer = setTimeout(() => {
       if (isResolved) return;
       isResolved = true;
-      Logger.warn(`[cmd:${commandId}] Timeout after ${timeoutMs}ms, sending SIGTERM`);
+      Logger.warn(`[cmd:${commandId}] Timeout after ${effectiveTimeoutMs}ms, sending SIGTERM`);
       childProcess.kill("SIGTERM");
       setTimeout(() => {
         try {
           childProcess.kill("SIGKILL");
         } catch {}
       }, 5000);
-      const timeoutSec = Math.round(timeoutMs / 1000);
+      const timeoutSec = Math.round(effectiveTimeoutMs / 1000);
       reject(
         new Error(
           `Command timed out after ${timeoutSec}s. The LLM provider took too long to respond. ` +
-            `Try a shorter prompt or increase the timeout via GMCPT_TIMEOUT_MS environment variable (current: ${timeoutMs}ms).`,
+            `Try a shorter prompt or increase the timeout via the provider env var ` +
+            `(ASK_CODEX_TIMEOUT_MS / ASK_GEMINI_TIMEOUT_MS) or the global ` +
+            `${EXECUTION.TIMEOUT_ENV_VAR} (current: ${effectiveTimeoutMs}ms).`,
         ),
       );
-    }, timeoutMs);
+    }, effectiveTimeoutMs);
 
     childProcess.stdout.on("data", (data: Buffer) => {
       stdoutChunks.push(data);

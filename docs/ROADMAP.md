@@ -148,6 +148,14 @@ The CLI/agentic exploration was scoped intentionally. The REPL (Priority 18 belo
 - [x] **29 new tests** — covering every slash command path, state mutations, and `dispatchPrompt` happy/error/streaming paths
 - ⊘ **No further investment planned**. Multi-line input, persistent sessions across invocations, `@file` syntax, history navigation, syntax highlighting — all explicitly out of scope. Use `claude` / `gemini` / `codex` / Claude Code for richer terminal UX. Use the REPL specifically for multi-provider switching from one shell.
 
+## Priority 23: `/codex-verify` skill + `codex-verifier` agent (ADR-073)
+- [x] **New `codex-verifier` agent** at `packages/claude-plugin/agents/codex-verifier.md` — read-only tool surface (Bash/Glob/Grep/Read + mcp__codex__ask-codex; no Write/Edit), atomic claim decomposition, five-grade CONFIDENCE ladder (`PERFECT | VERIFIED | PARTIAL | FEEDBACK | FAILED`), Report block contract
+- [x] **New `/codex-verify` skill** at `packages/claude-plugin/skills/codex-verify/SKILL.md` — gathers diff + assistant's last message verbatim, dispatches the agent, **defensively parses** the Report block (derives missing CONFIDENCE from STATUS, mirrors Pi's `verifier.ts:1029-1049`), surfaces PARTIAL gaps loudly as templates for future fixtures
+- [x] **`/multi-review` skill update** — added "Two kinds of verification — pick the right skill" callout with intent → skill table so users routing "did the assistant do what it claimed?" land on `/codex-verify` rather than spending a multi-provider dispatch
+- [x] **No MCP server changes** — value lives entirely in agent + skill prose contracts; published packages untouched
+- [x] **Same-day follow-on: synthesis-confidence on `brainstorm-coordinator`** — Phase 4 now grades the whole brainstorm with a four-level ladder (`PERFECT | VERIFIED | PARTIAL | FAILED`); FEEDBACK is explicitly dropped because brainstorming has no fix-loop semantic. Surfaced as the first line of the output. `/codex-image` was deliberately not extended — its Phase 4 already verifies via `ls -la` against the filesystem and the ladder doesn't fit a binary present/absent surface
+- [ ] **Future:** parallel `gemini-verifier` once a constraining-prompt experiment shows Gemini can return parseable single-line verdicts; optional cross-validator pass (verify the verifier with the other provider); `.claude/verification-audits/<date>.json` audit log; auto-trigger via Claude Code Stop hook (defaults debate worth having separately)
+
 ## Priority 22: `multi-llm` MCP tool (ADR-066)
 - [x] **New `packages/llm-mcp/src/multiLlm.ts`** — `dispatchMultiLlm`, `formatMultiLlmReport`, `buildMultiLlmInputSchema`, schema definitions
 - [x] **Orchestrator-only tool** — registered inline as the 5th MCP tool on `ask-llm-mcp` (was 4); per-provider servers don't get it (they only have one executor)

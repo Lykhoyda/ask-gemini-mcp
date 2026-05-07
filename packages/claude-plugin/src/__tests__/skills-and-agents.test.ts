@@ -6,12 +6,19 @@ const expectedSkills = [
   "brainstorm-all",
   "codex-image",
   "codex-review",
+  "codex-verify",
   "compare",
   "gemini-review",
   "multi-review",
   "ollama-review",
 ];
-const expectedAgents = ["brainstorm-coordinator.md", "codex-reviewer.md", "gemini-reviewer.md", "ollama-reviewer.md"];
+const expectedAgents = [
+  "brainstorm-coordinator.md",
+  "codex-reviewer.md",
+  "codex-verifier.md",
+  "gemini-reviewer.md",
+  "ollama-reviewer.md",
+];
 
 describe("skills/", () => {
   it("contains the expected set of skill directories", () => {
@@ -256,5 +263,142 @@ describe("brainstorm-coordinator agent", () => {
 
   it("warns against the (cmd &) subshell anti-pattern from ADR-050", () => {
     expect(body).toMatch(/blocking|foreground|wait/i);
+  });
+});
+
+describe("codex-verifier agent — claim verification contract (ADR-073)", () => {
+  const content = readFile("agents/codex-verifier.md");
+  const { frontmatter, body } = parseMarkdownFrontmatter(content);
+
+  it("declares mcp__codex__ask-codex in tools (so Codex can be dispatched for narrow per-claim checks)", () => {
+    const tools = frontmatter.tools as string[];
+    expect(tools).toContain("mcp__codex__ask-codex");
+  });
+
+  it("is restricted from Write / Edit / NotebookEdit (read-only tool surface — Pi verifier pattern)", () => {
+    const tools = frontmatter.tools as string[];
+    expect(tools).not.toContain("Edit");
+    expect(tools).not.toContain("Write");
+    expect(tools).not.toContain("NotebookEdit");
+  });
+
+  it("description differentiates from codex-reviewer (issue hunt vs trust verification)", () => {
+    const desc = frontmatter.description as string;
+    expect(desc).toMatch(/[Dd]istinct from `?codex-reviewer/);
+  });
+
+  it("documents the five-grade CONFIDENCE ladder", () => {
+    expect(body).toMatch(/PERFECT/);
+    expect(body).toMatch(/VERIFIED/);
+    expect(body).toMatch(/PARTIAL/);
+    expect(body).toMatch(/FEEDBACK/);
+    expect(body).toMatch(/FAILED/);
+  });
+
+  it("encodes the 'evidence beats assertion' core principle (no evidence → unsure, not verified)", () => {
+    expect(body).toMatch(/[Ww]ithout evidence.*unsure/);
+  });
+
+  it("requires atomic claim decomposition (Pi verifier's central pattern)", () => {
+    expect(body).toMatch(/[Aa]tomic claim/);
+    expect(body).toMatch(/[Dd]ecomposition|decomposes/);
+  });
+
+  it("forbids fix proposals (verifier is structurally narrowed)", () => {
+    expect(body).toMatch(/[Nn]o fix proposals/);
+  });
+
+  it("forbids issue hunting (out-of-scope bugs do not go in the Report)", () => {
+    expect(body).toMatch(/[Nn]o issue hunting|[Oo]ut-of-scope bugs/);
+  });
+
+  it("specifies the Report block contract with STATUS and CONFIDENCE lines", () => {
+    expect(body).toMatch(/## Report/);
+    expect(body).toMatch(/STATUS:/);
+    expect(body).toMatch(/CONFIDENCE:/);
+  });
+});
+
+describe("/codex-verify skill — load-bearing structure (ADR-073)", () => {
+  const content = readFile("skills/codex-verify/SKILL.md");
+  const { frontmatter, body } = parseMarkdownFrontmatter(content);
+
+  it("is user-invocable", () => {
+    expect(String(frontmatter.user_invocable)).toBe("true");
+  });
+
+  it("description distinguishes from /codex-review (issue hunt vs trust check)", () => {
+    const desc = frontmatter.description as string;
+    expect(desc).toMatch(/[Dd]ifferent from `?\/codex-review|distinct.*codex-review/i);
+  });
+
+  it("dispatches the codex-verifier agent (not codex-reviewer)", () => {
+    expect(body).toMatch(/codex-verifier/);
+    expect(body).not.toMatch(/[Ll]aunch.*codex-reviewer.*agent/);
+  });
+
+  it("captures the assistant's last message verbatim as the source of claims", () => {
+    expect(body).toMatch(/[Aa]ssistant'?s last message/);
+    expect(body).toMatch(/verbatim/);
+  });
+
+  it("documents the defensive parser fallback (CONFIDENCE derived from STATUS when missing)", () => {
+    expect(body).toMatch(/verified.{0,10}→.{0,10}VERIFIED/);
+    expect(body).toMatch(/failed.{0,10}→.{0,10}FEEDBACK/);
+    expect(body).toMatch(/unsure.{0,10}→.{0,10}FAILED/);
+  });
+
+  it("treats PARTIAL as a real verdict, not a softer VERIFIED", () => {
+    expect(body).toMatch(/PARTIAL is a real verdict|PARTIAL is the most actionable/);
+  });
+
+  it("requires presenting the Report's five sections", () => {
+    expect(body).toMatch(/[Vv]erified/);
+    expect(body).toMatch(/[Ff]ailed/);
+    expect(body).toMatch(/[Uu]nverifiable/);
+    expect(body).toMatch(/[Cc]orrective feedback/);
+  });
+});
+
+describe("multi-review skill — claim-vs-finding redirect (ADR-073)", () => {
+  const content = readFile("skills/multi-review/SKILL.md");
+  const { body } = parseMarkdownFrontmatter(content);
+
+  it("points users at /codex-verify when they want claim verification rather than finding verification", () => {
+    expect(body).toMatch(/\/codex-verify/);
+  });
+
+  it("explains the two-kinds-of-verification distinction", () => {
+    expect(body).toMatch(
+      /[Tt]wo kinds of verification|review findings.{0,200}assistant claims|assistant claims.{0,200}review findings/s,
+    );
+  });
+});
+
+describe("brainstorm-coordinator — synthesis-confidence ladder (ADR-073 follow-on)", () => {
+  const content = readFile("agents/brainstorm-coordinator.md");
+  const { body } = parseMarkdownFrontmatter(content);
+
+  it("documents a four-grade synthesis-confidence ladder", () => {
+    expect(body).toMatch(/PERFECT/);
+    expect(body).toMatch(/VERIFIED/);
+    expect(body).toMatch(/PARTIAL/);
+    expect(body).toMatch(/FAILED/);
+  });
+
+  it("explicitly drops FEEDBACK from the codex-verify ladder (no fix-loop semantic in brainstorming)", () => {
+    expect(body).toMatch(/FEEDBACK.{0,200}(dropped|not apply|doesn'?t apply|intentionally dropped)/i);
+  });
+
+  it("ties the ladder back to /codex-verify so the lineage is documented", () => {
+    expect(body).toMatch(/\/codex-verify|codex-verify confidence ladder/);
+  });
+
+  it("requires the synthesis-confidence grade as the first line of the output", () => {
+    expect(body).toMatch(/Synthesis confidence:.{0,200}\[PERFECT \| VERIFIED \| PARTIAL \| FAILED\]/);
+  });
+
+  it("warns that false PERFECT is worse than honest PARTIAL (porting Pi's honesty discipline)", () => {
+    expect(body).toMatch(/false `?PERFECT`? is worse than honest `?PARTIAL`?/i);
   });
 });

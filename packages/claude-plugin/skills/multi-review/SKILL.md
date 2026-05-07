@@ -12,6 +12,19 @@ Run independent code reviews from Gemini and Codex in parallel, **verify** each 
 
 Confidence scores are not an oracle. In a real session on 2026-04-17, Gemini returned two findings at 95/100 confidence that were factually wrong (a `z.enum([])` claim that ignored an existing fallback, and an "MCP SDK doesn't support outputSchema" claim that was contradicted by the actual `.d.ts`). Both would have caused a mis-fix if accepted at face value. **Always verify before presenting.**
 
+## Two kinds of verification — pick the right skill
+
+This skill verifies **review findings** — the bugs each provider claims it found. Phase 3 reads the file at the cited line and checks whether each finding is real before presenting it.
+
+That is different from verifying **assistant claims** — the statements the assistant made in its prior turn ("I added retry logic," "I bumped the threshold to 16384"). For that, use `/codex-verify`. It dispatches the `codex-verifier` agent, decomposes the assistant's last message into atomic claims, and proves or disproves each with deterministic evidence. It returns a CONFIDENCE grade on a five-point ladder (`PERFECT | VERIFIED | PARTIAL | FEEDBACK | FAILED`) — `PARTIAL` and `FAILED` are first-class verdicts, surfacing gaps in your verification harness rather than hiding them under a confident-looking number.
+
+| Question | Skill |
+|---|---|
+| "Are there bugs in this diff?" | `/multi-review` (finds new issues, verifies each finding before presenting) |
+| "Did the assistant actually do what it claimed?" | `/codex-verify` (decomposes the assistant's claims, proves each against state) |
+
+The two skills compose. Run both when you want both questions answered; do not merge their outputs.
+
 ## Instructions
 
 ### Phase 1: Gather and prepare the diff

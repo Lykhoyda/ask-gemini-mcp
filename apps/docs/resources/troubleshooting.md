@@ -125,19 +125,29 @@ claude mcp add --scope user ask-llm -- npx ask-llm-mcp
 </TroubleshootingModal>
 
 <TroubleshootingModal
-  title='"npm install fails: EUNSUPPORTEDPROTOCOL workspace:*"'
-  preview='npm 9 or older choking on workspace:* in published packages'
+  title='EUNSUPPORTEDPROTOCOL workspace:* (npx fails to start)'
+  preview='Stale npx cache from a pre-1.5.7 install poisons new runs. Clear it.'
 >
 
-You're on npm 9 (probably bundled with Node 18 in Claude Desktop). [ADR-052](https://github.com/Lykhoyda/ask-llm/blob/main/docs/DECISIONS.md) fixed this in published packages 1.5.7 / 0.2.7 and later — the `workspace:*` protocol is rewritten to `*` at publish time so npm 9's arborist parses it correctly.
+Symptom — Claude Desktop or any `npx -y ask-llm-mcp` invocation fails with:
 
-If you're still hitting this:
+```
+npm error code EUNSUPPORTEDPROTOCOL
+npm error Unsupported URL Type "workspace:": workspace:*
+```
 
-1. Confirm your installed version is recent: `npm view ask-llm-mcp version`
-2. Clear the npx cache: `rm -rf ~/.npm/_npx`
-3. Reinstall: `npx -y ask-llm-mcp@latest`
+**Fix in one line:** `rm -rf ~/.npm/_npx && npm cache clean --force` then re-launch.
 
-If still broken, upgrade Node to ≥ v20 (npm 10+) — older npm versions have other quirks too.
+Why this happens: pre-1.5.7 releases shipped unrewritten `workspace:*` strings in their published `package.json` (the bug fixed by [ADR-052](https://github.com/Lykhoyda/ask-llm/blob/main/docs/DECISIONS.md)). The npx cache at `~/.npm/_npx/<hash>/` keeps tarballs forever — npx never invalidates it on its own, even when a newer version is published. When you run `npx -y ask-llm-mcp` again, npm walks the cache, finds the stale entry, fails dep-graph validation against `workspace:*`, and aborts before it gets to the new tarball. **Today's published packages are clean** — the bug source is purely the cached old install on your machine.
+
+Why the one-liner works:
+
+- `rm -rf ~/.npm/_npx` purges the per-CLI npx cache; the next `npx -y` rebuilds it from a clean download.
+- `npm cache clean --force` is belt-and-suspenders — clears the global `~/.npm/_cacache/` in case anything stale lingered there too.
+
+After clearing, `npx -y ask-llm-mcp` re-downloads the latest version and starts cleanly. You should see lines like `[GMCPT] Provider Codex (codex) — available` in the Claude Desktop debug log.
+
+This is a one-shot — once you've cleared the cache and run a clean install, the cache is poison-free and stays that way as long as you only install post-1.5.7 versions (which is everything since 2026-04-01).
 
 </TroubleshootingModal>
 

@@ -43,6 +43,7 @@ See [`CLAUDE.md`](../CLAUDE.md) for the full architecture.
 5. **Add an ADR for architectural changes.** Append a new entry to [`docs/DECISIONS.md`](DECISIONS.md) for changes that affect public API, the executor pattern, cross-package contracts, or distribution. Use the existing format: `## ADR-NNN: Title`, `Date`, `Status`, `Context`, `Decision`, `Consequences`. The historical ADRs are good models.
 6. **Conventional commits.** `feat:`, `fix:`, `chore:`, `docs:`, `refactor:` — see `git log` for in-house style. The release pipeline reads commit history.
 7. **Update `docs/ROADMAP.md` and `docs/BUGS.md`** if your change resolves a tracked item.
+8. **Add a changeset** if your change affects published packages. See "Versioning your change" below.
 
 ## Pre-push smoke tests
 
@@ -66,9 +67,33 @@ The architecture is designed for new providers — see ADR-026, 028, 029, 032 fo
 5. Add a corresponding `<provider>-reviewer.md` agent and `<provider>-review` skill in `packages/claude-plugin/`.
 6. Update the marketplace manifest and root `README.md` provider table.
 
+## Versioning your change
+
+We use [Changesets](https://changesets.dev/) (ADR-076). Before opening a PR that affects any published package, run:
+
+```bash
+yarn changeset
+```
+
+Interactive prompt asks (a) which packages your change affects, (b) the bump type (patch / minor / major), and (c) a summary line that goes into the changelog. It writes a markdown file under `.changeset/<random-id>.md` — commit that file with your PR.
+
+**You don't need to manually bump `package.json` versions.** The bot does that.
+
+You can pick "patch" for any package even if your change doesn't directly touch it, but in practice the bundled-deps cascade handles that automatically: bumping `@ask-llm/shared` cascades a patch bump to `ask-gemini-mcp`, `ask-codex-mcp`, `ask-ollama-mcp`, and `ask-llm-mcp` because they all `bundledDependencies: ["@ask-llm/shared"]`. This is configured via `updateInternalDependents: "always"` in `.changeset/config.json` — without it, the `workspace:*` protocol would always satisfy the range and the cascade would silently skip.
+
+`@ask-llm/plugin` is excluded from changesets (it's distributed via the Claude Code plugin marketplace, not npm; tracked in `.claude-plugin/marketplace.json`).
+
+If your PR is infrastructure-only (no published behavior change), skip the changeset.
+
 ## Releases
 
-Tag-driven. `git tag v* && git push --tags` triggers `.github/workflows/release.yml`, which publishes to npm and the MCP Registry. The npm publish path uses the `prepack`/`postpublish` workspace-rewrite trick — see [ADR-052](DECISIONS.md) for the full "postpack vs postpublish" analysis. Don't bypass it.
+Driven by [changesets/action](https://github.com/changesets/action) (ADR-076). The release flow has **two phases**, both kicked off automatically by pushes to `main`:
+
+**Phase 1 — Version Packages PR**: when your PR with a changeset merges to `main`, the `release.yml` workflow runs, sees pending changesets, and opens (or updates) a `chore: version packages` PR. That PR bumps `package.json` versions, generates `CHANGELOG.md` entries, and deletes the consumed `.changeset/*.md` files. **You don't open this PR — the bot does.** Multiple changesets accumulate into one Version Packages PR until you're ready to ship.
+
+**Phase 2 — Publish**: when the maintainer merges the Version Packages PR, `release.yml` runs again, this time detecting that the merge consumed changesets. It runs `yarn changeset:publish` which `npm publish`-es every package whose version is ahead of the npm registry. The `prepack-bundle.mjs` lifecycle still fires inside each publish to handle the workspace:* → versioned rewrite for `bundledDependencies` (see [ADR-052](DECISIONS.md)). After npm, the workflow publishes to the MCP Registry and creates a unified GitHub Release tagged `v<gemini-version>` (legacy convention from when this was a fork of gemini-mcp-tool — preserved alongside the per-package tags changesets creates).
+
+**Maintainer responsibilities** are minimal: review the Version Packages PR (does the CHANGELOG read sensibly? are the bump types right?), merge it when ready to ship. No manual `git tag` or `package.json` editing.
 
 ## Questions
 

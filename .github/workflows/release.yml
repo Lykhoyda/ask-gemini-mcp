@@ -1,18 +1,27 @@
 name: Release
 
+# Driven by changesets/action (ADR-076). Two modes per main-branch push:
+#   1. Pending changesets exist  → opens/updates a "chore: version packages" PR
+#   2. The push WAS that version-packages PR merging → publishes to npm, then to MCP Registry, then GitHub Release
 on:
   push:
-    tags: ["v*"]
+    branches: ["main"]
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
 
 permissions:
-  id-token: write
-  contents: write
+  contents: write       # changesets/action commits version bumps + creates tags; gh release create needs this too
+  pull-requests: write  # changesets/action opens the Version Packages PR
+  id-token: write       # OIDC for mcp-publisher (no token required)
 
 jobs:
-  publish:
+  release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          # changesets/action needs full history to compute changed packages and write changelogs
+          fetch-depth: 0
 
       - uses: actions/setup-node@v6
         with:
@@ -25,76 +34,88 @@ jobs:
       - run: yarn lint
       - run: yarn test
 
-      # npm — publish all MCP server packages with bundled @ask-llm/shared
-      # Uses npm (not yarn) because yarn pack ignores bundledDependencies
-      - name: Publish ask-gemini-mcp
-        run: npm publish --access public
-        working-directory: packages/gemini-mcp
-        continue-on-error: true
+      # When pending changesets exist on main: opens/updates the Version Packages PR.
+      # When this push IS the merged Version Packages PR: runs `yarn changeset:publish`
+      # which builds + npm-publishes any packages whose version is ahead of the registry.
+      # The prepack-bundle.mjs lifecycle (workspace:* → versioned, shared bundling) still
+      # fires inside each `npm publish` call, so the bundled-tarball shape is preserved.
+      - name: Create Release PR or Publish
+        id: changesets
+        uses: changesets/action@v1
+        with:
+          version: yarn changeset:version
+          publish: yarn changeset:publish
+          commit: "chore: version packages"
+          title: "chore: version packages"
+          createGithubReleases: false   # we create one unified GitHub Release below, not per-package
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NODE_AUTH_TOKEN }}
 
-      - name: Publish ask-codex-mcp
-        run: npm publish --access public
-        working-directory: packages/codex-mcp
-        continue-on-error: true
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NODE_AUTH_TOKEN }}
-
-      - name: Publish ask-ollama-mcp
-        run: npm publish --access public
-        working-directory: packages/ollama-mcp
-        continue-on-error: true
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NODE_AUTH_TOKEN }}
-
-      - name: Publish ask-llm-mcp
-        run: npm publish --access public
-        working-directory: packages/llm-mcp
-        continue-on-error: true
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NODE_AUTH_TOKEN }}
-
-      # Official MCP Registry — OIDC, no token needed
+      # Everything below this line runs ONLY when changesets actually published to npm
+      # (i.e., the Version Packages PR just merged). On every other push to main —
+      # including "pending changesets but no version commit yet" — these steps skip.
       - name: Install mcp-publisher
-        run: |
-          curl -sL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_linux_amd64.tar.gz" | tar xz mcp-publisher
+        if: steps.changesets.outputs.published == 'true'
+        run: curl -sL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_linux_amd64.tar.gz" | tar xz mcp-publisher
 
+      # server.json + marketplace.json track the same versions as package.json but live in
+      # separate files for the MCP Registry's input schema. Sync them after changesets'
+      # version bump so the Registry publish picks up the freshly-bumped numbers.
       - name: Sync versions from package.json to server.json and marketplace.json
+        if: steps.changesets.outputs.published == 'true'
         run: |
-          # Gemini's server.json uses the tag version (tag naming follows gemini-mcp historically)
-          TAG_VERSION=${GITHUB_REF#refs/tags/v}
-          jq --arg v "$TAG_VERSION" '(.version = $v) | (.packages[0].version = $v)' server.json > server.json.tmp && mv server.json.tmp server.json
-
-          # Other MCP packages are on separate version tracks — read each package.json
-          for dir in codex-mcp ollama-mcp llm-mcp; do
-            PKG_VERSION=$(node -p "require('./packages/$dir/package.json').version")
-            jq --arg v "$PKG_VERSION" '(.version = $v) | (.packages[0].version = $v)' "packages/$dir/server.json" > "packages/$dir/server.json.tmp" && mv "packages/$dir/server.json.tmp" "packages/$dir/server.json"
+          for entry in "gemini-mcp:server.json" "codex-mcp:packages/codex-mcp/server.json" "ollama-mcp:packages/ollama-mcp/server.json" "llm-mcp:packages/llm-mcp/server.json"; do
+            pkg="${entry%%:*}"
+            file="${entry#*:}"
+            PKG_VERSION=$(node -p "require('./packages/$pkg/package.json').version")
+            jq --arg v "$PKG_VERSION" '(.version = $v) | (.packages[0].version = $v)' "$file" > "$file.tmp" && mv "$file.tmp" "$file"
           done
-
           PLUGIN_VERSION=$(node -p "require('./packages/claude-plugin/package.json').version")
           jq --arg v "$PLUGIN_VERSION" '(.plugins[0].version = $v)' .claude-plugin/marketplace.json > .claude-plugin/marketplace.json.tmp && mv .claude-plugin/marketplace.json.tmp .claude-plugin/marketplace.json
 
-      - run: ./mcp-publisher login github-oidc
+      - if: steps.changesets.outputs.published == 'true'
+        run: ./mcp-publisher login github-oidc
 
       - name: Publish ask-gemini to MCP Registry
+        if: steps.changesets.outputs.published == 'true'
         run: ./mcp-publisher publish server.json
         continue-on-error: true
 
       - name: Publish ask-codex to MCP Registry
+        if: steps.changesets.outputs.published == 'true'
         run: ./mcp-publisher publish packages/codex-mcp/server.json
         continue-on-error: true
 
       - name: Publish ask-ollama to MCP Registry
+        if: steps.changesets.outputs.published == 'true'
         run: ./mcp-publisher publish packages/ollama-mcp/server.json
         continue-on-error: true
 
       - name: Publish ask-llm to MCP Registry
+        if: steps.changesets.outputs.published == 'true'
         run: ./mcp-publisher publish packages/llm-mcp/server.json
         continue-on-error: true
 
-      # GitHub Release with auto-generated changelog
-      - name: Create GitHub Release
-        run: gh release create "${{ github.ref_name }}" --generate-notes --title "${{ github.ref_name }}"
+      # Unified GitHub Release tagged at gemini's version (legacy convention from when this
+      # was a fork of gemini-mcp-tool). The per-package tags created by changesets/action
+      # also exist (ask-gemini-mcp@1.6.4 etc.) — both are kept so URL-bookmarked release
+      # pages from v1.5.x..v1.6.x still resolve.
+      - name: Get gemini version for unified release tag
+        if: steps.changesets.outputs.published == 'true'
+        id: gemini_version
+        run: echo "version=$(node -p "require('./packages/gemini-mcp/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Create unified GitHub Release
+        if: steps.changesets.outputs.published == 'true'
         env:
+          GEMINI_VERSION: ${{ steps.gemini_version.outputs.version }}
           GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="v${GEMINI_VERSION}"
+          # changesets/action may have already created per-package tags but not this v<gemini> tag
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            git tag "$TAG"
+            git push origin "$TAG"
+            gh release create "$TAG" --generate-notes --title "$TAG"
+          fi

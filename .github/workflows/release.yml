@@ -6,6 +6,11 @@ name: Release
 on:
   push:
     branches: ["main"]
+  # Manual dispatch for dry-runs against feature branches and for re-running
+  # publishes after a workflow-side hotfix. On a non-main branch with no pending
+  # changesets, changesets/action is a no-op and the downstream MCP Registry +
+  # release steps skip via `if: steps.changesets.outputs.published == 'true'`.
+  workflow_dispatch:
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 

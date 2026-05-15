@@ -1,0 +1,11 @@
+{
+  "name": "codex-pair-poc",
+  "version": "0.0.1",
+  "description": "POC: Codex as a continuous background validator that watches every file edit and emits load-bearing concerns to Claude on the next turn. Built to A/B-test the pair-programmer hypothesis vs. Claude alone.",
+  "author": {
+    "name": "Anton Lykhoyda",
+    "url": "https://github.com/Lykhoyda"
+  },
+  "license": "MIT",
+  "keywords": ["codex", "pair-programming", "background-validation", "experiment", "claude-code"]
+}

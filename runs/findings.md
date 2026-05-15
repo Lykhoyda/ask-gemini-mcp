@@ -371,6 +371,45 @@ Applied targeted fixes for each of the 17 HIGH concerns plus the most impactful 
    - Distribution via the existing changesets pipeline (per ADR-076)
 3. **Open the graduation as a regular feature PR** through the changesets flow — NOT as a merge of `experiments/codex-pair-poc/` (per `feedback_experiments_stay_on_branch`). The graduated production code is a separate artifact from the experimental scaffold.
 
+## Objective differential test (added after-the-fact)
+
+The above "5 of 5 axes" claims were initially based on me reading the code and writing the comparison table. When asked how I evaluated the difference, I realized that was self-evaluation by the same agent who wrote both versions — weak evidence. To replace judgment with measurement, I built `runs-task-2/differential.mts`: a tsx script that imports each run's `createApp` directly and runs the same probe sequence against both, removing my reading from the loop.
+
+The differential probes 6 specific behaviors (5 of the original target surfaces + open-redirect split into 3 separate URL-scheme rejections):
+
+```
+$ npx tsx differential.mts ./run-A
+=== Run-A ===
+  ✗  rejects javascript:alert(1)        ACCEPTED with status 201 (defect: open redirect surface)
+  ✗  rejects data:text/html,<script>1</script>  ACCEPTED with status 201
+  ✗  rejects file:///etc/passwd         ACCEPTED with status 201
+  ✗  concurrent-shorten                 10/10 returned 201, 10 unique codes, 2/10 actually persisted (defect: 8 lost writes)
+  ✗  visit-counter                      final counter = 1 (expected 25; defect: 24 lost increments)
+  ✓  rate-limit-basic                   first 10 succeed, 11th returns 429
+=> 1/6 passed
+
+$ npx tsx differential.mts ./run-B-v2
+=== Run-B-v2 ===
+  ✓  rejects javascript:alert(1)        returned 400 as expected
+  ✓  rejects data:text/html,<script>1</script>  returned 400 as expected
+  ✓  rejects file:///etc/passwd         returned 400 as expected
+  ✓  concurrent-shorten                 10/10 returned 201, 10 unique codes, 10/10 actually persisted
+  ✓  visit-counter                      final counter = 25
+  ✓  rate-limit-basic                   first 10 succeed, 11th returns 429
+=> 6/6 passed
+```
+
+**The headline numbers from the objective probe:**
+- Run-A persists **2 of 10** concurrent shortens (80% lost-write rate, but the API returns 201 for all 10 — silent data loss)
+- Run-A counts **1 of 25** concurrent visits (96% lost-increment rate)
+- Run-A accepts **3 of 3** dangerous URL schemes — the open redirect surface is fully exposed
+
+This evidence is qualitatively different from the per-step claims earlier in the document. Those claims were derived from reading the code; these are measured behaviors. Both arrive at the same conclusion, but the differential is what you'd want to cite if defending the v2 prompt design in a paper or PR review.
+
+**Methodological note for future experiments**: the differential script doesn't depend on any Run-B-v2-specific helpers (no `_resetRateLimitForTests`, etc.). It uses `X-Forwarded-For` to give each test a distinct rate-limit bucket, exploiting the fact that Run-A's `trust proxy: true` (the defect) makes it trust the spoofed header. Run-B-v2 honors the same XFF only when `TRUST_PROXY=1` is set (the fix) — so the differential intentionally sets that env var. Both runs see consistent IP isolation per test without needing any new test infrastructure.
+
+This script should travel with the graduated plugin as the "validator quality regression suite" — useful any time the v2 prompt or threshold gets tuned (does the change still produce a 6/6 outcome on this fixture?).
+
 ## Open design items for v3 (deferred — not blocking graduation)
 
 - **Cross-file dedup**: codex repeated the concurrency concern across storage.ts, routes.ts, AND the test file. Useful semantically (it's at multiple layers) but noisy. Hook should fingerprint concerns and dedupe within a session.

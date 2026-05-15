@@ -551,3 +551,95 @@ The evidence supports graduating the POC to a production package:
 3. **The three differentials ship with the package** as the validator-quality regression suite. Any future prompt or threshold tuning re-runs them and must produce ≥ matching scores.
 
 This is the threshold the original POC was set up to meet. Crossed.
+
+---
+
+# Task 4 (shopping cart): the missing experimental arm — codex-pair vs /codex-review
+
+**Date appended:** 2026-05-15  
+**Why this experiment was needed:** Tasks 1-3 compared Claude-alone vs Claude+pair. But the existing `/codex-review` skill is what users would actually use today. The honest comparison is **three arms**: Claude alone, Claude + pair (per-file hook), Claude + review (single full-source call simulating the existing skill). Without this, "pair adds value" was an unprovable claim about a tool that may have been redundant.
+
+## Methodology
+
+- **Run-A** (baseline): natural Claude impl, no review
+- **Run-B-pair**: copy Run-A → invoke v2 hook per file (5 calls) → apply HIGH fixes
+- **Run-B-review**: copy Run-A → simulate `/codex-review` with one call using the existing `codex-reviewer` agent's authentic prompt (confidence ≥ 80, "don't flag style/linter-catchable") → apply caught fixes
+
+A 10-probe pure-function differential script (`runs-task-4/differential.mts`) measures behavioral outcomes objectively. Same probes against all three runs.
+
+## Results
+
+```
+Run-A (Claude alone):       2/10
+Run-B-review (single call): 7/10
+Run-B-pair (per-file hook): 10/10
+```
+
+| Probe | Run-A | Run-B-review | Run-B-pair |
+|---|---|---|---|
+| Float-money precision | ✗ | **✗ (still drifts: $6.4475999…)** | ✓ |
+| BOGO qty=2 → 0 free | ✗ | ✓ | ✓ |
+| BOGO qty=3 → 1 free | ✓ | ✓ | ✓ |
+| addItem after checkout throws | ✗ | ✓ | ✓ |
+| removeItem after checkout throws | ✓ | ✓ | ✓ |
+| setQuantity after checkout throws | ✗ | ✓ | ✓ |
+| applyDiscount after checkout throws | ✗ | ✓ | ✓ |
+| addItem qty=-5 throws | ✗ | ✓ | ✓ |
+| setQuantity to -5 throws | ✗ | **✗ (review missed `setQuantity`'s separate write path)** | ✓ |
+| Discount > subtotal clamps | ✗ | **✗ (tax=$-8, total=$-108)** | ✓ |
+
+## What Run-B-review missed (and why)
+
+1. **Float-money precision** — Project context literally says "floating-point math on monetary values is incorrect." Review's prompt instructs "Do NOT flag: code style preferences" — the model classified "use cents not floats" as design preference. Pair caught it 3 times across types/discount/totals.
+2. **`setQuantity` validation bypass** — Review tightened the Zod schema (catches `addItem({quantity:-5})`) but didn't notice `setQuantity` has its own write path bypassing the schema. Cross-cutting reasoning, missed by single-pass review.
+3. **Discount clamping** — Fixed discount $200 against $100 cart produces $-8 tax. Edge case below the confidence threshold.
+
+## Cost comparison
+
+| Metric | Run-B-review | Run-B-pair |
+|---|---|---|
+| Codex calls | 1 | 5 |
+| Wall time | 23s | 92s |
+| Estimated cost | ~$0.04 | ~$0.20 |
+| Catches reported | 5 | 15 HIGH + 7 MED + 4 test gaps |
+| Differential | 7/10 | 10/10 |
+
+Pair is **~4× the cost** — but those extra catches include the experiment's highest-consequence bug (float-money would charge customers wrong on every transaction).
+
+## The honest pair-vs-review pattern
+
+The two tools catch **different classes of bug**, not the same class with different completeness:
+
+| Class | /codex-review | codex-pair |
+|---|---|---|
+| Compile/type errors | ✓ | ✓ |
+| Obvious logic bugs | ✓ | ✓ |
+| Security at high confidence | ✓ | ✓ |
+| **Domain-level "wrong but won't crash"** | ✗ | ✓ |
+| Cross-cutting validation gaps | partial | ✓ |
+| Subtle edge cases | ✗ | ✓ |
+
+The /codex-review prompt is calibrated for **high precision** — appropriate for diff review where false alarms cause alert fatigue. That calibration is *load-bearing for the current value proposition* but it has a structural recall gap on domain-level issues. The pair-programmer prompt's HIGH/MED/LOW ladder makes the opposite tradeoff.
+
+## Revised graduation recommendation
+
+This data **changes the recommendation** from earlier in this file:
+
+1. **codex-pair has a real, distinct niche over /codex-review.** Not a more-expensive variant — it catches a *different class* of issues that the precision filter actively suppresses.
+2. **For money-handling, security-sensitive, spec-implementing code:** pair earns its cost in one shipped bug. $0.16 differential vs review is dwarfed by one float-money production incident.
+3. **For glue code / CRUD / refactors:** /codex-review is sufficient at 1/4 the cost.
+4. **Ship both side-by-side.** Default to /codex-review for ergonomic per-PR review; opt into codex-pair on hot-path code via `.codex-pair-context.md` presence as the gate signal.
+
+## What I got wrong before this experiment
+
+Earlier in this file I wrote: *"We probably didn't add much new defect-detection capability over /codex-review. The pair-programmer's value is in WHEN feedback arrives, not WHAT it catches."*
+
+**This was wrong.** Codex-pair catches three concrete defect categories /codex-review consistently misses, including the experiment's highest-consequence bug. The fair test produced different evidence than my pre-test guess. The user's question — *"would we catch these bugs if we do /codex-review?"* — was the right question to ask, and the answer is **no, not all of them, and the ones you'd miss matter most**.
+
+## Final graduation verdict
+
+Graduate codex-pair as **a complement to /codex-review**, not a replacement. Both ship. Documentation honest about when each helps:
+- ADR-077 captures the precision-vs-recall tradeoff and the threshold-in-hook pattern
+- Differentials from tasks 2, 3, 4 ship with the package as the regression suite
+- `.codex-pair-context.md` presence is the gate signal: code in those directories warrants the deeper, more expensive review
+- Default-off; explicit per-project opt-in

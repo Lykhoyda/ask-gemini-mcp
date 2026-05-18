@@ -71,7 +71,7 @@ This gives you `gemini:ask-gemini` rather than `plugin:ask-llm:gemini:ask-gemini
 | Pre-commit hook | Before `git commit` | Reviews staged changes via Gemini, warns about critical issues (advisory, does not block) |
 | `codex-pair` PostToolUse | After every Edit/Write/MultiEdit | **Opt-in.** Self-gates on `.codex-pair-context.md` marker file. Zero cost without the marker. With marker: runs Codex review on every edited file, surfaces HIGH/MED concerns to Claude on the next turn. See [Hooks](/plugin/hooks#posttooluse-hook-codex-pair-opt-in-continuous-review) for opt-in steps and cost characteristics |
 
-The pre-commit hook uses the Gemini CLI directly (`gemini -p` with `@` file syntax). The codex-pair hook imports `executeCodexCLI` from `ask-codex-mcp/executor` for shared timeout/parsing/fallback handling.
+Both hooks shell out directly to their respective provider CLI (`gemini -p` for pre-commit; `codex exec --json` for codex-pair) with zero workspace imports — required so the hooks run from marketplace `git-subdir` installs that don't run `npm install` (see [ADR-078](https://github.com/Lykhoyda/ask-llm/blob/main/docs/DECISIONS.md)).
 
 ### CLI Binaries
 

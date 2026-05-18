@@ -9,24 +9,26 @@
 //
 // Empirical justification: ADR-077. Four benchmark tasks documented on
 // branch `experiment/codex-pair-poc`.
+//
+// Why no workspace imports: this script ships via marketplace as part of a
+// `git-subdir` extraction with no `npm install` step, so workspace deps
+// (`ask-codex-mcp/executor`, `@ask-llm/shared`) don't resolve. The codex
+// invocation is inlined; semantics mirror `codexExecutor.ts` deliberately.
 
+import { spawn } from "node:child_process";
 import { access, appendFile, readFile } from "node:fs/promises";
-import { dirname, resolve, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { homedir } from "node:os";
-import { executeCodexCLI } from "ask-codex-mcp/executor";
 
-// ---------------------------------------------------------------------------
-// Configuration knobs (all overridable via env)
-// ---------------------------------------------------------------------------
 const MARKER_FILE = ".codex-pair-context.md";
 const WATCHED_TOOLS = new Set(["Edit", "Write", "MultiEdit"]);
-
-// Files larger than this skip the codex call (logged as skipped). gpt-5.5
-// reasoning on a 50 KB file wastes tokens and time. Override via env for
-// hot-path projects where the deeper review is worth the extra spend.
+const LOG_FILENAME = ".codex-pair-log.jsonl";
+const DEFAULT_MODEL = process.env.ASK_CODEX_MODEL ?? "gpt-5.5";
+const FALLBACK_MODEL = process.env.ASK_CODEX_FALLBACK_MODEL ?? "gpt-5.5-mini";
+const DEFAULT_TIMEOUT_MS = Number(process.env.ASK_CODEX_TIMEOUT_MS ?? 800_000);
 const MAX_FILE_BYTES = Number(process.env.CODEX_PAIR_MAX_FILE_BYTES ?? 20_000);
+const QUOTA_SIGNALS = ["rate_limit_exceeded", "quota_exceeded", "429", "insufficient_quota"];
 
-// Paths matching any of these substrings skip the hook entirely.
 const SKIP_PATTERNS = [
   "/node_modules/",
   "/dist/",
@@ -42,11 +44,6 @@ const SKIP_PATTERNS = [
   ".lock",
 ];
 
-const LOG_FILENAME = ".codex-pair-log.jsonl";
-
-// ---------------------------------------------------------------------------
-// Stdin / payload handling
-// ---------------------------------------------------------------------------
 async function readStdin() {
   return new Promise((resolveRead) => {
     let data = "";
@@ -58,11 +55,6 @@ async function readStdin() {
   });
 }
 
-// ---------------------------------------------------------------------------
-// Marker-file gate — walk up from cwd looking for .codex-pair-context.md.
-// Stops at $HOME or filesystem root, capped at 20 levels to avoid pathological
-// directory trees. Returns the marker's absolute path, or null if not found.
-// ---------------------------------------------------------------------------
 async function findMarkerUp(startDir) {
   const home = homedir();
   let current = resolve(startDir);
@@ -75,19 +67,13 @@ async function findMarkerUp(startDir) {
       // not found at this level
     }
     const parent = dirname(current);
-    if (parent === current) return null; // filesystem root
-    if (current === home) return null; // don't traverse past home
+    if (parent === current) return null;
+    if (current === home) return null;
     current = parent;
   }
   return null;
 }
 
-// ---------------------------------------------------------------------------
-// Prompt — recall-first companion to /codex-review. See ADR-077 for the
-// precision-vs-recall design choice. The 3-grade ladder (HIGH/MED/LOW) lets
-// codex emit everything it sees; the hook (not the prompt) decides what to
-// surface. Project context comes from the marker file's contents.
-// ---------------------------------------------------------------------------
 function buildPrompt({ filePath, fileContent, toolName, projectContext }) {
   const contextBlock = projectContext.trim()
     ? `## Project context\n\n${projectContext.trim()}\n\n`
@@ -139,12 +125,8 @@ ${fileContent}
 </file_content>`;
 }
 
-// ---------------------------------------------------------------------------
-// Parse codex's labeled output. Lenient about exact formatting.
-// ---------------------------------------------------------------------------
 function parseConcerns(message) {
   const trimmed = message.trim();
-  // Both checks normalize case so "none", "NONE\nsomething", "None" all match.
   const upper = trimmed.toUpperCase();
   if (upper === "NONE" || upper.startsWith("NONE\n")) {
     return { high: [], med: [], low: [] };
@@ -165,8 +147,6 @@ function parseConcerns(message) {
 }
 
 async function appendLog(markerDir, entry) {
-  // markerDir is the directory containing the marker file, which we just
-  // resolved via findMarkerUp — guaranteed to exist, so no mkdir needed.
   try {
     await appendFile(join(markerDir, LOG_FILENAME), JSON.stringify(entry) + "\n");
   } catch {
@@ -174,11 +154,129 @@ async function appendLog(markerDir, entry) {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Main
-// ---------------------------------------------------------------------------
+// Build codex CLI args. Mirrors packages/codex-mcp/src/utils/codexExecutor.ts
+// `buildArgs` for the no-session, stdin-prompt case (hook always passes prompt
+// via stdin to avoid ARG_MAX limits on file-content-heavy prompts).
+function buildCodexArgs(model) {
+  const args = ["exec", "--skip-git-repo-check", "--ephemeral"];
+  if (process.env.ASK_CODEX_LOAD_USER_CONFIG !== "1") {
+    args.push("--ignore-user-config", "--ignore-rules");
+  }
+  args.push("--sandbox", "workspace-write", "--json", "-m", model);
+  return args;
+}
+
+// Parse codex `--json` JSONL stdout. Pulled from `codexExecutor.ts`
+// `parseCodexJsonlOutput`: the agent's final answer is the last
+// `item.completed` event whose `item.type === "agent_message"`.
+function parseCodexJsonl(stdout) {
+  const lines = stdout.split("\n").filter((l) => l.trim().length > 0);
+  let lastAgentMessage;
+  let lastError;
+  for (const line of lines) {
+    let parsed;
+    try {
+      parsed = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (parsed?.type === "item.completed") {
+      const item = parsed.item;
+      if (item?.type === "agent_message" && typeof item.text === "string" && item.text.length > 0) {
+        lastAgentMessage = item.text;
+      }
+    }
+    if (parsed?.type === "error") {
+      lastError = JSON.stringify(parsed);
+    }
+  }
+  if (lastError && !lastAgentMessage) {
+    throw new Error(`Codex error event: ${lastError}`);
+  }
+  return lastAgentMessage ?? stdout;
+}
+
+function isQuotaError(err) {
+  const msg = (err instanceof Error ? err.message : String(err)).toLowerCase();
+  return QUOTA_SIGNALS.some((sig) => msg.includes(sig));
+}
+
+// Single codex invocation. The stdio + stdin-end pattern (and the SIGTERM →
+// SIGKILL escalation) mirrors `packages/shared/src/commandExecutor.ts`.
+// Critically: stdin must be "pipe" (not "ignore") and must be ended explicitly,
+// otherwise codex hangs on its stdin probe (issue #19 / first-hand observation:
+// stdout stalls at "Reading additional input from stdin..." indefinitely).
+function spawnCodex({ prompt, model, timeoutMs }) {
+  return new Promise((resolveCall, rejectCall) => {
+    const args = buildCodexArgs(model);
+    const child = spawn("codex", args, { stdio: ["pipe", "pipe", "pipe"] });
+
+    let stdout = "";
+    let stderr = "";
+    let settled = false;
+
+    child.stdin.on("error", () => {});
+    child.stdin.write(prompt);
+    child.stdin.end();
+
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk.toString();
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk.toString();
+    });
+
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      try {
+        child.kill("SIGTERM");
+      } catch {}
+      setTimeout(() => {
+        try {
+          child.kill("SIGKILL");
+        } catch {}
+      }, 5000);
+      rejectCall(new Error(`codex exec timed out after ${Math.round(timeoutMs / 1000)}s`));
+    }, timeoutMs);
+
+    child.on("error", (err) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      rejectCall(new Error(`failed to spawn codex: ${err.message}`));
+    });
+
+    child.on("close", (code) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (code === 0) {
+        try {
+          resolveCall(parseCodexJsonl(stdout));
+        } catch (err) {
+          rejectCall(err);
+        }
+      } else {
+        rejectCall(new Error(stderr.trim() || `codex exit ${code}`));
+      }
+    });
+  });
+}
+
+async function runCodexWithFallback({ prompt, timeoutMs }) {
+  try {
+    return { response: await spawnCodex({ prompt, model: DEFAULT_MODEL, timeoutMs }), fellBack: false };
+  } catch (err) {
+    if (isQuotaError(err) && DEFAULT_MODEL !== FALLBACK_MODEL) {
+      const response = await spawnCodex({ prompt, model: FALLBACK_MODEL, timeoutMs });
+      return { response, fellBack: true };
+    }
+    throw err;
+  }
+}
+
 async function main() {
-  // Kill-switch: respect CODEX_PAIR_DISABLED for cost-sensitive sessions
   if (process.env.CODEX_PAIR_DISABLED === "1") process.exit(0);
 
   const raw = await readStdin();
@@ -195,13 +293,10 @@ async function main() {
   const filePath = payload?.tool_input?.file_path;
   if (!filePath || typeof filePath !== "string") process.exit(0);
 
-  // GATE: marker file must exist on the path from cwd up.
-  // No marker = project hasn't opted in = silent exit (zero cost).
   const markerPath = await findMarkerUp(process.cwd());
   if (!markerPath) process.exit(0);
   const markerDir = dirname(markerPath);
 
-  // Skip non-source files (assets, lockfiles, build output)
   const lower = filePath.toLowerCase();
   if (SKIP_PATTERNS.some((p) => lower.includes(p))) process.exit(0);
 
@@ -219,9 +314,6 @@ async function main() {
     process.exit(0);
   }
 
-  // String.length is UTF-16 code units, not bytes. A CJK/emoji-heavy file
-  // can be 3x larger in actual UTF-8 bytes than its .length suggests and
-  // would silently bypass the cap. Use the byte count for the cap.
   const fileBytes = Buffer.byteLength(fileContent, "utf8");
   if (fileBytes > MAX_FILE_BYTES) {
     await appendLog(markerDir, {
@@ -245,9 +337,11 @@ async function main() {
 
   const startedAt = Date.now();
   let response;
+  let fellBack = false;
   try {
-    const result = await executeCodexCLI({ prompt });
-    response = result.response ?? "";
+    const result = await runCodexWithFallback({ prompt, timeoutMs: DEFAULT_TIMEOUT_MS });
+    response = result.response;
+    fellBack = result.fellBack;
   } catch (err) {
     await appendLog(markerDir, {
       timestamp: new Date().toISOString(),
@@ -268,6 +362,7 @@ async function main() {
     tool: toolName,
     file: filePath,
     verdict: total === 0 ? "none" : "concerns",
+    fellBack,
     counts: {
       high: concerns.high.length,
       med: concerns.med.length,
@@ -281,9 +376,6 @@ async function main() {
     },
   });
 
-  // Surface HIGH+MED to stderr; LOW is logged only (in the JSONL) to avoid
-  // alert fatigue. Threshold lives in the hook (not the prompt) so it's
-  // tunable without re-asking codex to recalibrate its grading.
   const surfaced = [
     ...concerns.high.map((c) => `[HIGH] ${c}`),
     ...concerns.med.map((c) => `[MED] ${c}`),
@@ -296,8 +388,6 @@ async function main() {
 }
 
 main().catch(async (err) => {
-  // Last-resort guard: any uncaught failure logs and exits 0 — the hook
-  // must never break Claude's tool flow.
   try {
     const markerPath = await findMarkerUp(process.cwd());
     if (markerPath) {

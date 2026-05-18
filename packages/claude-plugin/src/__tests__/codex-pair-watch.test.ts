@@ -20,8 +20,40 @@ describe("scripts/codex-pair-watch.mjs — structural invariants (ADR-077)", () 
     expect(script.startsWith("#!/usr/bin/env node")).toBe(true);
   });
 
-  it("imports executeCodexCLI from ask-codex-mcp (reuse shared executor, not shell out)", () => {
-    expect(script).toMatch(/from\s+["']ask-codex-mcp\/executor["']/);
+  it("has zero workspace imports (must work on marketplace install without node_modules)", () => {
+    // git-subdir install doesn't run npm install; any workspace import (ask-codex-mcp,
+    // ask-gemini-mcp, @ask-llm/shared) would fail with ERR_MODULE_NOT_FOUND and the
+    // top-level import error would crash the hook BEFORE main().catch can protect Claude.
+    expect(script).not.toMatch(/from\s+["']ask-codex-mcp/);
+    expect(script).not.toMatch(/from\s+["']ask-gemini-mcp/);
+    expect(script).not.toMatch(/from\s+["']ask-ollama-mcp/);
+    expect(script).not.toMatch(/from\s+["']@ask-llm/);
+  });
+
+  it("inlines the codex spawn (mirrors codexExecutor.ts buildArgs)", () => {
+    expect(script).toMatch(/spawn\s*\(\s*["']codex["']/);
+    expect(script).toMatch(/--skip-git-repo-check/);
+    expect(script).toMatch(/--sandbox/);
+    expect(script).toMatch(/workspace-write/);
+    expect(script).toMatch(/--json/);
+  });
+
+  it("writes prompt to stdin and ends it (prevents codex 'Reading additional input from stdin' hang)", () => {
+    expect(script).toMatch(/stdin\.write/);
+    expect(script).toMatch(/stdin\.end\(\)/);
+    expect(script).toMatch(/stdin\.on\(["']error["']/);
+  });
+
+  it("preserves quota fallback (gpt-5.5 → gpt-5.5-mini on rate_limit_exceeded)", () => {
+    expect(script).toMatch(/isQuotaError/);
+    expect(script).toMatch(/rate_limit_exceeded/);
+    expect(script).toMatch(/FALLBACK_MODEL/);
+  });
+
+  it("enforces a timeout with SIGTERM then SIGKILL escalation", () => {
+    expect(script).toMatch(/SIGTERM/);
+    expect(script).toMatch(/SIGKILL/);
+    expect(script).toMatch(/ASK_CODEX_TIMEOUT_MS/);
   });
 
   it("declares the marker filename .codex-pair-context.md", () => {

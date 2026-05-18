@@ -41,7 +41,15 @@ The hook is always loaded by the plugin, but **self-gates on this file's presenc
 
 The marker file's *presence* is the switch; its *content* is the context codex needs to review intelligently. One artifact, two purposes.
 
-**Commit `.codex-pair-context.md`** to the repo so the whole team (and CI agents) share the same project context and reviewer behavior. **Add `.codex-pair-log.jsonl` to `.gitignore`** — it's per-developer call telemetry, grows continuously, and contains no information worth versioning.
+**Do NOT commit `.codex-pair-context.md`** — gitignore it alongside the log and cache. The marker is per-developer opt-in: each contributor's review context is their own (model preference, severity threshold, project rules they care about). One developer iterating on prompt wording shouldn't dirty the shared history. The hook itself IS project policy (it ships in the plugin); the marker is the per-developer activation switch. Recommended `.gitignore` entries:
+
+```
+.codex-pair-context.md
+.codex-pair-log.jsonl
+.codex-pair-cache/
+```
+
+To onboard a new contributor, point them at this skill (or `apps/docs/plugin/hooks.md`) to write their own marker — or share a template via a separate (committed) `.codex-pair-context.example.md` they can copy and tweak locally.
 
 ## How to disable
 

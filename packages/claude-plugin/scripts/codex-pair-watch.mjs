@@ -61,6 +61,22 @@ const VALID_THRESHOLDS = new Set(["high", "med", "low"]);
 const DEFAULT_SURFACE_THRESHOLD = "med";
 const QUOTA_SIGNALS = ["rate_limit_exceeded", "quota_exceeded", "429", "insufficient_quota"];
 
+// Transient failure signatures (item #10). Errors matching any of these get
+// ONE retry with jittered delay before propagating. Quota errors take the
+// existing model-fallback path (not retry — quota exhaustion isn't transient).
+// Hook-side timeouts and JSONL parse failures are excluded by verdict tag
+// (see isTransientError) — those are deterministic failures that retry can't fix.
+const TRANSIENT_SIGNALS = [
+  /ECONNRESET/,
+  /ECONNREFUSED/,
+  /ETIMEDOUT/,
+  /EAI_AGAIN/,
+  /UND_ERR/,
+  /\b502\b/,
+  /\b503\b/,
+  /\b504\b/,
+];
+
 // Cache configuration (item #8). Cache lives at `<markerDir>/.codex-pair-cache/<hash[0:2]>/<rest>.json`.
 // Value: { high, med, low, durationMs }. Keyed on the inputs that
 // deterministically produce a codex review outcome (same prompt + same model
@@ -701,6 +717,24 @@ function isQuotaError(err) {
   return QUOTA_SIGNALS.some((sig) => msg.includes(sig));
 }
 
+// Transient = retryable. Excludes hook-side timeout and parse_failed by
+// verdict tag (those are deterministic and retry can't help). Quota errors
+// take the model-fallback path instead — they're not transient either.
+function isTransientError(err) {
+  if (err && typeof err === "object") {
+    if (err.verdict === "timeout" || err.verdict === "parse_failed") return false;
+  }
+  if (isQuotaError(err)) return false;
+  const msg = err instanceof Error ? err.message : String(err);
+  return TRANSIENT_SIGNALS.some((sig) => sig.test(msg));
+}
+
+function sleepMs(ms) {
+  return new Promise((r) => {
+    setTimeout(r, ms);
+  });
+}
+
 // Attach a verdict tag to an Error so the main() catch can classify the
 // failure into the closed VERDICT_PREFIXES set without re-parsing the message.
 function taggedError(message, verdict) {
@@ -782,12 +816,44 @@ function spawnCodex({ prompt, model, timeoutMs }) {
   });
 }
 
-async function runCodexWithFallback({ prompt, timeoutMs, model, fallbackModel }) {
+// Spawn codex with one retry on transient failures. The retry is jittered
+// (1000 + Math.random()*1500 ms) to avoid synchronized retries across
+// multiple concurrent hook invocations. Quota errors fall through unretried
+// (handled by the outer fallback layer); hook-side timeouts and parse_failed
+// errors are explicitly excluded by verdictFromError tag.
+async function spawnCodexWithRetry({ prompt, model, timeoutMs, markerDir }) {
   try {
-    return { response: await spawnCodex({ prompt, model, timeoutMs }), fellBack: false };
+    return await spawnCodex({ prompt, model, timeoutMs });
+  } catch (err) {
+    if (!isTransientError(err)) throw err;
+    const reason = err instanceof Error ? err.message : String(err);
+    const delayMs = 1000 + Math.random() * 1500;
+    await appendLog(markerDir, {
+      timestamp: new Date().toISOString(),
+      verdict: "retried",
+      reason,
+      model,
+      delayMs: Math.round(delayMs),
+    });
+    await sleepMs(delayMs);
+    return await spawnCodex({ prompt, model, timeoutMs });
+  }
+}
+
+async function runCodexWithFallback({ prompt, timeoutMs, model, fallbackModel, markerDir }) {
+  try {
+    return {
+      response: await spawnCodexWithRetry({ prompt, model, timeoutMs, markerDir }),
+      fellBack: false,
+    };
   } catch (err) {
     if (isQuotaError(err) && model !== fallbackModel) {
-      const response = await spawnCodex({ prompt, model: fallbackModel, timeoutMs });
+      const response = await spawnCodexWithRetry({
+        prompt,
+        model: fallbackModel,
+        timeoutMs,
+        markerDir,
+      });
       return { response, fellBack: true };
     }
     throw err;
@@ -964,6 +1030,7 @@ async function main() {
       timeoutMs: config.timeoutMs,
       model: config.model,
       fallbackModel: config.fallbackModel,
+      markerDir,
     });
     response = result.response;
     fellBack = result.fellBack;

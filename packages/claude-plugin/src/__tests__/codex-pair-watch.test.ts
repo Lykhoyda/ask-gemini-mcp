@@ -354,6 +354,34 @@ describe("scripts/codex-pair-watch.mjs — structural invariants (ADR-077)", () 
     expect(script).toMatch(/setCachedConcerns/);
   });
 
+  // Phase 3 item #9: log viewer CLI (in a sibling script, but tested here for proximity)
+  it("scripts/codex-pair-log.mjs exists, has shebang, is executable", () => {
+    const logCliPath = path.join(PLUGIN_ROOT, "scripts", "codex-pair-log.mjs");
+    expect(fs.existsSync(logCliPath)).toBe(true);
+    const cli = fs.readFileSync(logCliPath, "utf-8");
+    expect(cli.startsWith("#!/usr/bin/env node")).toBe(true);
+    const stats = fs.statSync(logCliPath);
+    expect((stats.mode & 0o100) !== 0).toBe(true);
+  });
+
+  it("codex-pair-log CLI has zero workspace imports", () => {
+    const cli = fs.readFileSync(path.join(PLUGIN_ROOT, "scripts", "codex-pair-log.mjs"), "utf-8");
+    expect(cli).not.toMatch(/from\s+["']ask-codex-mcp/);
+    expect(cli).not.toMatch(/from\s+["']ask-gemini-mcp/);
+    expect(cli).not.toMatch(/from\s+["']ask-ollama-mcp/);
+    expect(cli).not.toMatch(/from\s+["']@ask-llm/);
+  });
+
+  it("codex-pair-log CLI declares all four subcommands plus --since filter", () => {
+    const cli = fs.readFileSync(path.join(PLUGIN_ROOT, "scripts", "codex-pair-log.mjs"), "utf-8");
+    expect(cli).toMatch(/--latest/);
+    expect(cli).toMatch(/--summary/);
+    expect(cli).toMatch(/--file/);
+    expect(cli).toMatch(/--since/);
+    // Reuses findMarkerUp logic inline (no import from the hook)
+    expect(cli).toMatch(/function findMarkerUp/);
+  });
+
   it("buildVerdictMessage emits [cached] suffix when cached:true", () => {
     const block = script.match(/function buildVerdictMessage[\s\S]*?^\}\s*$/m);
     expect(block).toBeTruthy();
@@ -907,6 +935,105 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
     expect(lines.some((l) => /matched \.codex-pair-ignore/.test(l.reason ?? ""))).toBe(false);
     expect(lines[0].verdict).toBe("skipped");
     expect(lines[0].reason).toMatch(/unreadable/);
+  });
+
+  // Phase 3 item #9 — runtime: log viewer CLI subcommands
+  it("codex-pair-log CLI: --latest prints last N entries from the log", () => {
+    fs.writeFileSync(path.join(tempDir, ".codex-pair-context.md"), "# ctx");
+    const logPath = path.join(tempDir, ".codex-pair-log.jsonl");
+    const entries: string[] = [];
+    for (let i = 0; i < 12; i++) {
+      entries.push(
+        JSON.stringify({
+          timestamp: new Date(2026, 4, 18, 10, i, 0).toISOString(),
+          tool: "Edit",
+          file: `file-${i}.ts`,
+          verdict: i % 3 === 0 ? "concerns" : "none",
+          counts: { high: 0, med: 0, low: 0 },
+          durationMs: 5000 + i * 100,
+        }),
+      );
+    }
+    fs.writeFileSync(logPath, `${entries.join("\n")}\n`);
+    const cliPath = path.join(PLUGIN_ROOT, "scripts", "codex-pair-log.mjs");
+    const result = spawnSync("node", [cliPath, "--latest", "3"], {
+      cwd: tempDir,
+      env: process.env,
+      encoding: "utf-8",
+      timeout: 5000,
+    });
+    expect(result.status).toBe(0);
+    // Last 3: file-9, file-10, file-11
+    expect(result.stdout).toMatch(/file-9\.ts/);
+    expect(result.stdout).toMatch(/file-10\.ts/);
+    expect(result.stdout).toMatch(/file-11\.ts/);
+    // First entry should NOT appear
+    expect(result.stdout).not.toMatch(/file-0\.ts/);
+  });
+
+  it("codex-pair-log CLI: --summary aggregates verdict counts and file stats", () => {
+    fs.writeFileSync(path.join(tempDir, ".codex-pair-context.md"), "# ctx");
+    const logPath = path.join(tempDir, ".codex-pair-log.jsonl");
+    const entries = [
+      { verdict: "none", file: "a.ts", durationMs: 5000 },
+      { verdict: "none", file: "a.ts", durationMs: 6000 },
+      { verdict: "concerns", file: "b.ts", durationMs: 8000 },
+      { verdict: "cached", file: "a.ts", durationMs: 5 },
+      { verdict: "skipped", file: "c.ts" },
+    ].map((e) => JSON.stringify({ timestamp: new Date().toISOString(), ...e }));
+    fs.writeFileSync(logPath, `${entries.join("\n")}\n`);
+    const cliPath = path.join(PLUGIN_ROOT, "scripts", "codex-pair-log.mjs");
+    const result = spawnSync("node", [cliPath, "--summary"], {
+      cwd: tempDir,
+      env: process.env,
+      encoding: "utf-8",
+      timeout: 5000,
+    });
+    expect(result.status).toBe(0);
+    expect(result.stdout).toMatch(/Total entries:\s*5/);
+    expect(result.stdout).toMatch(/none\s+2/);
+    expect(result.stdout).toMatch(/concerns\s+1/);
+    expect(result.stdout).toMatch(/cached\s+1/);
+    expect(result.stdout).toMatch(/Top 5 files/);
+    expect(result.stdout).toMatch(/a\.ts/);
+    expect(result.stdout).toMatch(/Cache hit rate:\s*1\s*\/\s*4/);
+  });
+
+  it("codex-pair-log CLI: --file filters entries by file path", () => {
+    fs.writeFileSync(path.join(tempDir, ".codex-pair-context.md"), "# ctx");
+    const logPath = path.join(tempDir, ".codex-pair-log.jsonl");
+    const entries = [
+      { file: "src/foo.ts", verdict: "none", durationMs: 1000 },
+      { file: "src/bar.ts", verdict: "none", durationMs: 1000 },
+      { file: "src/foo.ts", verdict: "concerns", durationMs: 2000 },
+    ].map((e) => JSON.stringify({ timestamp: new Date().toISOString(), ...e }));
+    fs.writeFileSync(logPath, `${entries.join("\n")}\n`);
+    const cliPath = path.join(PLUGIN_ROOT, "scripts", "codex-pair-log.mjs");
+    const result = spawnSync("node", [cliPath, "--file", "src/foo.ts"], {
+      cwd: tempDir,
+      env: process.env,
+      encoding: "utf-8",
+      timeout: 5000,
+    });
+    expect(result.status).toBe(0);
+    // Both foo.ts entries shown
+    const fooMatches = (result.stdout.match(/src\/foo\.ts/g) ?? []).length;
+    expect(fooMatches).toBe(2);
+    // bar.ts NOT shown
+    expect(result.stdout).not.toMatch(/src\/bar\.ts/);
+  });
+
+  it("codex-pair-log CLI: exits non-zero with no marker", () => {
+    // No marker file in tempDir
+    const cliPath = path.join(PLUGIN_ROOT, "scripts", "codex-pair-log.mjs");
+    const result = spawnSync("node", [cliPath, "--latest"], {
+      cwd: tempDir,
+      env: process.env,
+      encoding: "utf-8",
+      timeout: 5000,
+    });
+    expect(result.status).toBe(1);
+    expect(result.stderr).toMatch(/no \.codex-pair-context\.md/);
   });
 
   // Phase 2 item #6 — runtime: adaptive context uses head+tail when git unavailable.

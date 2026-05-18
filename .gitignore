@@ -45,8 +45,17 @@ packages/*/package.json.bak
 # npm pack outputs (publish dry-runs leave these behind; never want them tracked)
 *.tgz
 
-# codex-pair hook artifacts — per-developer noise from dogfooding the plugin
-# in this repo. The .codex-pair-context.md marker IS committed (it's the team's
-# shared review rubric), but the log and cache must stay local.
+# codex-pair hook artifacts — fully per-developer. Each contributor opts into
+# codex-pair locally by creating their own `.codex-pair-context.md` with the
+# project context (model, threshold, project-specific review guidance) that
+# matches their workflow. The marker, log, and cache all stay out of git so
+# nobody's local review preferences contaminate the shared history.
+.codex-pair-context.md
 .codex-pair-log.jsonl
 .codex-pair-cache/
+
+# git worktrees — per-developer isolated working copies created via
+# `git worktree add .worktrees/<branch>`. The skill that creates these
+# requires the directory to be gitignored so worktree contents don't
+# accidentally land in commits to main.
+.worktrees/

@@ -372,6 +372,61 @@ describe("scripts/codex-pair-watch.mjs — structural invariants (ADR-077)", () 
     expect(cli).not.toMatch(/from\s+["']@ask-llm/);
   });
 
+  // Phase 3 item #10: failure-class retry with jitter
+  it("declares TRANSIENT_SIGNALS for retryable codex failure modes", () => {
+    const block = script.match(/const TRANSIENT_SIGNALS\s*=\s*\[[\s\S]*?\];/);
+    expect(block).toBeTruthy();
+    const body = block?.[0] ?? "";
+    expect(body).toMatch(/ECONNRESET/);
+    expect(body).toMatch(/ECONNREFUSED/);
+    expect(body).toMatch(/ETIMEDOUT/);
+    expect(body).toMatch(/EAI_AGAIN/);
+    expect(body).toMatch(/UND_ERR/);
+    expect(body).toMatch(/502/);
+    expect(body).toMatch(/503/);
+    expect(body).toMatch(/504/);
+  });
+
+  it("isTransientError excludes hook-side timeout and parse_failed (not retryable)", () => {
+    const block = script.match(/function isTransientError[\s\S]*?^\}\s*$/m);
+    expect(block).toBeTruthy();
+    const body = block?.[0] ?? "";
+    // explicit verdict guards
+    expect(body).toMatch(/err\.verdict\s*===\s*["']timeout["']/);
+    expect(body).toMatch(/err\.verdict\s*===\s*["']parse_failed["']/);
+    // also excludes quota (those use model fallback path instead)
+    expect(body).toMatch(/isQuotaError/);
+    // signal scan
+    expect(body).toMatch(/TRANSIENT_SIGNALS/);
+  });
+
+  it("spawnCodexWithRetry retries once with jittered delay and logs `retried` verdict", () => {
+    expect(script).toMatch(/async function spawnCodexWithRetry/);
+    const block = script.match(/async function spawnCodexWithRetry[\s\S]*?^\}\s*$/m);
+    expect(block).toBeTruthy();
+    const body = block?.[0] ?? "";
+    // Jitter: 1000 + Math.random() * 1500
+    expect(body).toMatch(/1000\s*\+\s*Math\.random\(\)\s*\*\s*1500/);
+    // Log entry with verdict:"retried"
+    expect(body).toMatch(/verdict:\s*["']retried["']/);
+    // Sleeps before retry
+    expect(body).toMatch(/sleepMs|setTimeout/);
+    // Only ONE retry — body invokes spawnCodex twice (once in try, once after delay)
+    const spawnCount = (body.match(/await spawnCodex\(/g) ?? []).length;
+    expect(spawnCount).toBe(2);
+  });
+
+  it("runCodexWithFallback wraps spawnCodexWithRetry (not raw spawnCodex)", () => {
+    const block = script.match(/async function runCodexWithFallback[\s\S]*?^\}\s*$/m);
+    expect(block).toBeTruthy();
+    const body = block?.[0] ?? "";
+    // Use the retry-wrapping spawner, not the raw one
+    expect(body).toMatch(/spawnCodexWithRetry/);
+    // Quota fallback path also goes through retry wrapper
+    const retryCallCount = (body.match(/spawnCodexWithRetry/g) ?? []).length;
+    expect(retryCallCount).toBeGreaterThanOrEqual(2);
+  });
+
   it("codex-pair-log CLI declares all four subcommands plus --since filter", () => {
     const cli = fs.readFileSync(path.join(PLUGIN_ROOT, "scripts", "codex-pair-log.mjs"), "utf-8");
     expect(cli).toMatch(/--latest/);

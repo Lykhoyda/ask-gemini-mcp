@@ -877,7 +877,14 @@ async function main() {
   const filePath = payload?.tool_input?.file_path;
   if (!filePath || typeof filePath !== "string") process.exit(0);
 
-  const markerPath = await findMarkerUp(process.cwd());
+  // Marker resolution starts from the edited file's directory, not cwd.
+  // In multi-repo workflows where Claude Code's cwd is one repo but the edit
+  // happens in another (e.g. cross-repo navigation, monorepo with linked
+  // siblings), cwd-anchored resolution writes logs to the wrong repo. The
+  // file_path is always absolute per Claude Code's tool_input contract, so
+  // its dirname is a reliable anchor that matches the edit's actual project.
+  // See issue #65.
+  const markerPath = await findMarkerUp(dirname(filePath));
   if (!markerPath) process.exit(0);
   const markerDir = dirname(markerPath);
 

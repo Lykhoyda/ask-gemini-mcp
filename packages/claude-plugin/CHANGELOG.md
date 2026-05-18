@@ -1,5 +1,13 @@
 # @ask-llm/plugin
 
+## 0.6.1
+
+### Patch Changes
+
+- Fix: codex-pair marker resolution now anchors to the edited file's directory, not `process.cwd()` (issue [#65](https://github.com/Lykhoyda/ask-llm/issues/65)). In multi-repo workflows where Claude Code's cwd is one repo but the edit happens in another, the previous behavior wrote logs to the cwd's repo instead of the edited file's repo, producing "where did my log go?" confusion. The fix uses `dirname(tool_input.file_path)` — always absolute per Claude Code's hook payload contract — as the marker walk's anchor. The `main().catch` unhandled-exception fallback retains its cwd-based lookup since `filePath` isn't in scope there; the structural test was tightened to allow this distinction.
+
+  Side effect: shipping this as v0.6.1 also triggers Claude Code's plugin cache refresh for pre-existing sessions still pinned to the stale v0.6.0 install (issue [#74](https://github.com/Lykhoyda/ask-llm/issues/74)) — the next `/reload-plugins` or session restart will see "new version available" and re-fetch from origin.
+
 ## 0.6.0
 
 ### Minor Changes

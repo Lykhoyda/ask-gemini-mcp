@@ -60,10 +60,18 @@ describe("scripts/codex-pair-watch.mjs — structural invariants (ADR-077)", () 
     expect(script).toMatch(/\.codex-pair-context\.md/);
   });
 
-  it("self-gates: walks up from cwd looking for the marker", () => {
+  it("self-gates: walks up from edited file's directory looking for the marker (issue #65)", () => {
     expect(script).toMatch(/findMarkerUp/);
-    // Walks up via dirname loop
+    // Walks up via dirname loop (inside findMarkerUp's body)
     expect(script).toMatch(/dirname\(.*current\)/);
+    // main()'s primary marker resolution uses dirname(filePath), not cwd.
+    // Cross-repo edits land logs at the edited file's repo, not the cwd's repo.
+    const mainBlock = script.match(/async function main\(\)\s*\{[\s\S]*?^\}\s*$/m);
+    expect(mainBlock).toBeTruthy();
+    expect(mainBlock?.[0]).toMatch(/findMarkerUp\(dirname\(filePath\)\)/);
+    expect(mainBlock?.[0]).not.toMatch(/findMarkerUp\(process\.cwd\(\)\)/);
+    // The main().catch unhandled-exception fallback is allowed to use cwd —
+    // filePath isn't in scope there. So we don't forbid cwd globally.
   });
 
   it("respects CODEX_PAIR_DISABLED env var as kill switch", () => {
@@ -741,6 +749,37 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
     const result = runHook(payload, tempDir, { CODEX_PAIR_DISABLED: "1" });
     expect(result.status).toBe(0);
     expect(result.signal).toBeNull();
+  });
+
+  it("issue #65: marker resolves from edited file's path even when cwd is in an unrelated dir", () => {
+    // Repro: marker at tempDir; file edited deep inside tempDir; hook invoked
+    // with cwd=otherDir (no marker on otherDir's walk). Old behavior: marker
+    // not found, silent exit, log goes nowhere. New behavior: marker found
+    // via dirname(filePath), log lands at tempDir.
+    fs.writeFileSync(path.join(tempDir, ".codex-pair-context.md"), "# ctx");
+    const editedDir = path.join(tempDir, "src", "deep", "nested");
+    fs.mkdirSync(editedDir, { recursive: true });
+    const missingPath = path.join(editedDir, "does-not-exist.ts");
+    const otherDir = fs.mkdtempSync(path.join(os.tmpdir(), "other-cwd-"));
+    try {
+      const payload = JSON.stringify({
+        tool_name: "Edit",
+        tool_input: { file_path: missingPath },
+      });
+      // Run hook FROM otherDir (cwd), which has no marker on its parent chain.
+      const result = runHook(payload, otherDir);
+      expect(result.status).toBe(0);
+      // Log MUST land at tempDir (where the marker is), NOT at otherDir.
+      expect(fs.existsSync(path.join(tempDir, ".codex-pair-log.jsonl"))).toBe(true);
+      expect(fs.existsSync(path.join(otherDir, ".codex-pair-log.jsonl"))).toBe(false);
+      const logEntry = JSON.parse(
+        fs.readFileSync(path.join(tempDir, ".codex-pair-log.jsonl"), "utf-8").trim().split("\n")[0],
+      );
+      expect(logEntry.verdict).toBe("skipped");
+      expect(logEntry.reason).toMatch(/unreadable/i);
+    } finally {
+      fs.rmSync(otherDir, { recursive: true, force: true });
+    }
   });
 
   it("finds marker file in parent directory (walks up from cwd)", () => {

@@ -1,10 +1,13 @@
 ---
-description: Automated pre-commit code review via Gemini. Advisory hook that reviews staged changes before git commit without blocking.
+description: Automated pre-commit code review via Gemini, plus an opt-in PostToolUse codex-pair reviewer that runs Codex on every file edit when a project marker file is present.
 ---
 
 # Hooks
 
-Hooks are automated actions that trigger on specific Claude Code events. The plugin configures one hook that provides passive, advisory code review via Gemini without any manual invocation.
+Hooks are automated actions that trigger on specific Claude Code events. The plugin configures two hooks:
+
+- **`PreToolUse` pre-commit hook** — always on. Reviews staged changes via Gemini before any `git commit`.
+- **`PostToolUse` codex-pair hook** — always loaded, but **self-gates on a project marker file** and stays silent (zero cost, zero codex calls) unless you opt in.
 
 > The plugin previously shipped a `Stop` hook that reviewed worktree changes when a Claude Code session ended. It was removed in [ADR-048](https://github.com/Lykhoyda/ask-llm/blob/main/docs/DECISIONS.md) because the `Stop` event fires per-turn rather than per-session, making it noisy and high-latency, and `git diff HEAD` excluded untracked files which silently dropped coverage on new-file sessions. Use the `/gemini-review` slash command for explicit on-demand reviews instead.
 
@@ -27,6 +30,85 @@ Hooks are automated actions that trigger on specific Claude Code events. The plu
 ## Provider
 
 The pre-commit hook is hardcoded to use Gemini via the `gemini` CLI directly. To use a different provider, you would need to edit `packages/claude-plugin/scripts/pre-commit-review.sh` and replace the `gemini -p` invocation with `codex exec --full-auto` or `ollama run`.
+
+## PostToolUse Hook: `codex-pair` (opt-in continuous review)
+
+**Trigger:** After every `Edit`, `Write`, or `MultiEdit` that Claude performs.
+
+**Action:** If — and only if — a marker file named `.codex-pair-context.md` exists somewhere from the current directory up to the project root, a fresh Codex review of the just-edited file is run with the marker's content as project context. **HIGH** and **MED** concerns are surfaced back to Claude on the next turn as system reminders; **LOW** concerns and all timing/skip telemetry are logged to `.codex-pair-log.jsonl` alongside the marker file.
+
+> No marker file → the hook exits silently after one `fs.access()` call. **Zero codex calls, zero cost.** This is by design: the hook ships in every plugin install, but does nothing until a project opts in.
+
+The motivation, four-task benchmark, and design rationale are in [ADR-077](https://github.com/Lykhoyda/ask-llm/blob/main/docs/DECISIONS.md). In short: `/codex-review`'s precision filter (confidence ≥ 80) structurally suppresses a class of bug — float-money precision, cross-cutting validation gaps, edge-case clamping — that `codex-pair`'s recall-first HIGH/MED/LOW grading catches. The two surfaces are complementary, not competing.
+
+### Enable it
+
+Create a marker file at the root of the project where you want continuous review:
+
+```bash
+cat > .codex-pair-context.md <<'EOF'
+# .codex-pair-context.md
+
+This is a payment-processing service. All currency calculations must
+use integer cents internally (floating-point loses precision on every
+charge). Concurrent requests are real. URL inputs are untrusted.
+
+[Add deployment shape, stated requirements, or threat surface the
+reviewer should know when reasoning about a single file in isolation.]
+EOF
+```
+
+The marker file's *presence* is the switch; its *content* is the project context Codex needs to review intelligently. One artifact, two purposes.
+
+**Commit `.codex-pair-context.md`** to the repo — it's shared project policy. **Add `.codex-pair-log.jsonl` to `.gitignore`** — it's per-developer call telemetry, grows continuously, and contains nothing worth versioning.
+
+Once present, every `Edit` / `Write` / `MultiEdit` triggers a Codex review of the changed file. HIGH and MED concerns appear to Claude as a system reminder on the next turn, prefixed with `[codex-pair]` and the file path:
+
+```
+[codex-pair] src/billing/charge.ts
+
+[HIGH] Monetary values are modeled as floating-point numbers
+src/billing/charge.ts:12: `price` accepts arbitrary JS numbers for
+money, which violates the stated requirement that currency uses
+integer cents. Use integer minor units such as
+`priceCents: z.number().int().nonnegative()`.
+```
+
+### When to enable it
+
+| Use the hook (recall-first) | Stick with `/codex-review` only (precision-first) |
+|---|---|
+| Money / billing code | Routine PR review |
+| Security-sensitive paths (auth, untrusted input) | Glue code, CRUD, refactors |
+| Implementing a written spec (RFC, protocol) | Cost-sensitive sessions |
+| Concurrency-heavy state management | One comprehensive report is enough |
+| Cost (~$0.04–0.07 per edit) is acceptable | |
+
+### Disable it
+
+| Goal | How |
+|---|---|
+| Permanently for this project | `rm .codex-pair-context.md` |
+| Just this Claude Code session | `/plugin disable ask-llm` |
+| Just this command | `CODEX_PAIR_DISABLED=1 <command>` |
+
+### Configuration knobs
+
+| Env var | Default | Effect |
+|---|---|---|
+| `CODEX_PAIR_DISABLED` | unset | Set to `1` to bypass the hook entirely — beats marker file |
+| `CODEX_PAIR_MAX_FILE_BYTES` | `20000` | Skip files larger than this many UTF-8 bytes |
+| `ASK_CODEX_TIMEOUT_MS` | `800000` | Per-call Codex timeout (inherited from `ask-codex-mcp`, [ADR-074](https://github.com/Lykhoyda/ask-llm/blob/main/docs/DECISIONS.md)) |
+
+### Cost characteristics
+
+- ~$0.04–0.07 per file reviewed (Codex GPT-5.5 with reasoning tokens)
+- ~13–50s per file wall-clock
+- Files >20 KB skipped (override with `CODEX_PAIR_MAX_FILE_BYTES`)
+- `node_modules/`, `dist/`, lockfiles, and common images skipped automatically
+- A 50-edit session is roughly $2–3.50 plus ~10–40 minutes of cumulative Codex latency
+
+For typical opted-in projects (small surface where review depth matters), the cost is acceptable. For routine refactor work across a whole repo, leave the marker file out and use `/codex-review` on demand instead.
 
 ## CLI Binaries
 

@@ -104,11 +104,39 @@ integer cents. Use integer minor units such as
 
 - ~$0.04–0.07 per file reviewed (Codex GPT-5.5 with reasoning tokens)
 - ~13–50s per file wall-clock
-- Files >20 KB skipped (override with `CODEX_PAIR_MAX_FILE_BYTES`)
-- `node_modules/`, `dist/`, lockfiles, and common images skipped automatically
-- A 50-edit session is roughly $2–3.50 plus ~10–40 minutes of cumulative Codex latency
+- Files over the size cap fall back to an adaptive partial-view review (header + git diff against HEAD, OR head + tail) — see [ADR-080](https://github.com/Lykhoyda/ask-llm/blob/main/docs/DECISIONS.md)
+- `node_modules/`, `dist/`, lockfiles, fonts, archives, sourcemaps, snapshots, minified assets skipped automatically
+- A 50-edit session is roughly $2–3.50 plus ~10–40 minutes of cumulative Codex latency — significantly less after the content-hash cache warms (item #8 / [ADR-082](https://github.com/Lykhoyda/ask-llm/blob/main/docs/DECISIONS.md))
 
 For typical opted-in projects (small surface where review depth matters), the cost is acceptable. For routine refactor work across a whole repo, leave the marker file out and use `/codex-review` on demand instead.
+
+### Inspecting log activity: `codex-pair-log` CLI
+
+Shipped alongside the hook at `packages/claude-plugin/scripts/codex-pair-log.mjs`. Walks up from cwd to find the marker (same gate as the hook), then renders the sibling `.codex-pair-log.jsonl`. Useful for "is the hook actually running" diagnostics and for forensic analysis of what's been reviewed.
+
+```bash
+# Default: last 10 entries
+node packages/claude-plugin/scripts/codex-pair-log.mjs
+
+# Aggregate stats — verdict breakdown, top 5 files, cache hit rate, fallback frequency
+node packages/claude-plugin/scripts/codex-pair-log.mjs --summary
+
+# Filter to one file's history
+node packages/claude-plugin/scripts/codex-pair-log.mjs --file src/billing/charge.ts
+
+# Only the last 24 hours
+node packages/claude-plugin/scripts/codex-pair-log.mjs --since 24h --latest 50
+```
+
+Output shape (one line per entry):
+
+```
+2026-05-18T15:11:02.341Z  none          src/billing/charge.ts        0H/0M/0L    6.2s
+2026-05-18T15:11:14.892Z  concerns      src/billing/charge.ts        1H/0M/0L    8.7s
+2026-05-18T15:11:18.001Z  cached        src/billing/charge.ts        1H/0M/0L    3ms
+```
+
+Zero workspace imports — runs on a marketplace install with no `node_modules`.
 
 ## CLI Binaries
 

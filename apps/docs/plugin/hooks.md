@@ -60,7 +60,15 @@ EOF
 
 The marker file's *presence* is the switch; its *content* is the project context Codex needs to review intelligently. One artifact, two purposes.
 
-**Commit `.codex-pair-context.md`** to the repo — it's shared project policy. **Add `.codex-pair-log.jsonl` to `.gitignore`** — it's per-developer call telemetry, grows continuously, and contains nothing worth versioning.
+**Do NOT commit `.codex-pair-context.md`** — gitignore it alongside the log and cache. Each contributor's review context is their own; one developer iterating on prompt wording shouldn't dirty the shared history. The hook itself is project-policy (it's in the plugin); the marker is per-developer opt-in. Recommended `.gitignore` entries:
+
+```gitignore
+.codex-pair-context.md
+.codex-pair-log.jsonl
+.codex-pair-cache/
+```
+
+For a new contributor joining a project, point them at this docs page to write their own marker — or share a template via a separate (committed) `.codex-pair-context.example.md` they can copy and tweak locally.
 
 Once present, every `Edit` / `Write` / `MultiEdit` triggers a Codex review of the changed file. HIGH and MED concerns appear to Claude as a system reminder on the next turn, prefixed with `[codex-pair]` and the file path:
 

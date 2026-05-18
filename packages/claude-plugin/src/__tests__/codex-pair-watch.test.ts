@@ -132,6 +132,70 @@ describe("scripts/codex-pair-watch.mjs — structural invariants (ADR-077)", () 
     expect(verdictMsgBlock?.[0]).toMatch(/VERDICT_PREFIXES\.concerns/);
   });
 
+  // Phase 2 item #5: YAML frontmatter config + threshold-aware surfacing
+  it("declares valid surface thresholds (high|med|low) with med as the default", () => {
+    expect(script).toMatch(/VALID_THRESHOLDS/);
+    expect(script).toMatch(/DEFAULT_SURFACE_THRESHOLD\s*=\s*["']med["']/);
+    expect(script).toMatch(/["']high["']/);
+    expect(script).toMatch(/["']med["']/);
+    expect(script).toMatch(/["']low["']/);
+  });
+
+  it("buildVerdictMessage gates LOW behind surfaceThreshold === 'low' (ADR-077 opt-up)", () => {
+    const verdictBlock = script.match(/function buildVerdictMessage[\s\S]*?^}/m);
+    expect(verdictBlock).toBeTruthy();
+    const body = verdictBlock?.[0] ?? "";
+    // HIGH must surface unconditionally (no threshold check around it)
+    expect(body).toMatch(/concerns\.high/);
+    // MED gated at "med" OR "low"
+    expect(body).toMatch(/threshold\s*===\s*["']med["']\s*\|\|\s*threshold\s*===\s*["']low["']/);
+    // LOW only inside a `threshold === "low"` block
+    const lowBlockPattern = /if\s*\(\s*threshold\s*===\s*["']low["']\s*\)\s*\{[\s\S]*?concerns\.low/;
+    expect(body).toMatch(lowBlockPattern);
+  });
+
+  it("parses YAML frontmatter from the marker file (zero-dep parser)", () => {
+    expect(script).toMatch(/function parseFrontmatter/);
+    // Recognizes opening --- on line 1
+    expect(script).toMatch(/opener\s*!==\s*["']---["']/);
+    // Closing ---
+    expect(script).toMatch(/\/\^---\\s\*\$\/m/);
+    // Returns malformed flag when opener has no matching closer
+    expect(script).toMatch(/malformed:\s*true/);
+  });
+
+  it("resolveConfig honors precedence frontmatter > env > default", () => {
+    expect(script).toMatch(/function resolveConfig/);
+    const block = script.match(/function resolveConfig[\s\S]*?^}/m);
+    expect(block).toBeTruthy();
+    const body = block?.[0] ?? "";
+    // Each key has a typeof guard so invalid types fall through to defaults.
+    expect(body).toMatch(/typeof fm\.model\s*===\s*["']string["']/);
+    expect(body).toMatch(/typeof fm\.timeoutMs\s*===\s*["']number["']/);
+    expect(body).toMatch(/typeof fm\.maxFileBytes\s*===\s*["']number["']/);
+    expect(body).toMatch(/VALID_THRESHOLDS\.has/);
+  });
+
+  it("main() reads marker file via parseFrontmatter and resolveConfig", () => {
+    // The hook must invoke both functions in main() and thread the resolved
+    // config into runCodexWithFallback and buildVerdictMessage.
+    expect(script).toMatch(/parseFrontmatter\(markerContent\)/);
+    expect(script).toMatch(/resolveConfig\(frontmatter\)/);
+    expect(script).toMatch(/timeoutMs:\s*config\.timeoutMs/);
+    expect(script).toMatch(/model:\s*config\.model/);
+    expect(script).toMatch(/fallbackModel:\s*config\.fallbackModel/);
+    expect(script).toMatch(/config\.maxFileBytes/);
+    expect(script).toMatch(/surfaceThreshold:\s*config\.surfaceThreshold/);
+  });
+
+  it("malformed frontmatter triggers a warning log entry (silent fallback to defaults)", () => {
+    expect(script).toMatch(/frontmatterMalformed/);
+    // The malformed branch writes level:"warning" (not a verdict — verdict
+    // is reserved for the codex review outcome that follows).
+    expect(script).toMatch(/level:\s*["']warning["']/);
+    expect(script).toMatch(/falling back to defaults/i);
+  });
+
   // Phase 1 item #3: expanded skip patterns
   it("skips font files, archives, sourcemaps, snapshots, minified assets, and additional lockfiles", () => {
     // Fonts
@@ -505,5 +569,83 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
     const hookOutput = JSON.parse(result.stdout.trim());
     // Prefix in systemMessage matches the verdict via VERDICT_PREFIXES.skipped = "SKIP"
     expect(hookOutput.systemMessage).toMatch(/^codex-pair SKIP:/);
+  });
+
+  // Phase 2 item #5 — runtime: frontmatter parsing + config resolution
+  it("no frontmatter — current behavior unchanged (no warning entry)", () => {
+    fs.writeFileSync(path.join(tempDir, ".codex-pair-context.md"), "# Some plain context\n\nThis is not frontmatter.");
+    const missingPath = path.join(tempDir, "does-not-exist.ts");
+    const payload = JSON.stringify({
+      tool_name: "Edit",
+      tool_input: { file_path: missingPath },
+    });
+    const result = runHook(payload, tempDir);
+    expect(result.status).toBe(0);
+    const lines = fs
+      .readFileSync(path.join(tempDir, ".codex-pair-log.jsonl"), "utf-8")
+      .trim()
+      .split("\n")
+      .map((l) => JSON.parse(l));
+    expect(lines.some((l) => l.level === "warning")).toBe(false);
+    expect(lines[0].verdict).toBe("skipped");
+  });
+
+  it("full frontmatter — maxFileBytes from frontmatter takes precedence over default", () => {
+    fs.writeFileSync(
+      path.join(tempDir, ".codex-pair-context.md"),
+      [
+        "---",
+        "model: gpt-5.5",
+        "fallbackModel: gpt-5.5-mini",
+        "timeoutMs: 800000",
+        "maxFileBytes: 50",
+        "surfaceThreshold: med",
+        "---",
+        "",
+        "# Project context body",
+      ].join("\n"),
+    );
+    const filePath = path.join(tempDir, "src.ts");
+    // 200 bytes — over the 50-byte frontmatter cap, under the default 20KB.
+    fs.writeFileSync(filePath, "x".repeat(200));
+    const payload = JSON.stringify({
+      tool_name: "Edit",
+      tool_input: { file_path: filePath },
+    });
+    const result = runHook(payload, tempDir);
+    expect(result.status).toBe(0);
+    const logEntry = JSON.parse(
+      fs.readFileSync(path.join(tempDir, ".codex-pair-log.jsonl"), "utf-8").trim().split("\n")[0],
+    );
+    expect(logEntry.verdict).toBe("skipped");
+    expect(logEntry.reason).toMatch(/cap:\s*50/);
+  });
+
+  it("malformed frontmatter — opener with no closer — logs warning and falls back to defaults", () => {
+    fs.writeFileSync(
+      path.join(tempDir, ".codex-pair-context.md"),
+      ["---", "model: gpt-5.5", "maxFileBytes: 50", "# no closing delimiter"].join("\n"),
+    );
+    // Use a missing target file path: the hook parses the marker frontmatter
+    // first (triggering the warning), then exits at the unreadable-file early
+    // skip — never reaching the codex call. This isolates the warning code
+    // path without burning real codex time in the test suite.
+    const missingPath = path.join(tempDir, "does-not-exist.ts");
+    const payload = JSON.stringify({
+      tool_name: "Edit",
+      tool_input: { file_path: missingPath },
+    });
+    const result = runHook(payload, tempDir);
+    expect(result.status).toBe(0);
+    const lines = fs
+      .readFileSync(path.join(tempDir, ".codex-pair-log.jsonl"), "utf-8")
+      .trim()
+      .split("\n")
+      .map((l) => JSON.parse(l));
+    // Two log entries expected: warning (from parseFrontmatter) + skipped
+    // (from unreadable target). Their relative order is implementation-detail
+    // — the test just verifies both landed.
+    expect(lines.some((l) => l.level === "warning" && /malformed/i.test(l.reason))).toBe(true);
+    expect(lines.some((l) => l.verdict === "skipped" && /unreadable/i.test(l.reason))).toBe(true);
   });
 });

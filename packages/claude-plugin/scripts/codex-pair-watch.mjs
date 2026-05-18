@@ -46,6 +46,8 @@ const DEFAULT_TIMEOUT_MS = Number(process.env.ASK_CODEX_TIMEOUT_MS ?? 800_000);
 const MAX_FILE_BYTES = Number(process.env.CODEX_PAIR_MAX_FILE_BYTES ?? 20_000);
 const MAX_LOG_BYTES = Number(process.env.CODEX_PAIR_MAX_LOG_BYTES ?? 2_000_000);
 const MAX_LOG_ENTRIES = 1000;
+const VALID_THRESHOLDS = new Set(["high", "med", "low"]);
+const DEFAULT_SURFACE_THRESHOLD = "med";
 const QUOTA_SIGNALS = ["rate_limit_exceeded", "quota_exceeded", "429", "insufficient_quota"];
 
 // Closed verdict set. Every log entry's `verdict` field is one of these
@@ -132,7 +134,14 @@ function formatDuration(durationMs) {
   return `${(durationMs / 1000).toFixed(1)}s`;
 }
 
-function buildVerdictMessage({ filePath, concerns, fellBack, durationMs }) {
+// Build the systemMessage payload. `surfaceThreshold` controls which concern
+// levels are expanded into the message body. ADR-077 default keeps LOW in the
+// log only (threshold = "med"). The only opt-up is surfaceThreshold = "low";
+// the count summary line always includes LOW so the user knows LOWs exist.
+function buildVerdictMessage({ filePath, concerns, fellBack, durationMs, surfaceThreshold }) {
+  const threshold = VALID_THRESHOLDS.has(surfaceThreshold)
+    ? surfaceThreshold
+    : DEFAULT_SURFACE_THRESHOLD;
   const total = concerns.high.length + concerns.med.length + concerns.low.length;
   const flag = fellBack ? " [fallback model]" : "";
   if (total === 0) {
@@ -140,11 +149,98 @@ function buildVerdictMessage({ filePath, concerns, fellBack, durationMs }) {
   }
   const counts = `${concerns.high.length}H / ${concerns.med.length}M / ${concerns.low.length}L`;
   const header = `codex-pair ${VERDICT_PREFIXES.concerns}${flag}: ${filePath} — ${counts} (${formatDuration(durationMs)})`;
-  const details = [
-    ...concerns.high.map((c) => `[HIGH]\n${c}`),
-    ...concerns.med.map((c) => `[MED]\n${c}`),
-  ];
+  const details = [];
+  // HIGH always surfaces.
+  for (const c of concerns.high) details.push(`[HIGH]\n${c}`);
+  // MED surfaces at threshold "med" or "low".
+  if (threshold === "med" || threshold === "low") {
+    for (const c of concerns.med) details.push(`[MED]\n${c}`);
+  }
+  // LOW surfaces only when threshold === "low" (the sanctioned ADR-077 opt-up).
+  if (threshold === "low") {
+    for (const c of concerns.low) details.push(`[LOW]\n${c}`);
+  }
   return details.length > 0 ? `${header}\n\n${details.join("\n\n")}` : header;
+}
+
+// Zero-dependency YAML frontmatter parser. Recognizes an opening `---` on
+// line 1, parses flat key:value lines, stops at the closing `---`. No nested
+// structures, no arrays, no multi-line values. Returns { frontmatter, body,
+// malformed }. `malformed` flips true when an opener exists with no closer —
+// the caller can log a warning and fall through to defaults.
+function parseFrontmatter(content) {
+  if (typeof content !== "string" || content.length === 0) {
+    return { frontmatter: {}, body: "", malformed: false };
+  }
+  const firstNewline = content.indexOf("\n");
+  if (firstNewline === -1) return { frontmatter: {}, body: content, malformed: false };
+  const opener = content.slice(0, firstNewline).replace(/\r$/, "");
+  if (opener !== "---") return { frontmatter: {}, body: content, malformed: false };
+
+  const rest = content.slice(firstNewline + 1);
+  const closerMatch = rest.match(/^---\s*$/m);
+  if (!closerMatch || typeof closerMatch.index !== "number") {
+    return { frontmatter: {}, body: content, malformed: true };
+  }
+
+  const fmText = rest.slice(0, closerMatch.index);
+  let body = rest.slice(closerMatch.index + closerMatch[0].length);
+  if (body.startsWith("\r")) body = body.slice(1);
+  if (body.startsWith("\n")) body = body.slice(1);
+
+  const frontmatter = {};
+  for (const rawLine of fmText.split("\n")) {
+    const line = rawLine.replace(/\r$/, "");
+    const trimmed = line.trim();
+    if (trimmed.length === 0 || trimmed.startsWith("#")) continue;
+    const colon = line.indexOf(":");
+    if (colon === -1) continue;
+    const key = line.slice(0, colon).trim();
+    if (key.length === 0) continue;
+    let valueRaw = line.slice(colon + 1);
+    // Strip inline comment, but only when `#` follows whitespace.
+    const inlineComment = valueRaw.match(/\s+#.*$/);
+    if (inlineComment && typeof inlineComment.index === "number") {
+      valueRaw = valueRaw.slice(0, inlineComment.index);
+    }
+    let value = valueRaw.trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    if (value === "true") frontmatter[key] = true;
+    else if (value === "false") frontmatter[key] = false;
+    else if (/^-?\d+$/.test(value)) frontmatter[key] = Number(value);
+    else if (/^-?\d+\.\d+$/.test(value)) frontmatter[key] = Number(value);
+    else frontmatter[key] = value;
+  }
+  return { frontmatter, body, malformed: false };
+}
+
+// Resolve runtime config per-marker. Precedence: frontmatter > env > default.
+// Invalid types in frontmatter are silently ignored (fall through to env/default).
+function resolveConfig(frontmatter) {
+  const fm = frontmatter ?? {};
+  const surfaceCandidate = typeof fm.surfaceThreshold === "string" ? fm.surfaceThreshold : null;
+  return {
+    model: typeof fm.model === "string" && fm.model.length > 0 ? fm.model : DEFAULT_MODEL,
+    fallbackModel:
+      typeof fm.fallbackModel === "string" && fm.fallbackModel.length > 0
+        ? fm.fallbackModel
+        : FALLBACK_MODEL,
+    timeoutMs:
+      typeof fm.timeoutMs === "number" && fm.timeoutMs > 0 ? fm.timeoutMs : DEFAULT_TIMEOUT_MS,
+    maxFileBytes:
+      typeof fm.maxFileBytes === "number" && fm.maxFileBytes > 0
+        ? fm.maxFileBytes
+        : MAX_FILE_BYTES,
+    surfaceThreshold:
+      surfaceCandidate && VALID_THRESHOLDS.has(surfaceCandidate)
+        ? surfaceCandidate
+        : DEFAULT_SURFACE_THRESHOLD,
+  };
 }
 
 async function findMarkerUp(startDir) {
@@ -396,12 +492,12 @@ function spawnCodex({ prompt, model, timeoutMs }) {
   });
 }
 
-async function runCodexWithFallback({ prompt, timeoutMs }) {
+async function runCodexWithFallback({ prompt, timeoutMs, model, fallbackModel }) {
   try {
-    return { response: await spawnCodex({ prompt, model: DEFAULT_MODEL, timeoutMs }), fellBack: false };
+    return { response: await spawnCodex({ prompt, model, timeoutMs }), fellBack: false };
   } catch (err) {
-    if (isQuotaError(err) && DEFAULT_MODEL !== FALLBACK_MODEL) {
-      const response = await spawnCodex({ prompt, model: FALLBACK_MODEL, timeoutMs });
+    if (isQuotaError(err) && model !== fallbackModel) {
+      const response = await spawnCodex({ prompt, model: fallbackModel, timeoutMs });
       return { response, fellBack: true };
     }
     throw err;
@@ -432,6 +528,33 @@ async function main() {
   const lower = filePath.toLowerCase();
   if (SKIP_PATTERNS.some((p) => lower.includes(p))) process.exit(0);
 
+  // Read + parse the marker file FIRST so config (model/timeout/cap/threshold)
+  // can take effect on the file-size check below. Malformed frontmatter is a
+  // silent fallback to defaults plus a "warning"-level log entry.
+  let projectContext = "";
+  let frontmatter = {};
+  let frontmatterMalformed = false;
+  try {
+    const markerContent = await readFile(markerPath, "utf8");
+    const parsed = parseFrontmatter(markerContent);
+    projectContext = parsed.body;
+    frontmatter = parsed.frontmatter;
+    frontmatterMalformed = parsed.malformed;
+  } catch {
+    // marker unreadable — proceed with empty context and defaults
+  }
+  if (frontmatterMalformed) {
+    await appendLog(markerDir, {
+      timestamp: new Date().toISOString(),
+      tool: toolName,
+      file: filePath,
+      level: "warning",
+      reason:
+        "malformed frontmatter in .codex-pair-context.md — opener `---` with no matching closer; falling back to defaults",
+    });
+  }
+  const config = resolveConfig(frontmatter);
+
   let fileContent;
   try {
     fileContent = await readFile(filePath, "utf8");
@@ -450,25 +573,18 @@ async function main() {
   }
 
   const fileBytes = Buffer.byteLength(fileContent, "utf8");
-  if (fileBytes > MAX_FILE_BYTES) {
+  if (fileBytes > config.maxFileBytes) {
     await appendLog(markerDir, {
       timestamp: new Date().toISOString(),
       tool: toolName,
       file: filePath,
       verdict: "skipped",
-      reason: `file too large: ${fileBytes} bytes (cap: ${MAX_FILE_BYTES})`,
+      reason: `file too large: ${fileBytes} bytes (cap: ${config.maxFileBytes})`,
     });
     await emitSystemMessage(
-      `codex-pair ${VERDICT_PREFIXES.skipped}: ${filePath} — file too large (${fileBytes} bytes, cap ${MAX_FILE_BYTES})`,
+      `codex-pair ${VERDICT_PREFIXES.skipped}: ${filePath} — file too large (${fileBytes} bytes, cap ${config.maxFileBytes})`,
     );
     process.exit(0);
-  }
-
-  let projectContext;
-  try {
-    projectContext = await readFile(markerPath, "utf8");
-  } catch {
-    projectContext = "";
   }
 
   const prompt = buildPrompt({ filePath, fileContent, toolName, projectContext });
@@ -477,7 +593,12 @@ async function main() {
   let response;
   let fellBack = false;
   try {
-    const result = await runCodexWithFallback({ prompt, timeoutMs: DEFAULT_TIMEOUT_MS });
+    const result = await runCodexWithFallback({
+      prompt,
+      timeoutMs: config.timeoutMs,
+      model: config.model,
+      fallbackModel: config.fallbackModel,
+    });
     response = result.response;
     fellBack = result.fellBack;
   } catch (err) {
@@ -522,7 +643,15 @@ async function main() {
     },
   });
 
-  await emitSystemMessage(buildVerdictMessage({ filePath, concerns, fellBack, durationMs }));
+  await emitSystemMessage(
+    buildVerdictMessage({
+      filePath,
+      concerns,
+      fellBack,
+      durationMs,
+      surfaceThreshold: config.surfaceThreshold,
+    }),
+  );
 
   process.exit(0);
 }

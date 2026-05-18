@@ -44,3 +44,9 @@ packages/*/package.json.bak
 
 # npm pack outputs (publish dry-runs leave these behind; never want them tracked)
 *.tgz
+
+# codex-pair hook artifacts — per-developer noise from dogfooding the plugin
+# in this repo. The .codex-pair-context.md marker IS committed (it's the team's
+# shared review rubric), but the log and cache must stay local.
+.codex-pair-log.jsonl
+.codex-pair-cache/

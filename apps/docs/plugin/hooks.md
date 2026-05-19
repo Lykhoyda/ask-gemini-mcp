@@ -35,7 +35,7 @@ The pre-commit hook is hardcoded to use Gemini via the `gemini` CLI directly. To
 
 **Trigger:** After every `Edit`, `Write`, or `MultiEdit` that Claude performs.
 
-**Action:** If — and only if — a marker file named `.codex-pair-context.md` exists somewhere from the current directory up to the project root, a fresh Codex review of the just-edited file is run with the marker's content as project context. **HIGH** and **MED** concerns are surfaced back to Claude on the next turn as system reminders; **LOW** concerns and all timing/skip telemetry are logged to `.codex-pair-log.jsonl` alongside the marker file.
+**Action:** If — and only if — a marker file named `.codex-pair/context.md` exists somewhere from the current directory up to the project root, a fresh Codex review of the just-edited file is run with the marker's content as project context. **HIGH** and **MED** concerns are surfaced back to Claude on the next turn as system reminders; **LOW** concerns and all timing/skip telemetry are logged to `.codex-pair/log.jsonl` alongside the marker file.
 
 > No marker file → the hook exits silently after one `fs.access()` call. **Zero codex calls, zero cost.** This is by design: the hook ships in every plugin install, but does nothing until a project opts in.
 
@@ -46,8 +46,9 @@ The motivation, four-task benchmark, and design rationale are in [ADR-077](https
 Create a marker file at the root of the project where you want continuous review:
 
 ```bash
-cat > .codex-pair-context.md <<'EOF'
-# .codex-pair-context.md
+mkdir -p .codex-pair
+cat > .codex-pair/context.md <<'EOF'
+# .codex-pair/context.md
 
 This is a payment-processing service. All currency calculations must
 use integer cents internally (floating-point loses precision on every
@@ -60,15 +61,13 @@ EOF
 
 The marker file's *presence* is the switch; its *content* is the project context Codex needs to review intelligently. One artifact, two purposes.
 
-**Do NOT commit `.codex-pair-context.md`** — gitignore it alongside the log and cache. Each contributor's review context is their own; one developer iterating on prompt wording shouldn't dirty the shared history. The hook itself is project-policy (it's in the plugin); the marker is per-developer opt-in. Recommended `.gitignore` entries:
+**Do NOT commit the `.codex-pair/` directory** — gitignore it. Each contributor's review context is their own; one developer iterating on prompt wording shouldn't dirty the shared history. The hook itself is project-policy (it's in the plugin); the marker is per-developer opt-in. Per [ADR-092](https://github.com/Lykhoyda/ask-llm/blob/main/docs/DECISIONS.md), every state artifact (marker, log, cache, `ignore` globs, pause sentinel, inflight locks) nests under the single directory — one `.gitignore` line covers everything:
 
 ```gitignore
-.codex-pair-context.md
-.codex-pair-log.jsonl
-.codex-pair-cache/
+.codex-pair/
 ```
 
-For a new contributor joining a project, point them at this docs page to write their own marker — or share a template via a separate (committed) `.codex-pair-context.example.md` they can copy and tweak locally.
+For a new contributor joining a project, point them at this docs page to write their own marker — or share a template via a separate (committed) `.codex-pair.example/context.md` they can copy and tweak locally.
 
 Once present, every `Edit` / `Write` / `MultiEdit` triggers a Codex review of the changed file. HIGH and MED concerns appear to Claude as a system reminder on the next turn, prefixed with `[codex-pair]` and the file path:
 
@@ -96,7 +95,7 @@ integer cents. Use integer minor units such as
 
 | Goal | How |
 |---|---|
-| Permanently for this project | `rm .codex-pair-context.md` |
+| Permanently for this project | `rm -rf .codex-pair/` |
 | Just this Claude Code session | `/plugin disable ask-llm` |
 | Just this command | `CODEX_PAIR_DISABLED=1 <command>` |
 
@@ -120,7 +119,7 @@ For typical opted-in projects (small surface where review depth matters), the co
 
 ### Inspecting log activity: `codex-pair-log` CLI
 
-Shipped alongside the hook at `packages/claude-plugin/scripts/codex-pair-log.mjs`. Walks up from cwd to find the marker (same gate as the hook), then renders the sibling `.codex-pair-log.jsonl`. Useful for "is the hook actually running" diagnostics and for forensic analysis of what's been reviewed.
+Shipped alongside the hook at `packages/claude-plugin/scripts/codex-pair-log.mjs`. Walks up from cwd to find the marker (same gate as the hook), then renders the sibling `.codex-pair/log.jsonl`. Useful for "is the hook actually running" diagnostics and for forensic analysis of what's been reviewed.
 
 ```bash
 # Default: last 10 entries
@@ -150,7 +149,7 @@ Zero workspace imports — runs on a marketplace install with no `node_modules`.
 
 Some Claude Code installations don't auto-invoke plugin-declared PostToolUse hooks even though the plugin is correctly installed and `/reload-plugins` reports the hook count. This appears to be a Claude Code platform issue with the plugin-hook dispatch path — see [issue #74](https://github.com/Lykhoyda/ask-llm/issues/74) for the full diagnostic chain. The hook script itself works perfectly when invoked manually or when registered via a `~/.claude/settings.json` / `.claude/settings.local.json` `hooks` block.
 
-**Quick diagnostic**: edit any file under your marker-anchored project. If `.codex-pair-log.jsonl` mtime doesn't advance within ~60s, you're hitting the dispatch bug.
+**Quick diagnostic**: edit any file under your marker-anchored project. If `.codex-pair/log.jsonl` mtime doesn't advance within ~60s, you're hitting the dispatch bug.
 
 **Workaround**: add a `hooks.PostToolUse` block to your **project-local** `.claude/settings.local.json` (per-developer; gitignored by convention) that invokes the hook script directly, bypassing the plugin-dispatch path. Pick the command form that matches your use case:
 
@@ -206,7 +205,7 @@ The `sort -V | tail -1` picks the highest semver directory under the cache. Sile
 
 ### After either form
 
-Run `/reload-plugins` to pick up the new hook config. The next Edit/Write/MultiEdit should fire the hook automatically (proven by `codex-pair OK:`/`WARN:` systemMessage in the transcript + a new `.codex-pair-log.jsonl` entry — typical wall clock 5-30s per call).
+Run `/reload-plugins` to pick up the new hook config. The next Edit/Write/MultiEdit should fire the hook automatically (proven by `codex-pair OK:`/`WARN:` systemMessage in the transcript + a new `.codex-pair/log.jsonl` entry — typical wall clock 5-30s per call).
 
 Note: this workaround is per-developer (project-local) and gitignored. Once Claude Code's plugin-hook dispatch is fixed upstream, you can remove the `hooks` block and rely on the plugin's own registration again.
 

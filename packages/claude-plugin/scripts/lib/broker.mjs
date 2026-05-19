@@ -24,7 +24,7 @@ export const BROKER_HEALTH_TIMEOUT_MS = 2000;
 export const BROKER_SOCKET_PREFIX = "codex-pair-broker";
 
 // Single source of truth for "is the broker active for this project right
-// now". Reads .codex-pair-state/broker.json and returns the broker descriptor
+// now". Reads .codex-pair/state/broker.json and returns the broker descriptor
 // (transport URL, pid, started_at, codex version) or null if no broker is
 // running. The hook's main flow checks this BEFORE the cache + inflight
 // lock; a live broker bypasses both because the broker itself coordinates
@@ -60,7 +60,7 @@ export function brokerStatePath(markerDir, stateDir) {
 // suspenders defense (but the SessionStart path is the contract).
 // Implementation deferred.
 export function clearStaleBrokerState(_markerDir) {
-  // Read .codex-pair-state/broker.json; if pid is dead OR socket is gone
+  // Read .codex-pair/state/broker.json; if pid is dead OR socket is gone
   // OR codex version doesn't match the recorded one, unlink the state
   // file so the next request falls through to a fresh spawn or a fresh
   // broker launch (per the configured policy).

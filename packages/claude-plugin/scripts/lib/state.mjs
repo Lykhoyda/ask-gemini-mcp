@@ -1,49 +1,68 @@
 // Durable hook state: cache, log, pause sentinel, inflight lock (extracted
 // from codex-pair-watch.mjs per ADR-088, originally ADR-079/082/085/086/087).
 //
-// All filesystem state lives under the marker directory:
-//   .codex-pair-cache/         — content-hash response cache (ADR-082)
-//   .codex-pair-log.jsonl      — durable verdicts log (ADR-079/086)
-//   .codex-pair-state/paused   — pause sentinel (ADR-085)
-//   .codex-pair-state/inflight — per-file lock (ADR-087)
+// ADR-092: all hook state nests under <markerDir>/.codex-pair/:
+//   .codex-pair/context.md         — marker + project context
+//   .codex-pair/log.jsonl          — durable verdicts log
+//   .codex-pair/ignore             — gitignore-style globs (ADR-081)
+//   .codex-pair/cache/             — content-hash response cache (ADR-082)
+//   .codex-pair/state/paused       — pause sentinel (ADR-085)
+//   .codex-pair/state/inflight/    — per-file locks (ADR-087)
 //
-// Atomic-write semantics per ADR-086: cache writes use tmp+rename; log
-// entries are clamped under PIPE_BUF for atomic appendFile O_APPEND.
+// Atomic-write semantics per ADR-086/091: cache writes use tmp+rename;
+// log entries are clamped under PIPE_BUF for atomic appendFile O_APPEND;
+// log rotation uses a PID-scoped tmp; inflight-lock recovery uses an
+// identity-snapshot recheck.
 
 import { appendFile, mkdir, readFile, readdir, rename, stat, unlink, writeFile } from "node:fs/promises";
 import { mkdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { dirname, join } from "node:path";
 
-export const LOG_FILENAME = ".codex-pair-log.jsonl";
+// ADR-092 unified layout — everything lives under PAIR_ROOT_DIR.
+export const PAIR_ROOT_DIR = ".codex-pair";
+export const CONTEXT_FILENAME = "context.md";
+export const IGNORE_FILENAME = "ignore";
+export const LOG_FILENAME = "log.jsonl";
 export const MAX_LOG_BYTES = Number(process.env.CODEX_PAIR_MAX_LOG_BYTES ?? 2_000_000);
 export const MAX_LOG_ENTRIES = 1000;
 export const MAX_LOG_REASON_BYTES = 3500;
 
-export const CACHE_DIR = ".codex-pair-cache";
+export const CACHE_DIR = "cache";
 export const CACHE_TTL_MS = 10 * 60 * 1000;
 export const CACHE_MAX_ENTRIES = 50;
 
-export const PAUSE_STATE_DIR = ".codex-pair-state";
+export const STATE_DIR = "state";
 export const PAUSE_SENTINEL_FILE = "paused";
 
 export const INFLIGHT_DIR = "inflight";
 export const INFLIGHT_TTL_MIN_MS = 600_000;
 
-// ── Pause sentinel (ADR-085) ─────────────────────────────────────────────
+// Path resolvers — single source of truth for every state-file location.
+// The hook never hard-codes these strings; it routes through these helpers.
+export const pairRoot = (markerDir) => join(markerDir, PAIR_ROOT_DIR);
+export const contextPath = (markerDir) => join(pairRoot(markerDir), CONTEXT_FILENAME);
+export const ignorePath = (markerDir) => join(pairRoot(markerDir), IGNORE_FILENAME);
+export const logPath = (markerDir) => join(pairRoot(markerDir), LOG_FILENAME);
+export const cacheRoot = (markerDir) => join(pairRoot(markerDir), CACHE_DIR);
+export const stateRoot = (markerDir) => join(pairRoot(markerDir), STATE_DIR);
+export const pausePath = (markerDir) => join(stateRoot(markerDir), PAUSE_SENTINEL_FILE);
+export const inflightRoot = (markerDir) => join(stateRoot(markerDir), INFLIGHT_DIR);
+
+// ── Pause sentinel (ADR-085, paths consolidated per ADR-092) ─────────────
 export function isPaused(markerDir) {
   try {
-    statSync(join(markerDir, PAUSE_STATE_DIR, PAUSE_SENTINEL_FILE));
+    statSync(pausePath(markerDir));
     return true;
   } catch {
     return false;
   }
 }
 
-// ── Inflight lock (ADR-087) ──────────────────────────────────────────────
+// ── Inflight lock (ADR-087, paths consolidated per ADR-092) ──────────────
 export function inflightLockPath(markerDir, filePath) {
   const hash = createHash("sha256").update(filePath).digest("hex").slice(0, 16);
-  return join(markerDir, PAUSE_STATE_DIR, INFLIGHT_DIR, hash);
+  return join(inflightRoot(markerDir), hash);
 }
 
 export function tryAcquireInflightLock(markerDir, filePath, ttlMs) {
@@ -130,7 +149,7 @@ export function computeCacheKey({ model, prompt, fileContent, surfaceThreshold }
 }
 
 export function cachePathFor(markerDir, cacheKey) {
-  return join(markerDir, CACHE_DIR, cacheKey.slice(0, 2), `${cacheKey.slice(2)}.json`);
+  return join(cacheRoot(markerDir), cacheKey.slice(0, 2), `${cacheKey.slice(2)}.json`);
 }
 
 export async function getCachedConcerns(markerDir, cacheKey) {
@@ -169,18 +188,18 @@ export async function setCachedConcerns(markerDir, cacheKey, value) {
 
 export async function evictCacheOldest(markerDir) {
   try {
-    const cacheRoot = join(markerDir, CACHE_DIR);
+    const root = cacheRoot(markerDir);
     const entries = [];
-    const prefixes = await readdir(cacheRoot);
+    const prefixes = await readdir(root);
     for (const prefix of prefixes) {
       let files;
       try {
-        files = await readdir(join(cacheRoot, prefix));
+        files = await readdir(join(root, prefix));
       } catch {
         continue;
       }
       for (const file of files) {
-        const full = join(cacheRoot, prefix, file);
+        const full = join(root, prefix, file);
         try {
           const s = await stat(full);
           entries.push({ path: full, mtimeMs: s.mtimeMs });
@@ -204,21 +223,20 @@ export async function evictCacheOldest(markerDir) {
   }
 }
 
-// ── Log (ADR-079 rotation + ADR-086 clamp) ────────────────────────────────
-export async function rotateLogIfNeeded(logPath) {
+// ── Log (ADR-079 rotation + ADR-086 clamp + ADR-091 PID-scoped tmp) ──────
+export async function rotateLogIfNeeded(targetLogPath) {
   try {
-    const stats = await stat(logPath);
+    const stats = await stat(targetLogPath);
     if (stats.size <= MAX_LOG_BYTES) return;
-    const content = await readFile(logPath, "utf8");
+    const content = await readFile(targetLogPath, "utf8");
     const lines = content.split("\n").filter((l) => l.length > 0);
     if (lines.length <= MAX_LOG_ENTRIES) return;
     const tail = lines.slice(-MAX_LOG_ENTRIES);
     // PID-scoped tmp prevents concurrent rotations from torn-writing the
-    // same tmp file (multi-review finding). Mirrors setCachedConcerns at
-    // L136. ADR-091 documents the fix.
-    const tmpPath = `${logPath}.tmp.${process.pid}`;
+    // same tmp file (ADR-091).
+    const tmpPath = `${targetLogPath}.tmp.${process.pid}`;
     await writeFile(tmpPath, `${tail.join("\n")}\n`);
-    await rename(tmpPath, logPath);
+    await rename(tmpPath, targetLogPath);
   } catch {
     // intentional no-op — rotation is best-effort
   }
@@ -242,13 +260,21 @@ export function clampReason(reason) {
 }
 
 export async function appendLog(markerDir, entry) {
-  const logPath = join(markerDir, LOG_FILENAME);
+  const target = logPath(markerDir);
+  // Ensure .codex-pair/ exists. The hook's main flow normally migrates
+  // first, so this is a defensive belt — fresh installs hit it once.
+  try {
+    await mkdir(dirname(target), { recursive: true });
+  } catch {
+    // ignore — appendFile will surface the real failure
+  }
   const safe = entry?.reason !== undefined ? { ...entry, reason: clampReason(entry.reason) } : entry;
   try {
-    await appendFile(logPath, `${JSON.stringify(safe)}\n`);
+    await appendFile(target, `${JSON.stringify(safe)}\n`);
   } catch {
     // logging failures must never break Claude's flow
     return;
   }
-  await rotateLogIfNeeded(logPath);
+  await rotateLogIfNeeded(target);
 }
+

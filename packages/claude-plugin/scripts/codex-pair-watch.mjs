@@ -2,8 +2,9 @@
 // codex-pair-watch — production version of the POC hook.
 //
 // PostToolUse hook on Edit|Write|MultiEdit. The hook is always loaded but
-// SELF-GATES on the presence of a `.codex-pair-context.md` marker file
-// somewhere on the path from cwd up to the project root. No marker → exit
+// SELF-GATES on the presence of a `.codex-pair/context.md` marker file
+// somewhere on the path from cwd up to the project root (ADR-092
+// consolidates all hook state under `.codex-pair/`). No marker → exit
 // silently (zero codex calls, zero cost). With marker → file is reviewed
 // per the v2 prompt design (HIGH/MED/LOW grading, surface HIGH+MED, log all).
 //
@@ -45,9 +46,13 @@ import {
 import {
   appendLog,
   computeCacheKey,
+  CONTEXT_FILENAME,
+  contextPath,
   getCachedConcerns,
+  ignorePath,
   INFLIGHT_TTL_MIN_MS,
   isPaused,
+  PAIR_ROOT_DIR,
   releaseInflightLock,
   setCachedConcerns,
   tryAcquireInflightLock,
@@ -68,7 +73,10 @@ try {
   // intentional fallback to inline defaults
 }
 
-const MARKER_FILE = ".codex-pair-context.md";
+// ADR-092: marker is the consolidated `.codex-pair/context.md` path. The
+// hook walks up looking for this nested file (presence enables review,
+// content is the project context sent to codex).
+const MARKER_FILE = join(PAIR_ROOT_DIR, CONTEXT_FILENAME);
 const WATCHED_TOOLS = new Set(["Edit", "Write", "MultiEdit"]);
 const DEFAULT_MODEL = process.env.ASK_CODEX_MODEL ?? CODEX_PAIR_DEFAULTS.model;
 const FALLBACK_MODEL = process.env.ASK_CODEX_FALLBACK_MODEL ?? CODEX_PAIR_DEFAULTS.fallbackModel;
@@ -319,7 +327,7 @@ async function buildAdaptiveContext({ filePath, fileContent, markerDir, maxFileB
 // isPaused, inflightLockPath, tryAcquireInflightLock, releaseInflightLock
 // all live in ./lib/state.mjs.
 
-// Read `.codex-pair-ignore` from the marker directory if present. Returns an
+// Read `.codex-pair/ignore` from the marker directory if present. Returns an
 // array of rule objects in declaration order. Missing file / read error →
 // empty array. Comments (`#` lines) and blank lines are filtered out. Each
 // rule carries `{ negate, pattern, raw }`. Per-project, single file — no
@@ -327,7 +335,7 @@ async function buildAdaptiveContext({ filePath, fileContent, markerDir, maxFileB
 function readIgnoreFile(markerDir) {
   let content;
   try {
-    content = readFileSync(join(markerDir, ".codex-pair-ignore"), "utf8");
+    content = readFileSync(ignorePath(markerDir), "utf8");
   } catch {
     return [];
   }
@@ -430,6 +438,9 @@ function resolveConfig(frontmatter) {
   };
 }
 
+// Walks up from `startDir` looking for `<dir>/.codex-pair/context.md`.
+// Returns the PROJECT ROOT (the directory that holds `.codex-pair/`) or
+// null when nothing is found within 20 levels or once we hit $HOME.
 async function findMarkerUp(startDir) {
   const home = homedir();
   let current = resolve(startDir);
@@ -437,7 +448,7 @@ async function findMarkerUp(startDir) {
     const candidate = join(current, MARKER_FILE);
     try {
       await access(candidate);
-      return candidate;
+      return current;
     } catch {
       // not found at this level
     }
@@ -683,9 +694,8 @@ async function main() {
   // See issue #65. Also hoisted to module scope so the catch handler can
   // log unhandled exceptions to the correct repo without re-parsing stdin.
   markerAnchor = dirname(filePath);
-  const markerPath = await findMarkerUp(markerAnchor);
-  if (!markerPath) process.exit(0);
-  const markerDir = dirname(markerPath);
+  const markerDir = await findMarkerUp(markerAnchor);
+  if (!markerDir) process.exit(0);
 
   if (isPaused(markerDir)) {
     await appendLog(markerDir, {
@@ -693,7 +703,7 @@ async function main() {
       tool: toolName,
       file: filePath,
       verdict: "skipped",
-      reason: "paused via /codex-pair-pause (rm .codex-pair-state/paused to resume)",
+      reason: "paused via /codex-pair-pause (rm .codex-pair/state/paused to resume)",
     });
     process.exit(0);
   }
@@ -701,7 +711,7 @@ async function main() {
   const lower = filePath.toLowerCase();
   if (SKIP_PATTERNS.some((p) => lower.includes(p))) process.exit(0);
 
-  // .codex-pair-ignore — granular per-project opt-out via gitignore-style
+  // .codex-pair/ignore — granular per-project opt-out via gitignore-style
   // globs. Match → silent log skip with the matching pattern, NO
   // systemMessage (preserves silent-gating UX for opted-out files).
   const ignoreRules = readIgnoreFile(markerDir);
@@ -712,7 +722,7 @@ async function main() {
       tool: toolName,
       file: filePath,
       verdict: "skipped",
-      reason: `matched .codex-pair-ignore: ${ignoreMatch.raw}`,
+      reason: `matched .codex-pair/ignore: ${ignoreMatch.raw}`,
     });
     process.exit(0);
   }
@@ -724,7 +734,7 @@ async function main() {
   let frontmatter = {};
   let frontmatterMalformed = false;
   try {
-    const markerContent = await readFile(markerPath, "utf8");
+    const markerContent = await readFile(contextPath(markerDir), "utf8");
     const parsed = parseFrontmatter(markerContent);
     projectContext = parsed.body;
     frontmatter = parsed.frontmatter;
@@ -739,7 +749,7 @@ async function main() {
       file: filePath,
       level: "warning",
       reason:
-        "malformed frontmatter in .codex-pair-context.md — opener `---` with no matching closer; falling back to defaults",
+        "malformed frontmatter in .codex-pair/context.md — opener `---` with no matching closer; falling back to defaults",
     });
   }
   const config = resolveConfig(frontmatter);
@@ -943,9 +953,9 @@ main().catch(async (err) => {
     // unknown. Multi-review on PR #76 flagged the prior cwd-only path as a
     // residual cross-repo gap; this hoist closes it.
     const anchor = markerAnchor ?? process.cwd();
-    const markerPath = await findMarkerUp(anchor);
-    if (markerPath) {
-      await appendLog(dirname(markerPath), {
+    const markerDir = await findMarkerUp(anchor);
+    if (markerDir) {
+      await appendLog(markerDir, {
         timestamp: new Date().toISOString(),
         verdict: "error",
         reason: `unhandled: ${err?.message ?? String(err)}`,

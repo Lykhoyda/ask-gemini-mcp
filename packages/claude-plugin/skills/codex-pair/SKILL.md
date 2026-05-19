@@ -1,12 +1,12 @@
 ---
 name: codex-pair
-description: Continuous background Codex review on every file edit. Recall-first complement to /codex-review (which is precision-first). Opt-in per project via a `.codex-pair-context.md` marker file. Use when handling money, security-sensitive code, or implementing a written spec — domains where /codex-review's precision filter would suppress real concerns.
+description: Continuous background Codex review on every file edit. Recall-first complement to /codex-review (which is precision-first). Opt-in per project via a `.codex-pair/context.md` marker file. Use when handling money, security-sensitive code, or implementing a written spec — domains where /codex-review's precision filter would suppress real concerns.
 user_invocable: false
 ---
 
 # Codex pair mode — recall-first background review
 
-A PostToolUse hook that runs Codex against every file edit in opted-in projects. Surfaces HIGH and MED concerns to Claude on the next turn; logs everything to `.codex-pair-log.jsonl`. **Empirically catches a different class of bug than `/codex-review`** — see ADR-077 for the precision-vs-recall data.
+A PostToolUse hook that runs Codex against every file edit in opted-in projects. Surfaces HIGH and MED concerns to Claude on the next turn; logs everything to `.codex-pair/log.jsonl`. **Empirically catches a different class of bug than `/codex-review`** — see ADR-077 for the precision-vs-recall data.
 
 This is NOT a slash command you invoke. It's a hook that runs automatically when its gate condition is met.
 
@@ -24,10 +24,10 @@ The empirical finding from the 4-task benchmark: `/codex-review`'s "confidence �
 
 ## How to enable it
 
-**Per-project opt-in.** Create a file named `.codex-pair-context.md` in your project root with project context for the reviewer:
+**Per-project opt-in.** Create a file named `.codex-pair/context.md` in your project root with project context for the reviewer:
 
 ```markdown
-# .codex-pair-context.md
+# .codex-pair/context.md
 
 This is a payment-processing service. All currency calculations must use
 integer cents internally (floating-point loses precision on every charge).
@@ -41,28 +41,25 @@ The hook is always loaded by the plugin, but **self-gates on this file's presenc
 
 The marker file's *presence* is the switch; its *content* is the context codex needs to review intelligently. One artifact, two purposes.
 
-**Do NOT commit `.codex-pair-context.md`** — gitignore it alongside the log and cache. The marker is per-developer opt-in: each contributor's review context is their own (model preference, severity threshold, project rules they care about). One developer iterating on prompt wording shouldn't dirty the shared history. The hook itself IS project policy (it ships in the plugin); the marker is the per-developer activation switch. Recommended `.gitignore` entries:
+**Do NOT commit the `.codex-pair/` directory** — gitignore it. The marker is per-developer opt-in: each contributor's review context is their own (model preference, severity threshold, project rules they care about). One developer iterating on prompt wording shouldn't dirty the shared history. The hook itself IS project policy (it ships in the plugin); the marker is the per-developer activation switch. Per [ADR-092](../../../../docs/DECISIONS.md), every state artifact (marker, log, cache, ignore globs, pause sentinel, inflight locks) nests under the single directory, so one `.gitignore` line covers everything — including any future state files added later:
 
 ```
-.codex-pair-context.md
-.codex-pair-log.jsonl
-.codex-pair-cache/
-.codex-pair-state/
+.codex-pair/
 ```
 
-To onboard a new contributor, point them at this skill (or `apps/docs/plugin/hooks.md`) to write their own marker — or share a template via a separate (committed) `.codex-pair-context.example.md` they can copy and tweak locally.
+To onboard a new contributor, point them at this skill (or `apps/docs/plugin/hooks.md`) to write their own marker — or share a template via a separate (committed) `.codex-pair.example/context.md` they can copy and tweak locally.
 
 ## How to pause or disable
 
 | Goal | How |
 |---|---|
 | Temporarily for this project (keep marker, keep project context) | `/codex-pair-pause` (resume with `/codex-pair-resume`) |
-| Per-file/per-directory | Add patterns to `.codex-pair-ignore` (gitignore-style globs) |
-| Permanently for this project | `rm .codex-pair-context.md` |
+| Per-file/per-directory | Add patterns to `.codex-pair/ignore` (gitignore-style globs) |
+| Permanently for this project | `rm -rf .codex-pair/` |
 | Just this session | `/plugin disable ask-llm` |
 | Just this command | `CODEX_PAIR_DISABLED=1 <whatever command>` |
 
-`/codex-pair-pause` writes a `.codex-pair-state/paused` sentinel that the hook checks on every Edit/Write/MultiEdit; while present, the hook exits silently with a `verdict:"skipped"` log entry naming the pause. `/codex-pair-resume` removes the sentinel. The pause is per-project and per-developer — keep `.codex-pair-state/` in `.gitignore` alongside the marker, log, and cache.
+`/codex-pair-pause` writes a `.codex-pair/state/paused` sentinel that the hook checks on every Edit/Write/MultiEdit; while present, the hook exits silently with a `verdict:"skipped"` log entry naming the pause. `/codex-pair-resume` removes the sentinel. The pause is per-project and per-developer — the single `.codex-pair/` gitignore entry already covers the sentinel (and every other state file) per [ADR-092](../../../../docs/DECISIONS.md).
 
 ## Behavior when active
 
@@ -72,7 +69,7 @@ Claude edits src/billing/charge.ts
         ▼
   PostToolUse hook fires
         │
-        ├─ Walk up from cwd looking for .codex-pair-context.md
+        ├─ Walk up from cwd looking for .codex-pair/context.md
         │
         ├─ NOT FOUND → exit silently (no codex call, no log)
         │
@@ -82,7 +79,7 @@ Claude edits src/billing/charge.ts
                    ▼
                    Surface HIGH+MED to stderr (Claude reads next turn)
                    ▼
-                   Log every call to .codex-pair-log.jsonl (incl. NONE verdicts)
+                   Log every call to .codex-pair/log.jsonl (incl. NONE verdicts)
 ```
 
 ## Cost characteristics
@@ -97,7 +94,7 @@ For the typical opted-in project (small surface where review depth matters), thi
 
 ## Output format
 
-When codex surfaces concerns to Claude, they appear as system reminders on the next turn, prefixed with `[codex-pair]` and the file path. The full per-call log (including PASS verdicts and timing) is in `.codex-pair-log.jsonl` at the same directory as the marker file.
+When codex surfaces concerns to Claude, they appear as system reminders on the next turn, prefixed with `[codex-pair]` and the file path. The full per-call log (including PASS verdicts and timing) is in `.codex-pair/log.jsonl` alongside the marker.
 
 Example concern surface:
 

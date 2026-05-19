@@ -34,7 +34,7 @@ claude mcp add --scope user ollama -- npx -y ask-ollama-mcp
 | `/multi-review` | Parallel Gemini + Codex review with 4-phase validation pipeline and consensus highlighting |
 | `/gemini-review` | Gemini-only code review with confidence filtering |
 | `/codex-review` | Codex-only code review (precision-first, ≥80 confidence — default for routine PR review) |
-| `/codex-pair` | **Recall-first** continuous review via PostToolUse hook — opt-in per project via `.codex-pair-context.md` marker file. Complement to `/codex-review` for money/security/spec-implementing code (see [ADR-077](../../docs/DECISIONS.md)) |
+| `/codex-pair` | **Recall-first** continuous review via PostToolUse hook — opt-in per project via `.codex-pair/context.md` marker file. Complement to `/codex-review` for money/security/spec-implementing code (see [ADR-077](../../docs/DECISIONS.md), layout per [ADR-092](../../docs/DECISIONS.md)) |
 | `/ollama-review` | Local review — no data leaves your machine |
 | `/brainstorm` | Multi-LLM brainstorm with Claude Opus as a first-class research participant (default external: gemini,codex) |
 | `/brainstorm-all` | Brainstorm with all three external providers + Claude Opus research |
@@ -54,7 +54,7 @@ claude mcp add --scope user ollama -- npx -y ask-ollama-mcp
 | Hook | Trigger | Action |
 |------|---------|--------|
 | PreToolUse | Before `git commit` | Reviews staged changes via Gemini, warns about critical issues |
-| PostToolUse | After Edit/Write/MultiEdit | Runs codex-pair review IF `.codex-pair-context.md` marker file is present in the project (opt-in, ADR-077) |
+| PostToolUse | After Edit/Write/MultiEdit | Runs codex-pair review IF `.codex-pair/context.md` marker file is present in the project (opt-in, ADR-077; layout per ADR-092) |
 
 ## Enabling codex-pair mode
 
@@ -63,8 +63,9 @@ The `codex-pair` hook is loaded by default but **self-gates on a marker file**. 
 To enable for a project:
 
 ```bash
-cat > .codex-pair-context.md <<'EOF'
-# .codex-pair-context.md
+mkdir -p .codex-pair
+cat > .codex-pair/context.md <<'EOF'
+# .codex-pair/context.md
 
 This is a payment-processing service. Currency must use integer cents
 (floats lose precision on every charge). Concurrent requests are real.
@@ -75,13 +76,13 @@ reviewer should know.]
 EOF
 ```
 
-Once present, every Edit/Write/MultiEdit triggers a Codex review of the file with the marker's content as project context. HIGH and MED concerns appear to Claude as system reminders on the next turn; LOW concerns are logged to `.codex-pair-log.jsonl` but suppressed from surfacing.
+Once present, every Edit/Write/MultiEdit triggers a Codex review of the file with the marker's content as project context. HIGH and MED concerns appear to Claude as system reminders on the next turn; LOW concerns are logged to `.codex-pair/log.jsonl` but suppressed from surfacing.
 
 To disable:
 
 | Goal | Mechanism |
 |---|---|
-| Permanently for this project | `rm .codex-pair-context.md` |
+| Permanently for this project | `rm -rf .codex-pair/` |
 | Just this session | `/plugin disable ask-llm` |
 | Just this command | `CODEX_PAIR_DISABLED=1 <command>` |
 

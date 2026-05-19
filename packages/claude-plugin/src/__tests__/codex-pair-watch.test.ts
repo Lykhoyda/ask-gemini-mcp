@@ -1622,6 +1622,98 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
     expect(envelope.length).toBeLessThan(4096);
   });
 
+  // ADR-087: per-file inflight lock for debounce/coalesce.
+  //
+  // Cache miss reached → hook acquires .codex-pair-state/inflight/<pathHash>
+  // exclusively. Another hook firing for the same file while the lock is
+  // held exits silently with verdict:"skipped" reason: "coalesced ...".
+  // Stale-recovery via mtime: a lock older than the TTL gets taken over
+  // (covers crashed/SIGKILLed prior owners).
+
+  it("ADR-087: hook source defines inflight-lock surfaces (constants + helpers + main integration)", () => {
+    const scriptText = fs.readFileSync(path.join(PLUGIN_ROOT, "scripts", "codex-pair-watch.mjs"), "utf-8");
+    expect(scriptText).toMatch(/const INFLIGHT_DIR\s*=\s*"inflight"/);
+    expect(scriptText).toMatch(/const INFLIGHT_TTL_MIN_MS\s*=\s*600_000/);
+    expect(scriptText).toMatch(/function inflightLockPath\(markerDir,\s*filePath\)/);
+    expect(scriptText).toMatch(/function tryAcquireInflightLock\(markerDir,\s*filePath,\s*ttlMs\)/);
+    expect(scriptText).toMatch(/function releaseInflightLock\(lockPath\)/);
+    // Exclusive create
+    expect(scriptText).toMatch(/writeFileSync\(lockPath,\s*String\(process\.pid\),\s*\{\s*flag:\s*"wx"\s*\}\)/);
+    // main() integration + cleanup hook
+    expect(scriptText).toMatch(/tryAcquireInflightLock\(markerDir,\s*filePath,\s*inflightTtlMs\)/);
+    expect(scriptText).toMatch(/process\.on\("exit",\s*\(\)\s*=>\s*releaseInflightLock\(acquiredLockPath\)\)/);
+  });
+
+  it("ADR-087: pre-existing inflight lock makes the hook coalesce (verdict:skipped reason 'coalesced')", () => {
+    fs.writeFileSync(path.join(tempDir, ".codex-pair-context.md"), "# test context");
+    const filePath = path.join(tempDir, "src.ts");
+    fs.writeFileSync(filePath, "export const x = 1;");
+    // Pre-create the inflight lock with a fresh mtime so the hook sees it as
+    // in-flight. The hash slice matches the helper: sha256(filePath).slice(0,16).
+    const crypto = require("node:crypto") as typeof import("node:crypto");
+    const lockHash = crypto.createHash("sha256").update(filePath).digest("hex").slice(0, 16);
+    const inflightDir = path.join(tempDir, ".codex-pair-state", "inflight");
+    fs.mkdirSync(inflightDir, { recursive: true });
+    const lockPath = path.join(inflightDir, lockHash);
+    fs.writeFileSync(lockPath, "999999"); // fake PID
+    const payload = JSON.stringify({
+      tool_name: "Edit",
+      tool_input: { file_path: filePath },
+    });
+    const result = runHook(payload, tempDir, {
+      PATH: path.dirname(process.execPath),
+    });
+    expect(result.status).toBe(0);
+    const logPath = path.join(tempDir, ".codex-pair-log.jsonl");
+    expect(fs.existsSync(logPath)).toBe(true);
+    const lines = fs
+      .readFileSync(logPath, "utf-8")
+      .trim()
+      .split("\n")
+      .map((l) => JSON.parse(l));
+    const coalesced = lines.find((l) => l.verdict === "skipped" && /coalesced/.test(l.reason ?? ""));
+    expect(coalesced).toBeTruthy();
+    expect(coalesced.reason).toMatch(/in-flight/);
+    // Lock still exists — the coalesced hook MUST NOT release another hook's lock.
+    expect(fs.existsSync(lockPath)).toBe(true);
+  });
+
+  it("ADR-087: stale inflight lock (mtime > TTL) is taken over instead of coalescing", () => {
+    fs.writeFileSync(path.join(tempDir, ".codex-pair-context.md"), "# test context");
+    const filePath = path.join(tempDir, "src.ts");
+    fs.writeFileSync(filePath, "export const x = 1;");
+    // Pre-create an inflight lock with mtime far in the past so it counts
+    // as stale regardless of which TTL the hook chose.
+    const crypto = require("node:crypto") as typeof import("node:crypto");
+    const lockHash = crypto.createHash("sha256").update(filePath).digest("hex").slice(0, 16);
+    const inflightDir = path.join(tempDir, ".codex-pair-state", "inflight");
+    fs.mkdirSync(inflightDir, { recursive: true });
+    const lockPath = path.join(inflightDir, lockHash);
+    fs.writeFileSync(lockPath, "999998");
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    fs.utimesSync(lockPath, twoHoursAgo, twoHoursAgo);
+    const payload = JSON.stringify({
+      tool_name: "Edit",
+      tool_input: { file_path: filePath },
+    });
+    // PATH-isolate codex so the hook fails fast after lock acquisition.
+    // We assert the hook got PAST the inflight check (no "coalesced" log
+    // entry) — meaning the stale lock was recovered.
+    const result = runHook(payload, tempDir, {
+      PATH: path.dirname(process.execPath),
+    });
+    expect(result.status).toBe(0);
+    const logPath = path.join(tempDir, ".codex-pair-log.jsonl");
+    expect(fs.existsSync(logPath)).toBe(true);
+    const lines = fs
+      .readFileSync(logPath, "utf-8")
+      .trim()
+      .split("\n")
+      .map((l) => JSON.parse(l));
+    const coalesced = lines.find((l) => l.verdict === "skipped" && /coalesced/.test(l.reason ?? ""));
+    expect(coalesced).toBeUndefined();
+  });
+
   it("ADR-083: prompt requests strict JSON shape (no [HIGH]/[MED]/[LOW] labels prescribed)", () => {
     // Verify the prompt template asks for JSON, not the legacy label format.
     // The legacy format may still appear in the parser as a safety net, but

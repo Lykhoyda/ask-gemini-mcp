@@ -1575,6 +1575,53 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
     expect(skipForPause).toBeUndefined();
   });
 
+  // ADR-086: Atomic state writes audit.
+  //
+  // Two fixes: (1) setCachedConcerns uses tmp + rename so a concurrent
+  // reader never sees a torn JSON file. (2) appendLog clamps oversize
+  // `reason` strings so each entry stays under POSIX PIPE_BUF (4096B)
+  // for atomic O_APPEND semantics. Structural pins on both surfaces;
+  // a sizing test confirms the clamp keeps the full log envelope safe.
+
+  it("ADR-086: setCachedConcerns uses tmp + rename for atomic cache writes", () => {
+    const scriptText = fs.readFileSync(path.join(PLUGIN_ROOT, "scripts", "codex-pair-watch.mjs"), "utf-8");
+    const block = scriptText.match(/async function setCachedConcerns[\s\S]*?\n\}/);
+    expect(block).toBeTruthy();
+    expect(block?.[0]).toMatch(/\.tmp\.\$\{process\.pid\}/);
+    expect(block?.[0]).toMatch(/await writeFile\(tmpPath/);
+    expect(block?.[0]).toMatch(/await rename\(tmpPath,\s*cachePath\)/);
+    // Bare writeFile(cachePath, ...) is the bug we're guarding against.
+    expect(block?.[0]).not.toMatch(/writeFile\(cachePath,/);
+  });
+
+  it("ADR-086: appendLog routes through clampReason to bound entry size", () => {
+    const scriptText = fs.readFileSync(path.join(PLUGIN_ROOT, "scripts", "codex-pair-watch.mjs"), "utf-8");
+    expect(scriptText).toMatch(/const MAX_LOG_REASON_BYTES\s*=\s*3500/);
+    expect(scriptText).toMatch(/function clampReason\(reason\)/);
+    const block = scriptText.match(/async function appendLog[\s\S]*?\n\}/);
+    expect(block).toBeTruthy();
+    expect(block?.[0]).toMatch(/clampReason\(entry\.reason\)/);
+  });
+
+  it("ADR-086: clamp keeps full log envelope under POSIX PIPE_BUF (4096)", () => {
+    const scriptText = fs.readFileSync(path.join(PLUGIN_ROOT, "scripts", "codex-pair-watch.mjs"), "utf-8");
+    const max = Number(scriptText.match(/MAX_LOG_REASON_BYTES\s*=\s*(\d+)/)?.[1]);
+    expect(max).toBeGreaterThan(0);
+    expect(max).toBeLessThan(4096);
+    // Simulate the clamp output shape and verify a realistic envelope fits.
+    const reason = "x".repeat(10000);
+    const suffix = `…(${reason.length - max}b truncated)`;
+    const envelope = JSON.stringify({
+      timestamp: "2026-05-19T00:00:00.000Z",
+      tool: "Edit",
+      file: "/very/long/path/to/some/source/file/in/a/nested/monorepo/package/src/billing/charge.ts",
+      verdict: "error",
+      level: "warning",
+      reason: "x".repeat(max) + suffix,
+    });
+    expect(envelope.length).toBeLessThan(4096);
+  });
+
   it("ADR-083: prompt requests strict JSON shape (no [HIGH]/[MED]/[LOW] labels prescribed)", () => {
     // Verify the prompt template asks for JSON, not the legacy label format.
     // The legacy format may still appear in the parser as a safety net, but

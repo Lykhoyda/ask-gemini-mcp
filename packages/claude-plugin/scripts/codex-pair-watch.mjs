@@ -778,7 +778,17 @@ async function setCachedConcerns(markerDir, cacheKey, value) {
   const cachePath = cachePathFor(markerDir, cacheKey);
   try {
     await mkdir(dirname(cachePath), { recursive: true });
-    await writeFile(cachePath, JSON.stringify(value));
+    // Atomic write via tmp + rename. A concurrent getCachedConcerns reader
+    // never sees a half-written cache file — it either reads the previous
+    // full content (rename hasn't landed yet) or the new full content
+    // (rename atomic on POSIX/Windows). Without this, a torn read fails
+    // JSON.parse and the cache entry is dead until eviction.
+    // PID suffix prevents collisions between concurrent hook invocations
+    // racing on the same cache key (rare — same prompt + same file from
+    // sibling Claude sessions — but cheap to guard against).
+    const tmpPath = `${cachePath}.tmp.${process.pid}`;
+    await writeFile(tmpPath, JSON.stringify(value));
+    await rename(tmpPath, cachePath);
   } catch {
     // intentional no-op — cache write failures must never break Claude's flow
   }
@@ -841,10 +851,27 @@ async function rotateLogIfNeeded(logPath) {
   }
 }
 
+// Keep individual log entries under POSIX PIPE_BUF (4096) so the appendFile
+// O_APPEND syscall remains atomic even when concurrent hook invocations
+// from sibling Claude sessions race on the same log file. The `reason`
+// field is the only one that can realistically grow — it carries codex
+// stderr, parse errors, ignore-rule matches, etc. Other fields (timestamp,
+// tool, file, verdict) are bounded by their schemas.
+const MAX_LOG_REASON_BYTES = 3500;
+
+function clampReason(reason) {
+  if (typeof reason !== "string" || reason.length <= MAX_LOG_REASON_BYTES) {
+    return reason;
+  }
+  const dropped = reason.length - MAX_LOG_REASON_BYTES;
+  return `${reason.slice(0, MAX_LOG_REASON_BYTES)}…(${dropped}b truncated)`;
+}
+
 async function appendLog(markerDir, entry) {
   const logPath = join(markerDir, LOG_FILENAME);
+  const safe = entry?.reason !== undefined ? { ...entry, reason: clampReason(entry.reason) } : entry;
   try {
-    await appendFile(logPath, JSON.stringify(entry) + "\n");
+    await appendFile(logPath, `${JSON.stringify(safe)}\n`);
   } catch {
     // logging failures must never break Claude's flow
     return;

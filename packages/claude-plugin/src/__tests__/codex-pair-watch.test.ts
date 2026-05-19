@@ -1323,6 +1323,37 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
     expect(content).toMatch(/FAKE_CODEX_SCENARIO/);
   });
 
+  // ADR-092 containment invariant. Every artifact the hook produces (log,
+  // cache, inflight lock, pause sentinel, broker descriptor) must live under
+  // `<markerDir>/.codex-pair/`. Earlier intermediate dev states have leaked
+  // `log.jsonl` and `cache/` into the repo root because a code path bypassed
+  // the state.mjs resolvers; this test exercises the full hook pipeline with
+  // the fake-codex fixture and asserts nothing escapes the directory.
+  it("ADR-092 containment: hook writes only under <markerDir>/.codex-pair/, never to cwd or markerDir top-level", () => {
+    setupMarker(tempDir, "# ctx");
+    const filePath = path.join(tempDir, "src.ts");
+    fs.writeFileSync(filePath, "export const x = 1;");
+    const payload = JSON.stringify({
+      tool_name: "Edit",
+      tool_input: { file_path: filePath },
+    });
+    const result = runHookWithFakeCodex(payload, tempDir, "concerns-labeled");
+    expect(result.status).toBe(0);
+    // Top-level invariant: only the source file we created + `.codex-pair/`.
+    // No `log.jsonl`, no `cache/`, no `state/`, no `ignore` at top level.
+    const top = fs.readdirSync(tempDir).sort();
+    expect(top).toEqual([".codex-pair", "src.ts"]);
+    // Sanity: legitimate artifacts ARE under .codex-pair/ (proves the hook
+    // actually ran, not that it crashed silently before any write).
+    const pairContents = fs.readdirSync(path.join(tempDir, ".codex-pair"));
+    expect(pairContents).toContain("context.md");
+    expect(pairContents).toContain("log.jsonl");
+    // Cache shard appears for any review that produced concerns. Use
+    // existsSync rather than toContain because the directory is what we
+    // care about, not specific shard names.
+    expect(fs.existsSync(path.join(tempDir, ".codex-pair", "cache"))).toBe(true);
+  });
+
   it("fake-codex 'none' scenario → verdict:none + OK systemMessage + log entry", () => {
     setupMarker(tempDir, "# ctx");
     const filePath = path.join(tempDir, "src.ts");

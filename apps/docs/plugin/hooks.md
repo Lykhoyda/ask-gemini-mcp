@@ -69,6 +69,7 @@ charge). Concurrent requests are real. URL inputs are untrusted.
 [Add domain invariants Codex can't infer from one file. Examples —
  Security: "all routes check user.role".
  Specs: "protocol XYZ must be followed".
+ State: "cart syncs to localStorage on every mutation".
  Concurrency: "this handler must be idempotent under retry".]
 EOF
 ```

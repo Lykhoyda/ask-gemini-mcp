@@ -1851,4 +1851,67 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
       /Don't try to be polite or balanced — your job is to surface what's actually wrong or risky\.\n\n## Output format/,
     );
   });
+
+  // ADR-090: app-server broker. Interface defined; implementation deferred
+  // to Tier 3. Today the broker is a no-op stub; the hook falls through to
+  // the existing per-edit spawn path. These tests pin the contract.
+
+  it("ADR-090: broker module exports the documented interface", async () => {
+    const broker = await import("../../scripts/lib/broker.mjs");
+    expect(typeof broker.readBrokerState).toBe("function");
+    expect(typeof broker.isBrokerEnabled).toBe("function");
+    expect(typeof broker.brokerStatePath).toBe("function");
+    expect(typeof broker.clearStaleBrokerState).toBe("function");
+    expect(typeof broker.probeBrokerHealth).toBe("function");
+    expect(typeof broker.submitReview).toBe("function");
+    expect(broker.BROKER_STATE_FILE).toBe("broker.json");
+    expect(broker.BROKER_HEALTH_TIMEOUT_MS).toBe(2000);
+    expect(broker.BROKER_SOCKET_PREFIX).toBe("codex-pair-broker");
+  });
+
+  it("ADR-090: isBrokerEnabled is gated on ASK_CODEX_BROKER env (stub returns false)", async () => {
+    const { isBrokerEnabled } = await import("../../scripts/lib/broker.mjs");
+    const original = process.env.ASK_CODEX_BROKER;
+    try {
+      process.env.ASK_CODEX_BROKER = "1";
+      // Stub returns false regardless until the implementation lands
+      expect(isBrokerEnabled("/anything")).toBe(false);
+      process.env.ASK_CODEX_BROKER = "";
+      expect(isBrokerEnabled("/anything")).toBe(false);
+    } finally {
+      if (original === undefined) process.env.ASK_CODEX_BROKER = undefined;
+      else process.env.ASK_CODEX_BROKER = original;
+    }
+  });
+
+  it("ADR-090: brokerStatePath composes <markerDir>/<stateDir>/broker.json", async () => {
+    const { brokerStatePath, BROKER_STATE_FILE } = await import("../../scripts/lib/broker.mjs");
+    const p = brokerStatePath("/project", ".codex-pair-state");
+    expect(p).toMatch(/\.codex-pair-state[\\/]broker\.json$/);
+    expect(p).toContain(BROKER_STATE_FILE);
+  });
+
+  it("ADR-090: submitReview throws until implementation lands (explicit-failure stub)", async () => {
+    const { submitReview } = await import("../../scripts/lib/broker.mjs");
+    await expect(submitReview({}, "prompt", {})).rejects.toThrow(/not implemented yet/);
+  });
+
+  it("ADR-090: hooks.json registers SessionStart and SessionEnd dispatchers", () => {
+    const hooksJson = JSON.parse(fs.readFileSync(path.join(PLUGIN_ROOT, "hooks", "hooks.json"), "utf-8"));
+    expect(hooksJson.hooks.SessionStart).toBeDefined();
+    expect(hooksJson.hooks.SessionEnd).toBeDefined();
+    expect(hooksJson.hooks.SessionStart[0].hooks[0].command).toMatch(/codex-pair-session\.mjs/);
+    expect(hooksJson.hooks.SessionEnd[0].hooks[0].command).toMatch(/codex-pair-session\.mjs/);
+  });
+
+  it("ADR-090: SessionStart hook exits 0 silently when ASK_CODEX_BROKER unset", () => {
+    const sessionScript = path.join(PLUGIN_ROOT, "scripts", "codex-pair-session.mjs");
+    const result = require("node:child_process").spawnSync("node", [sessionScript], {
+      input: JSON.stringify({ hook_event_name: "SessionStart" }),
+      env: { ...process.env, ASK_CODEX_BROKER: undefined },
+      encoding: "utf-8",
+    });
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+  });
 });

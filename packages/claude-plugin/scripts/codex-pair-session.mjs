@@ -4,11 +4,12 @@
 // hook protocol), inspects the event type, and exits 0 silently.
 //
 // When the broker implementation lands (Tier 3 follow-on):
-//   - SessionStart: walk up from cwd to find .codex-pair-context.md.
+//   - SessionStart: walk up from cwd to find .codex-pair/context.md.
 //     If found, spawn `codex app-server --listen <transport>` and write
-//     the descriptor to .codex-pair-state/broker.json (atomic via
-//     tmp+rename, per ADR-086).
-//   - SessionEnd: read .codex-pair-state/broker.json. If a broker is
+//     the descriptor to .codex-pair/state/broker.json (atomic via
+//     tmp+rename, per ADR-086). Path resolution routes through
+//     lib/state.mjs so the layout stays consistent with ADR-092.
+//   - SessionEnd: read .codex-pair/state/broker.json. If a broker is
 //     recorded, send it a graceful shutdown request, wait briefly, then
 //     terminateProcessTree on the pid. Unlink the state file and the
 //     transport socket.

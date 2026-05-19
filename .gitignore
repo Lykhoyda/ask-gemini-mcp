@@ -46,14 +46,12 @@ packages/*/package.json.bak
 *.tgz
 
 # codex-pair hook artifacts — fully per-developer. Each contributor opts into
-# codex-pair locally by creating their own `.codex-pair-context.md` with the
+# codex-pair locally by creating their own `.codex-pair/context.md` with the
 # project context (model, threshold, project-specific review guidance) that
-# matches their workflow. The marker, log, and cache all stay out of git so
-# nobody's local review preferences contaminate the shared history.
-.codex-pair-context.md
-.codex-pair-log.jsonl
-.codex-pair-cache/
-.codex-pair-state/
+# matches their workflow. Per ADR-092, the marker, log, cache, and pause/
+# inflight state all nest under `.codex-pair/` so a single line covers
+# every artifact and future state files don't leak into commits.
+.codex-pair/
 
 # git worktrees — per-developer isolated working copies created via
 # `git worktree add .worktrees/<branch>`. The skill that creates these

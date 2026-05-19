@@ -131,8 +131,9 @@ Unlike the skills above, `codex-pair` isn't something you invoke. It's a **conti
 **Quick enable:**
 
 ```bash
-cat > .codex-pair-context.md <<'EOF'
-# .codex-pair-context.md
+mkdir -p .codex-pair
+cat > .codex-pair/context.md <<'EOF'
+# .codex-pair/context.md
 
 This is a payment-processing service. Currency must use integer cents.
 Concurrent requests are real. URL inputs are untrusted.
@@ -141,7 +142,7 @@ Concurrent requests are real. URL inputs are untrusted.
 EOF
 ```
 
-Once the marker exists at the project root, every file edit triggers a Codex review with the marker's content as project context. `rm .codex-pair-context.md` to disable.
+Once the marker exists at the project root, every file edit triggers a Codex review with the marker's content as project context. `rm -rf .codex-pair/` to disable.
 
 **How it differs from `/codex-review`** (see [ADR-077](https://github.com/Lykhoyda/ask-llm/blob/main/docs/DECISIONS.md) for the four-task benchmark):
 

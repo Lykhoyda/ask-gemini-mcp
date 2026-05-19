@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-// codex-pair-log — standalone CLI viewer for the .codex-pair-log.jsonl
-// written by the codex-pair PostToolUse hook. Walks up from cwd to find the
-// .codex-pair-context.md marker (same gate as the hook itself), then reads
-// and renders the sibling log file.
+// codex-pair-log — standalone CLI viewer for .codex-pair/log.jsonl written
+// by the codex-pair PostToolUse hook. Walks up from cwd to find the
+// .codex-pair/context.md marker (same gate as the hook), then reads and
+// renders the sibling log file.
 //
 // Subcommands:
 //   --latest [N]      Show last N entries (default 10). DEFAULT subcommand.
@@ -12,15 +12,18 @@
 //
 // Zero workspace imports — distributed via marketplace `git-subdir` install,
 // no node_modules at runtime. Same constraint as codex-pair-watch.mjs (ADR-078).
+// Path constants come from the sibling lib/state.mjs so the layout stays
+// consistent with the hook (ADR-092).
 
 import { readFileSync } from "node:fs";
 import { access } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
+import { CONTEXT_FILENAME, logPath as resolveLogPath, PAIR_ROOT_DIR } from "./lib/state.mjs";
 
-const MARKER_FILE = ".codex-pair-context.md";
-const LOG_FILENAME = ".codex-pair-log.jsonl";
+const MARKER_FILE = join(PAIR_ROOT_DIR, CONTEXT_FILENAME);
 
+// Returns the project ROOT (the directory holding `.codex-pair/`) or null.
 async function findMarkerUp(startDir) {
   const home = homedir();
   let current = resolve(startDir);
@@ -28,7 +31,7 @@ async function findMarkerUp(startDir) {
     const candidate = join(current, MARKER_FILE);
     try {
       await access(candidate);
-      return candidate;
+      return current;
     } catch {
       // not found here
     }
@@ -214,7 +217,7 @@ function showSummary(entries) {
 function showHelp() {
   process.stdout.write(
     [
-      "codex-pair-log — view the .codex-pair-log.jsonl written by the codex-pair hook",
+      "codex-pair-log — view .codex-pair/log.jsonl written by the codex-pair hook",
       "",
       "Usage: codex-pair-log [SUBCOMMAND] [--since DURATION]",
       "",
@@ -235,14 +238,14 @@ async function main() {
     showHelp();
     return;
   }
-  const markerPath = await findMarkerUp(process.cwd());
-  if (!markerPath) {
+  const markerDir = await findMarkerUp(process.cwd());
+  if (!markerDir) {
     process.stderr.write(
-      `codex-pair-log: no .codex-pair-context.md marker found in cwd or parents\n`,
+      `codex-pair-log: no .codex-pair/context.md marker found in cwd or parents\n`,
     );
     process.exit(1);
   }
-  const logPath = join(dirname(markerPath), LOG_FILENAME);
+  const logPath = resolveLogPath(markerDir);
   let entries = loadEntries(logPath);
   if (entries.length === 0) {
     process.stdout.write(`codex-pair-log: no entries in ${logPath}\n`);

@@ -59,8 +59,12 @@ describe("scripts/codex-pair-watch.mjs — structural invariants (ADR-077)", () 
     expect(script).toMatch(/ASK_CODEX_TIMEOUT_MS/);
   });
 
-  it("declares the marker filename .codex-pair-context.md", () => {
-    expect(script).toMatch(/\.codex-pair-context\.md/);
+  it("declares the marker filename .codex-pair/context.md (ADR-092)", () => {
+    // ADR-092 consolidated layout — hook builds the marker path from
+    // PAIR_ROOT_DIR + CONTEXT_FILENAME imported from lib/state.mjs.
+    expect(script).toMatch(/MARKER_FILE\s*=\s*join\(PAIR_ROOT_DIR,\s*CONTEXT_FILENAME\)/);
+    expect(libState).toMatch(/PAIR_ROOT_DIR\s*=\s*"\.codex-pair"/);
+    expect(libState).toMatch(/CONTEXT_FILENAME\s*=\s*"context\.md"/);
   });
 
   it("self-gates: walks up from edited file's directory looking for the marker (issue #65)", () => {
@@ -313,12 +317,12 @@ describe("scripts/codex-pair-watch.mjs — structural invariants (ADR-077)", () 
     expect(body).toMatch(/SIGTERM/);
   });
 
-  // Phase 2 item #7: .codex-pair-ignore granular opt-out
+  // Phase 2 item #7: .codex-pair/ignore granular opt-out
   it("readIgnoreFile + matchesIgnoreRule + globToRegex helpers exist", () => {
     expect(script).toMatch(/function readIgnoreFile/);
     expect(script).toMatch(/function globToRegex/);
     expect(script).toMatch(/function matchesIgnoreRule/);
-    expect(script).toMatch(/\.codex-pair-ignore/);
+    expect(script).toMatch(/\.codex-pair\/ignore/);
   });
 
   it("ignore file parser handles `#` comments and `!` negation", () => {
@@ -360,8 +364,8 @@ describe("scripts/codex-pair-watch.mjs — structural invariants (ADR-077)", () 
   });
 
   // Phase 3 item #8: content-hash cache (now in lib/state.mjs per ADR-088).
-  it("declares cache config (.codex-pair-cache dir, 10min TTL, 50-entry cap)", () => {
-    expect(libState).toMatch(/CACHE_DIR\s*=\s*["']\.codex-pair-cache["']/);
+  it("declares cache config (.codex-pair/cache dir, 10min TTL, 50-entry cap)", () => {
+    expect(libState).toMatch(/CACHE_DIR\s*=\s*["']cache["']/);
     expect(libState).toMatch(/CACHE_TTL_MS\s*=\s*10\s*\*\s*60\s*\*\s*1000/);
     expect(libState).toMatch(/CACHE_MAX_ENTRIES\s*=\s*50/);
   });
@@ -387,7 +391,7 @@ describe("scripts/codex-pair-watch.mjs — structural invariants (ADR-077)", () 
     const { cachePathFor } = await import("../../scripts/lib/state.mjs");
     const cacheKey = "abcdef0123456789".padEnd(64, "0");
     const p = cachePathFor("/marker", cacheKey);
-    expect(p).toMatch(/\.codex-pair-cache[\\/]ab[\\/]cdef0123456789/);
+    expect(p).toMatch(/\.codex-pair[\\/]cache[\\/]ab[\\/]cdef0123456789/);
   });
 
   it("getCachedConcerns enforces mtime-based TTL", () => {
@@ -532,7 +536,7 @@ describe("scripts/codex-pair-watch.mjs — structural invariants (ADR-077)", () 
     // ignore-match block does NOT include a systemMessage call.
     const ignoreBlock = script.match(/if\s*\(\s*ignoreMatch[\s\S]*?process\.exit/);
     expect(ignoreBlock).toBeTruthy();
-    expect(ignoreBlock?.[0]).toMatch(/matched \.codex-pair-ignore/);
+    expect(ignoreBlock?.[0]).toMatch(/matched \.codex-pair\/ignore/);
     expect(ignoreBlock?.[0]).not.toMatch(/emitSystemMessage/);
   });
 
@@ -672,8 +676,8 @@ describe("scripts/codex-pair-watch.mjs — structural invariants (ADR-077)", () 
     expect(script).not.toMatch(/process\.stderr\.write/);
   });
 
-  it("logs every call to .codex-pair-log.jsonl (ADR-088: helper in lib/state.mjs)", () => {
-    expect(libState).toMatch(/codex-pair-log\.jsonl/);
+  it("logs every call to .codex-pair/log.jsonl (ADR-088/092: helper in lib/state.mjs)", () => {
+    expect(libState).toMatch(/LOG_FILENAME\s*=\s*"log\.jsonl"/);
     expect(libState).toMatch(/export async function appendLog/);
     expect(script).toMatch(/appendLog/); // hook calls the imported helper
   });
@@ -738,6 +742,13 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
     });
   }
 
+  // ADR-092 consolidated marker: `.codex-pair/context.md`. The directory must
+  // exist before the file write — single helper to keep test bodies tight.
+  function setupMarker(dir: string, content = "# test context") {
+    fs.mkdirSync(path.join(dir, ".codex-pair"), { recursive: true });
+    fs.writeFileSync(path.join(dir, ".codex-pair/context.md"), content);
+  }
+
   it("exits 0 on malformed JSON (must not throw)", () => {
     const result = runHook("not valid json", tempDir);
     expect(result.status).toBe(0);
@@ -770,11 +781,11 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
     // No stdout either — gating path must not pollute Claude Code with notices
     expect(result.stdout).toBe("");
     // No log file should be created without the marker — zero-cost no-op
-    expect(fs.existsSync(path.join(tempDir, ".codex-pair-log.jsonl"))).toBe(false);
+    expect(fs.existsSync(path.join(tempDir, ".codex-pair/log.jsonl"))).toBe(false);
   });
 
   it("exits 0 silently when CODEX_PAIR_DISABLED=1 even if marker present", () => {
-    fs.writeFileSync(path.join(tempDir, ".codex-pair-context.md"), "# test context");
+    setupMarker(tempDir);
     const filePath = path.join(tempDir, "src.ts");
     fs.writeFileSync(filePath, "export const x = 1;");
     const payload = JSON.stringify({
@@ -784,11 +795,11 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
     const result = runHook(payload, tempDir, { CODEX_PAIR_DISABLED: "1" });
     expect(result.status).toBe(0);
     // Kill switch beats marker — no codex invocation occurred
-    expect(fs.existsSync(path.join(tempDir, ".codex-pair-log.jsonl"))).toBe(false);
+    expect(fs.existsSync(path.join(tempDir, ".codex-pair/log.jsonl"))).toBe(false);
   });
 
   it("skips files in node_modules / dist / .git without firing codex", () => {
-    fs.writeFileSync(path.join(tempDir, ".codex-pair-context.md"), "# test context");
+    setupMarker(tempDir);
     const skipPath = path.join(tempDir, "node_modules", "x", "index.js");
     fs.mkdirSync(path.dirname(skipPath), { recursive: true });
     fs.writeFileSync(skipPath, "exports.x = 1;");
@@ -804,7 +815,7 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
   });
 
   it("logs and exits 0 when target file is unreadable (graceful failure)", () => {
-    fs.writeFileSync(path.join(tempDir, ".codex-pair-context.md"), "# test context");
+    setupMarker(tempDir);
     const missingPath = path.join(tempDir, "does-not-exist.ts");
     const payload = JSON.stringify({
       tool_name: "Edit",
@@ -813,7 +824,7 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
     const result = runHook(payload, tempDir);
     expect(result.status).toBe(0);
     // Log entry should record the skip reason
-    const logPath = path.join(tempDir, ".codex-pair-log.jsonl");
+    const logPath = path.join(tempDir, ".codex-pair/log.jsonl");
     expect(fs.existsSync(logPath)).toBe(true);
     const logEntry = JSON.parse(fs.readFileSync(logPath, "utf-8").trim());
     expect(logEntry.verdict).toBe("skipped");
@@ -828,7 +839,7 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
   });
 
   it("processes a file containing literal triple-backticks without breaking the gate", () => {
-    fs.writeFileSync(path.join(tempDir, ".codex-pair-context.md"), "# test context");
+    setupMarker(tempDir);
     const filePath = path.join(tempDir, "evil.ts");
     const malicious = [
       "// Begin payload",
@@ -854,7 +865,7 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
     // with cwd=otherDir (no marker on otherDir's walk). Old behavior: marker
     // not found, silent exit, log goes nowhere. New behavior: marker found
     // via dirname(filePath), log lands at tempDir.
-    fs.writeFileSync(path.join(tempDir, ".codex-pair-context.md"), "# ctx");
+    setupMarker(tempDir, "# ctx");
     const editedDir = path.join(tempDir, "src", "deep", "nested");
     fs.mkdirSync(editedDir, { recursive: true });
     const missingPath = path.join(editedDir, "does-not-exist.ts");
@@ -868,10 +879,10 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
       const result = runHook(payload, otherDir);
       expect(result.status).toBe(0);
       // Log MUST land at tempDir (where the marker is), NOT at otherDir.
-      expect(fs.existsSync(path.join(tempDir, ".codex-pair-log.jsonl"))).toBe(true);
-      expect(fs.existsSync(path.join(otherDir, ".codex-pair-log.jsonl"))).toBe(false);
+      expect(fs.existsSync(path.join(tempDir, ".codex-pair/log.jsonl"))).toBe(true);
+      expect(fs.existsSync(path.join(otherDir, ".codex-pair/log.jsonl"))).toBe(false);
       const logEntry = JSON.parse(
-        fs.readFileSync(path.join(tempDir, ".codex-pair-log.jsonl"), "utf-8").trim().split("\n")[0],
+        fs.readFileSync(path.join(tempDir, ".codex-pair/log.jsonl"), "utf-8").trim().split("\n")[0],
       );
       expect(logEntry.verdict).toBe("skipped");
       expect(logEntry.reason).toMatch(/unreadable/i);
@@ -882,7 +893,7 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
 
   it("finds marker file in parent directory (walks up from cwd)", () => {
     // Marker at project root; cwd is a deeper subdirectory
-    fs.writeFileSync(path.join(tempDir, ".codex-pair-context.md"), "# test context");
+    setupMarker(tempDir);
     const subdir = path.join(tempDir, "src", "billing");
     fs.mkdirSync(subdir, { recursive: true });
     const missingPath = path.join(subdir, "does-not-exist.ts");
@@ -894,14 +905,14 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
     const result = runHook(payload, subdir);
     expect(result.status).toBe(0);
     // Log should land alongside the marker (at tempDir), not at the subdir
-    const expectedLogPath = path.join(tempDir, ".codex-pair-log.jsonl");
+    const expectedLogPath = path.join(tempDir, ".codex-pair/log.jsonl");
     expect(fs.existsSync(expectedLogPath)).toBe(true);
   });
 
   // Phase 1 item #1 — runtime: log rotation triggers when the file exceeds the cap.
   it("rotates the log when size exceeds CODEX_PAIR_MAX_LOG_BYTES", () => {
-    fs.writeFileSync(path.join(tempDir, ".codex-pair-context.md"), "# test context");
-    const logPath = path.join(tempDir, ".codex-pair-log.jsonl");
+    setupMarker(tempDir);
+    const logPath = path.join(tempDir, ".codex-pair/log.jsonl");
     // Seed the log with 1500 fake entries (well above the 1000-entry cap).
     const fakeEntries: string[] = [];
     for (let i = 0; i < 1500; i++) {
@@ -953,7 +964,7 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
 
   // Phase 1 item #2 — runtime: structured verdict appears in both log + systemMessage.
   it("structured verdict appears in log AND in systemMessage prefix", () => {
-    fs.writeFileSync(path.join(tempDir, ".codex-pair-context.md"), "# test context");
+    setupMarker(tempDir);
     const missingPath = path.join(tempDir, "does-not-exist.ts");
     const payload = JSON.stringify({
       tool_name: "Edit",
@@ -962,7 +973,7 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
     const result = runHook(payload, tempDir);
     expect(result.status).toBe(0);
 
-    const logEntry = JSON.parse(fs.readFileSync(path.join(tempDir, ".codex-pair-log.jsonl"), "utf-8").trim());
+    const logEntry = JSON.parse(fs.readFileSync(path.join(tempDir, ".codex-pair/log.jsonl"), "utf-8").trim());
     expect(logEntry.verdict).toBe("skipped");
 
     const hookOutput = JSON.parse(result.stdout.trim());
@@ -972,7 +983,7 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
 
   // Phase 2 item #5 — runtime: frontmatter parsing + config resolution
   it("no frontmatter — current behavior unchanged (no warning entry)", () => {
-    fs.writeFileSync(path.join(tempDir, ".codex-pair-context.md"), "# Some plain context\n\nThis is not frontmatter.");
+    setupMarker(tempDir, "# Some plain context\n\nThis is not frontmatter.");
     const missingPath = path.join(tempDir, "does-not-exist.ts");
     const payload = JSON.stringify({
       tool_name: "Edit",
@@ -981,7 +992,7 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
     const result = runHook(payload, tempDir);
     expect(result.status).toBe(0);
     const lines = fs
-      .readFileSync(path.join(tempDir, ".codex-pair-log.jsonl"), "utf-8")
+      .readFileSync(path.join(tempDir, ".codex-pair/log.jsonl"), "utf-8")
       .trim()
       .split("\n")
       .map((l) => JSON.parse(l));
@@ -990,8 +1001,8 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
   });
 
   it("full frontmatter — maxFileBytes from frontmatter is honored by adaptive-context path", () => {
-    fs.writeFileSync(
-      path.join(tempDir, ".codex-pair-context.md"),
+    setupMarker(
+      tempDir,
       [
         "---",
         "model: gpt-5.5",
@@ -1022,7 +1033,7 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
     const result = runHook(payload, tempDir, { PATH: isolatedPath });
     expect(result.status).toBe(0);
     const lines = fs
-      .readFileSync(path.join(tempDir, ".codex-pair-log.jsonl"), "utf-8")
+      .readFileSync(path.join(tempDir, ".codex-pair/log.jsonl"), "utf-8")
       .trim()
       .split("\n")
       .map((l) => JSON.parse(l));
@@ -1032,10 +1043,10 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
     expect(lines.some((l) => l.level === "info" && /over-cap/i.test(l.reason) && /50/.test(l.reason))).toBe(true);
   });
 
-  // Phase 2 item #7 — runtime: .codex-pair-ignore matching
+  // Phase 2 item #7 — runtime: .codex-pair/ignore matching
   it("ignore-file: extension glob matches, hook exits silently with log entry", () => {
-    fs.writeFileSync(path.join(tempDir, ".codex-pair-context.md"), "# ctx");
-    fs.writeFileSync(path.join(tempDir, ".codex-pair-ignore"), "*.test.ts\n");
+    setupMarker(tempDir, "# ctx");
+    fs.writeFileSync(path.join(tempDir, ".codex-pair/ignore"), "*.test.ts\n");
     const filePath = path.join(tempDir, "foo.test.ts");
     fs.writeFileSync(filePath, "test stuff");
     const payload = JSON.stringify({
@@ -1048,17 +1059,17 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
     expect(result.stdout).toBe("");
     // BUT log entry recording the skip
     const lines = fs
-      .readFileSync(path.join(tempDir, ".codex-pair-log.jsonl"), "utf-8")
+      .readFileSync(path.join(tempDir, ".codex-pair/log.jsonl"), "utf-8")
       .trim()
       .split("\n")
       .map((l) => JSON.parse(l));
     expect(lines[0].verdict).toBe("skipped");
-    expect(lines[0].reason).toMatch(/matched \.codex-pair-ignore: \*\.test\.ts/);
+    expect(lines[0].reason).toMatch(/matched \.codex-pair\/ignore: \*\.test\.ts/);
   });
 
   it("ignore-file: directory glob (trailing /) excludes everything under it", () => {
-    fs.writeFileSync(path.join(tempDir, ".codex-pair-context.md"), "# ctx");
-    fs.writeFileSync(path.join(tempDir, ".codex-pair-ignore"), "experiments/\n");
+    setupMarker(tempDir, "# ctx");
+    fs.writeFileSync(path.join(tempDir, ".codex-pair/ignore"), "experiments/\n");
     const dir = path.join(tempDir, "experiments");
     fs.mkdirSync(dir, { recursive: true });
     const filePath = path.join(dir, "scratch.ts");
@@ -1071,7 +1082,7 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
     expect(result.status).toBe(0);
     expect(result.stdout).toBe("");
     const lines = fs
-      .readFileSync(path.join(tempDir, ".codex-pair-log.jsonl"), "utf-8")
+      .readFileSync(path.join(tempDir, ".codex-pair/log.jsonl"), "utf-8")
       .trim()
       .split("\n")
       .map((l) => JSON.parse(l));
@@ -1079,8 +1090,8 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
   });
 
   it("ignore-file: `!` negation re-includes a file the broader rule would exclude", () => {
-    fs.writeFileSync(path.join(tempDir, ".codex-pair-context.md"), "# ctx");
-    fs.writeFileSync(path.join(tempDir, ".codex-pair-ignore"), "experiments/\n!experiments/important.ts\n");
+    setupMarker(tempDir, "# ctx");
+    fs.writeFileSync(path.join(tempDir, ".codex-pair/ignore"), "experiments/\n!experiments/important.ts\n");
     const dir = path.join(tempDir, "experiments");
     fs.mkdirSync(dir, { recursive: true });
     const filePath = path.join(dir, "important.ts");
@@ -1090,27 +1101,27 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
       tool_input: { file_path: filePath },
     });
     // PATH-isolated so spawn fails fast (we only care that the hook did NOT
-    // exit at the ignore-check, i.e. no "skipped: matched .codex-pair-ignore"
+    // exit at the ignore-check, i.e. no "skipped: matched .codex-pair/ignore"
     // entry should be present).
     const isolatedPath = path.dirname(process.execPath);
     const result = runHook(payload, tempDir, { PATH: isolatedPath });
     expect(result.status).toBe(0);
     const lines = fs
-      .readFileSync(path.join(tempDir, ".codex-pair-log.jsonl"), "utf-8")
+      .readFileSync(path.join(tempDir, ".codex-pair/log.jsonl"), "utf-8")
       .trim()
       .split("\n")
       .map((l) => JSON.parse(l));
     // Negation: file should NOT be excluded by the ignore rules. The
     // skipped-by-ignore path must not appear; the hook proceeded past
     // ignore-check and into the actual review (which fails on spawn).
-    expect(lines.some((l) => l.verdict === "skipped" && /matched \.codex-pair-ignore/.test(l.reason ?? ""))).toBe(
+    expect(lines.some((l) => l.verdict === "skipped" && /matched \.codex-pair\/ignore/.test(l.reason ?? ""))).toBe(
       false,
     );
   });
 
   it("ignore-file: missing file is harmless (no-op pass-through)", () => {
-    fs.writeFileSync(path.join(tempDir, ".codex-pair-context.md"), "# ctx");
-    // No .codex-pair-ignore created.
+    setupMarker(tempDir, "# ctx");
+    // No .codex-pair/ignore created.
     const missingPath = path.join(tempDir, "does-not-exist.ts");
     const payload = JSON.stringify({
       tool_name: "Edit",
@@ -1119,20 +1130,20 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
     const result = runHook(payload, tempDir);
     expect(result.status).toBe(0);
     const lines = fs
-      .readFileSync(path.join(tempDir, ".codex-pair-log.jsonl"), "utf-8")
+      .readFileSync(path.join(tempDir, ".codex-pair/log.jsonl"), "utf-8")
       .trim()
       .split("\n")
       .map((l) => JSON.parse(l));
     // No ignore-related skip — the skip is from the unreadable target file.
-    expect(lines.some((l) => /matched \.codex-pair-ignore/.test(l.reason ?? ""))).toBe(false);
+    expect(lines.some((l) => /matched \.codex-pair\/ignore/.test(l.reason ?? ""))).toBe(false);
     expect(lines[0].verdict).toBe("skipped");
     expect(lines[0].reason).toMatch(/unreadable/);
   });
 
   // Phase 3 item #9 — runtime: log viewer CLI subcommands
   it("codex-pair-log CLI: --latest prints last N entries from the log", () => {
-    fs.writeFileSync(path.join(tempDir, ".codex-pair-context.md"), "# ctx");
-    const logPath = path.join(tempDir, ".codex-pair-log.jsonl");
+    setupMarker(tempDir, "# ctx");
+    const logPath = path.join(tempDir, ".codex-pair/log.jsonl");
     const entries: string[] = [];
     for (let i = 0; i < 12; i++) {
       entries.push(
@@ -1164,8 +1175,8 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
   });
 
   it("codex-pair-log CLI: --summary aggregates verdict counts and file stats", () => {
-    fs.writeFileSync(path.join(tempDir, ".codex-pair-context.md"), "# ctx");
-    const logPath = path.join(tempDir, ".codex-pair-log.jsonl");
+    setupMarker(tempDir, "# ctx");
+    const logPath = path.join(tempDir, ".codex-pair/log.jsonl");
     const entries = [
       { verdict: "none", file: "a.ts", durationMs: 5000 },
       { verdict: "none", file: "a.ts", durationMs: 6000 },
@@ -1192,8 +1203,8 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
   });
 
   it("codex-pair-log CLI: --file filters entries by file path", () => {
-    fs.writeFileSync(path.join(tempDir, ".codex-pair-context.md"), "# ctx");
-    const logPath = path.join(tempDir, ".codex-pair-log.jsonl");
+    setupMarker(tempDir, "# ctx");
+    const logPath = path.join(tempDir, ".codex-pair/log.jsonl");
     const entries = [
       { file: "src/foo.ts", verdict: "none", durationMs: 1000 },
       { file: "src/bar.ts", verdict: "none", durationMs: 1000 },
@@ -1225,12 +1236,12 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
       timeout: 5000,
     });
     expect(result.status).toBe(1);
-    expect(result.stderr).toMatch(/no \.codex-pair-context\.md/);
+    expect(result.stderr).toMatch(/no \.codex-pair\/context\.md/);
   });
 
   // Phase 2 item #6 — runtime: adaptive context uses head+tail when git unavailable.
   it("adaptive context — untracked file (no git repo) takes head+tail strategy", () => {
-    fs.writeFileSync(path.join(tempDir, ".codex-pair-context.md"), ["---", "maxFileBytes: 100", "---"].join("\n"));
+    setupMarker(tempDir, ["---", "maxFileBytes: 100", "---"].join("\n"));
     const filePath = path.join(tempDir, "src.ts");
     // 300+ lines of content, well over 100-byte cap; tempDir has no .git.
     const lines: string[] = [];
@@ -1248,7 +1259,7 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
     const result = runHook(payload, tempDir, { PATH: isolatedPath });
     expect(result.status).toBe(0);
     const logLines = fs
-      .readFileSync(path.join(tempDir, ".codex-pair-log.jsonl"), "utf-8")
+      .readFileSync(path.join(tempDir, ".codex-pair/log.jsonl"), "utf-8")
       .trim()
       .split("\n")
       .map((l) => JSON.parse(l));
@@ -1260,10 +1271,7 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
   });
 
   it("malformed frontmatter — opener with no closer — logs warning and falls back to defaults", () => {
-    fs.writeFileSync(
-      path.join(tempDir, ".codex-pair-context.md"),
-      ["---", "model: gpt-5.5", "maxFileBytes: 50", "# no closing delimiter"].join("\n"),
-    );
+    setupMarker(tempDir, ["---", "model: gpt-5.5", "maxFileBytes: 50", "# no closing delimiter"].join("\n"));
     // Use a missing target file path: the hook parses the marker frontmatter
     // first (triggering the warning), then exits at the unreadable-file early
     // skip — never reaching the codex call. This isolates the warning code
@@ -1276,7 +1284,7 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
     const result = runHook(payload, tempDir);
     expect(result.status).toBe(0);
     const lines = fs
-      .readFileSync(path.join(tempDir, ".codex-pair-log.jsonl"), "utf-8")
+      .readFileSync(path.join(tempDir, ".codex-pair/log.jsonl"), "utf-8")
       .trim()
       .split("\n")
       .map((l) => JSON.parse(l));
@@ -1316,7 +1324,7 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
   });
 
   it("fake-codex 'none' scenario → verdict:none + OK systemMessage + log entry", () => {
-    fs.writeFileSync(path.join(tempDir, ".codex-pair-context.md"), "# ctx");
+    setupMarker(tempDir, "# ctx");
     const filePath = path.join(tempDir, "src.ts");
     fs.writeFileSync(filePath, "export const x = 1;");
     const payload = JSON.stringify({
@@ -1326,7 +1334,7 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
     const result = runHookWithFakeCodex(payload, tempDir, "none");
     expect(result.status).toBe(0);
     const lines = fs
-      .readFileSync(path.join(tempDir, ".codex-pair-log.jsonl"), "utf-8")
+      .readFileSync(path.join(tempDir, ".codex-pair/log.jsonl"), "utf-8")
       .trim()
       .split("\n")
       .map((l) => JSON.parse(l));
@@ -1339,7 +1347,7 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
   });
 
   it("fake-codex 'concerns-labeled' scenario → verdict:concerns with HIGH/MED/LOW counts", () => {
-    fs.writeFileSync(path.join(tempDir, ".codex-pair-context.md"), "# ctx");
+    setupMarker(tempDir, "# ctx");
     const filePath = path.join(tempDir, "src.ts");
     fs.writeFileSync(filePath, "export const x = 1;");
     const payload = JSON.stringify({
@@ -1349,7 +1357,7 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
     const result = runHookWithFakeCodex(payload, tempDir, "concerns-labeled");
     expect(result.status).toBe(0);
     const lines = fs
-      .readFileSync(path.join(tempDir, ".codex-pair-log.jsonl"), "utf-8")
+      .readFileSync(path.join(tempDir, ".codex-pair/log.jsonl"), "utf-8")
       .trim()
       .split("\n")
       .map((l) => JSON.parse(l));
@@ -1367,7 +1375,7 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
   });
 
   it("fake-codex 'error-event' scenario → verdict:parse_failed (no agent_message in JSONL)", () => {
-    fs.writeFileSync(path.join(tempDir, ".codex-pair-context.md"), "# ctx");
+    setupMarker(tempDir, "# ctx");
     const filePath = path.join(tempDir, "src.ts");
     fs.writeFileSync(filePath, "export const x = 1;");
     const payload = JSON.stringify({
@@ -1377,7 +1385,7 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
     const result = runHookWithFakeCodex(payload, tempDir, "error-event");
     expect(result.status).toBe(0);
     const lines = fs
-      .readFileSync(path.join(tempDir, ".codex-pair-log.jsonl"), "utf-8")
+      .readFileSync(path.join(tempDir, ".codex-pair/log.jsonl"), "utf-8")
       .trim()
       .split("\n")
       .map((l) => JSON.parse(l));
@@ -1388,7 +1396,7 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
   });
 
   it("fake-codex 'exit-nonzero' scenario → verdict:error", () => {
-    fs.writeFileSync(path.join(tempDir, ".codex-pair-context.md"), "# ctx");
+    setupMarker(tempDir, "# ctx");
     const filePath = path.join(tempDir, "src.ts");
     fs.writeFileSync(filePath, "export const x = 1;");
     const payload = JSON.stringify({
@@ -1398,7 +1406,7 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
     const result = runHookWithFakeCodex(payload, tempDir, "exit-nonzero");
     expect(result.status).toBe(0);
     const lines = fs
-      .readFileSync(path.join(tempDir, ".codex-pair-log.jsonl"), "utf-8")
+      .readFileSync(path.join(tempDir, ".codex-pair/log.jsonl"), "utf-8")
       .trim()
       .split("\n")
       .map((l) => JSON.parse(l));
@@ -1410,7 +1418,7 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
   });
 
   it("fake-codex 'quota' scenario → falls back to FALLBACK_MODEL, log captures fellBack:true", () => {
-    fs.writeFileSync(path.join(tempDir, ".codex-pair-context.md"), "# ctx");
+    setupMarker(tempDir, "# ctx");
     const filePath = path.join(tempDir, "src.ts");
     fs.writeFileSync(filePath, "export const x = 1;");
     const payload = JSON.stringify({
@@ -1423,7 +1431,7 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
     const result = runHookWithFakeCodex(payload, tempDir, "quota");
     expect(result.status).toBe(0);
     const lines = fs
-      .readFileSync(path.join(tempDir, ".codex-pair-log.jsonl"), "utf-8")
+      .readFileSync(path.join(tempDir, ".codex-pair/log.jsonl"), "utf-8")
       .trim()
       .split("\n")
       .map((l) => JSON.parse(l));
@@ -1437,7 +1445,7 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
   // emits the new shape; the hook's parser should classify findings into
   // HIGH/MED/LOW buckets identical to the legacy [LABEL] path.
   it("fake-codex 'concerns-schema' scenario → verdict:concerns; severity:high/medium map to high/med buckets", () => {
-    fs.writeFileSync(path.join(tempDir, ".codex-pair-context.md"), "# ctx");
+    setupMarker(tempDir, "# ctx");
     const filePath = path.join(tempDir, "src.ts");
     fs.writeFileSync(filePath, "export const x = 1;");
     const payload = JSON.stringify({
@@ -1447,7 +1455,7 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
     const result = runHookWithFakeCodex(payload, tempDir, "concerns-schema");
     expect(result.status).toBe(0);
     const lines = fs
-      .readFileSync(path.join(tempDir, ".codex-pair-log.jsonl"), "utf-8")
+      .readFileSync(path.join(tempDir, ".codex-pair/log.jsonl"), "utf-8")
       .trim()
       .split("\n")
       .map((l) => JSON.parse(l));
@@ -1471,7 +1479,7 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
     // Override stdout entirely so the hook receives a JSONL stream whose
     // agent_message is a `{"verdict":"clean","findings":[]}` blob — the
     // ADR-083 happy-path replacement for the legacy 'NONE' literal.
-    fs.writeFileSync(path.join(tempDir, ".codex-pair-context.md"), "# ctx");
+    setupMarker(tempDir, "# ctx");
     const filePath = path.join(tempDir, "src.ts");
     fs.writeFileSync(filePath, "export const x = 1;");
     const payload = JSON.stringify({
@@ -1495,7 +1503,7 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
     });
     expect(result.status).toBe(0);
     const lines = fs
-      .readFileSync(path.join(tempDir, ".codex-pair-log.jsonl"), "utf-8")
+      .readFileSync(path.join(tempDir, ".codex-pair/log.jsonl"), "utf-8")
       .trim()
       .split("\n")
       .map((l) => JSON.parse(l));
@@ -1508,7 +1516,7 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
     // If codex ignores the JSON instruction and emits legacy labels, the
     // hook should NOT regress to parse_failed — it falls through to the
     // regex parser. This is the one-version safety net documented in ADR-083.
-    fs.writeFileSync(path.join(tempDir, ".codex-pair-context.md"), "# ctx");
+    setupMarker(tempDir, "# ctx");
     const filePath = path.join(tempDir, "src.ts");
     fs.writeFileSync(filePath, "export const x = 1;");
     const payload = JSON.stringify({
@@ -1518,7 +1526,7 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
     const result = runHookWithFakeCodex(payload, tempDir, "concerns-labeled");
     expect(result.status).toBe(0);
     const lines = fs
-      .readFileSync(path.join(tempDir, ".codex-pair-log.jsonl"), "utf-8")
+      .readFileSync(path.join(tempDir, ".codex-pair/log.jsonl"), "utf-8")
       .trim()
       .split("\n")
       .map((l) => JSON.parse(l));
@@ -1562,7 +1570,7 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
 
   const itIfPosix = process.platform === "win32" ? it.skip : it;
   itIfPosix("ADR-084: fake-codex 'timeout' scenario hits ASK_CODEX_TIMEOUT_MS and logs verdict:timeout", () => {
-    fs.writeFileSync(path.join(tempDir, ".codex-pair-context.md"), "# ctx");
+    setupMarker(tempDir, "# ctx");
     const filePath = path.join(tempDir, "src.ts");
     fs.writeFileSync(filePath, "export const x = 1;");
     const payload = JSON.stringify({
@@ -1579,7 +1587,7 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
     expect(result.status).toBe(0);
     expect(elapsed).toBeLessThan(10_000);
     const lines = fs
-      .readFileSync(path.join(tempDir, ".codex-pair-log.jsonl"), "utf-8")
+      .readFileSync(path.join(tempDir, ".codex-pair/log.jsonl"), "utf-8")
       .trim()
       .split("\n")
       .map((l) => JSON.parse(l));
@@ -1590,24 +1598,24 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
 
   // ADR-085: Pause/resume sentinel.
   //
-  // /codex-pair-pause writes <markerDir>/.codex-pair-state/paused. The hook
+  // /codex-pair-pause writes <markerDir>/.codex-pair/state/paused. The hook
   // checks the sentinel after marker resolution and exits silently with a
   // verdict:"skipped" log entry. /codex-pair-resume removes the sentinel.
   // Structural pin on the helper + two runtime tests (paused → skipped,
   // sentinel removal → normal review attempt).
 
-  it("ADR-085/088: lib/state.mjs defines isPaused helper and constants", () => {
+  it("ADR-085/088/092: lib/state.mjs defines isPaused helper and constants", () => {
     const libStateText = fs.readFileSync(path.join(PLUGIN_ROOT, "scripts", "lib", "state.mjs"), "utf-8");
-    expect(libStateText).toMatch(/const PAUSE_STATE_DIR\s*=\s*"\.codex-pair-state"/);
-    expect(libStateText).toMatch(/const PAUSE_SENTINEL_FILE\s*=\s*"paused"/);
+    expect(libStateText).toMatch(/STATE_DIR\s*=\s*"state"/);
+    expect(libStateText).toMatch(/PAUSE_SENTINEL_FILE\s*=\s*"paused"/);
     expect(libStateText).toMatch(/export function isPaused\(markerDir\)/);
-    expect(libStateText).toMatch(/statSync\(join\(markerDir,\s*PAUSE_STATE_DIR,\s*PAUSE_SENTINEL_FILE\)\)/);
+    expect(libStateText).toMatch(/statSync\(pausePath\(markerDir\)\)/);
   });
 
   it("ADR-085: paused sentinel makes hook exit silently with verdict:skipped log entry", () => {
-    fs.writeFileSync(path.join(tempDir, ".codex-pair-context.md"), "# test context");
-    fs.mkdirSync(path.join(tempDir, ".codex-pair-state"), { recursive: true });
-    fs.writeFileSync(path.join(tempDir, ".codex-pair-state", "paused"), "");
+    setupMarker(tempDir);
+    fs.mkdirSync(path.join(tempDir, ".codex-pair/state"), { recursive: true });
+    fs.writeFileSync(path.join(tempDir, ".codex-pair/state", "paused"), "");
     const filePath = path.join(tempDir, "src.ts");
     fs.writeFileSync(filePath, "export const x = 1;");
     const payload = JSON.stringify({
@@ -1617,7 +1625,7 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
     const result = runHook(payload, tempDir);
     expect(result.status).toBe(0);
     expect(result.stderr).toBe("");
-    const logPath = path.join(tempDir, ".codex-pair-log.jsonl");
+    const logPath = path.join(tempDir, ".codex-pair/log.jsonl");
     expect(fs.existsSync(logPath)).toBe(true);
     const lines = fs
       .readFileSync(logPath, "utf-8")
@@ -1630,9 +1638,9 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
   });
 
   it("ADR-085: removing the paused sentinel restores normal review attempt", () => {
-    fs.writeFileSync(path.join(tempDir, ".codex-pair-context.md"), "# test context");
-    fs.mkdirSync(path.join(tempDir, ".codex-pair-state"), { recursive: true });
-    const sentinel = path.join(tempDir, ".codex-pair-state", "paused");
+    setupMarker(tempDir);
+    fs.mkdirSync(path.join(tempDir, ".codex-pair/state"), { recursive: true });
+    const sentinel = path.join(tempDir, ".codex-pair/state", "paused");
     fs.writeFileSync(sentinel, "");
     fs.unlinkSync(sentinel);
     const filePath = path.join(tempDir, "src.ts");
@@ -1649,7 +1657,7 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
       PATH: path.dirname(process.execPath),
     });
     expect(result.status).toBe(0);
-    const logPath = path.join(tempDir, ".codex-pair-log.jsonl");
+    const logPath = path.join(tempDir, ".codex-pair/log.jsonl");
     expect(fs.existsSync(logPath)).toBe(true);
     const lines = fs
       .readFileSync(logPath, "utf-8")
@@ -1719,7 +1727,7 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
 
   // ADR-087: per-file inflight lock for debounce/coalesce.
   //
-  // Cache miss reached → hook acquires .codex-pair-state/inflight/<pathHash>
+  // Cache miss reached → hook acquires .codex-pair/state/inflight/<pathHash>
   // exclusively. Another hook firing for the same file while the lock is
   // held exits silently with verdict:"skipped" reason: "coalesced ...".
   // Stale-recovery via mtime: a lock older than the TTL gets taken over
@@ -1741,14 +1749,14 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
   });
 
   it("ADR-087: pre-existing inflight lock makes the hook coalesce (verdict:skipped reason 'coalesced')", () => {
-    fs.writeFileSync(path.join(tempDir, ".codex-pair-context.md"), "# test context");
+    setupMarker(tempDir);
     const filePath = path.join(tempDir, "src.ts");
     fs.writeFileSync(filePath, "export const x = 1;");
     // Pre-create the inflight lock with a fresh mtime so the hook sees it as
     // in-flight. The hash slice matches the helper: sha256(filePath).slice(0,16).
     const crypto = require("node:crypto") as typeof import("node:crypto");
     const lockHash = crypto.createHash("sha256").update(filePath).digest("hex").slice(0, 16);
-    const inflightDir = path.join(tempDir, ".codex-pair-state", "inflight");
+    const inflightDir = path.join(tempDir, ".codex-pair/state", "inflight");
     fs.mkdirSync(inflightDir, { recursive: true });
     const lockPath = path.join(inflightDir, lockHash);
     fs.writeFileSync(lockPath, "999999"); // fake PID
@@ -1760,7 +1768,7 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
       PATH: path.dirname(process.execPath),
     });
     expect(result.status).toBe(0);
-    const logPath = path.join(tempDir, ".codex-pair-log.jsonl");
+    const logPath = path.join(tempDir, ".codex-pair/log.jsonl");
     expect(fs.existsSync(logPath)).toBe(true);
     const lines = fs
       .readFileSync(logPath, "utf-8")
@@ -1775,14 +1783,14 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
   });
 
   it("ADR-087: stale inflight lock (mtime > TTL) is taken over instead of coalescing", () => {
-    fs.writeFileSync(path.join(tempDir, ".codex-pair-context.md"), "# test context");
+    setupMarker(tempDir);
     const filePath = path.join(tempDir, "src.ts");
     fs.writeFileSync(filePath, "export const x = 1;");
     // Pre-create an inflight lock with mtime far in the past so it counts
     // as stale regardless of which TTL the hook chose.
     const crypto = require("node:crypto") as typeof import("node:crypto");
     const lockHash = crypto.createHash("sha256").update(filePath).digest("hex").slice(0, 16);
-    const inflightDir = path.join(tempDir, ".codex-pair-state", "inflight");
+    const inflightDir = path.join(tempDir, ".codex-pair/state", "inflight");
     fs.mkdirSync(inflightDir, { recursive: true });
     const lockPath = path.join(inflightDir, lockHash);
     fs.writeFileSync(lockPath, "999998");
@@ -1799,7 +1807,7 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
       PATH: path.dirname(process.execPath),
     });
     expect(result.status).toBe(0);
-    const logPath = path.join(tempDir, ".codex-pair-log.jsonl");
+    const logPath = path.join(tempDir, ".codex-pair/log.jsonl");
     expect(fs.existsSync(logPath)).toBe(true);
     const lines = fs
       .readFileSync(logPath, "utf-8")
@@ -1900,8 +1908,8 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
 
   it("ADR-090: brokerStatePath composes <markerDir>/<stateDir>/broker.json", async () => {
     const { brokerStatePath, BROKER_STATE_FILE } = await import("../../scripts/lib/broker.mjs");
-    const p = brokerStatePath("/project", ".codex-pair-state");
-    expect(p).toMatch(/\.codex-pair-state[\\/]broker\.json$/);
+    const p = brokerStatePath("/project", ".codex-pair/state");
+    expect(p).toMatch(/\.codex-pair[\\/]state[\\/]broker\.json$/);
     expect(p).toContain(BROKER_STATE_FILE);
   });
 

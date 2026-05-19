@@ -28,7 +28,7 @@ import {
   unlink,
   writeFile,
 } from "node:fs/promises";
-import { readFileSync, statSync } from "node:fs";
+import { mkdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { dirname, join, resolve } from "node:path";
 import { homedir } from "node:os";
@@ -93,6 +93,15 @@ const CACHE_MAX_ENTRIES = 50;
 // /codex-pair-pause and /codex-pair-resume manage it.
 const PAUSE_STATE_DIR = ".codex-pair-state";
 const PAUSE_SENTINEL_FILE = "paused";
+
+// Inflight lock (ADR-087): one codex review per file path at a time. New
+// PostToolUse fires on the same path while a review is in flight exit silently
+// with verdict:"skipped" reason:"coalesced". The in-flight reviewer reads the
+// file fresh when it spawns codex, so cumulative content of all queued edits
+// is what actually gets reviewed — addresses the "rename across 3 files"
+// false-positive class without resurrecting ADR-048's noise problem.
+const INFLIGHT_DIR = "inflight";
+const INFLIGHT_TTL_MIN_MS = 600_000;
 
 // Marker-walk anchor for the unhandled-exception catch handler. main() sets
 // this to `dirname(filePath)` once the payload is validated; the catch
@@ -415,6 +424,63 @@ function isPaused(markerDir) {
     return true;
   } catch {
     return false;
+  }
+}
+
+// ADR-087: inflight lock keyed on file path (NOT content). Successive edits
+// to the same file share a lock — only the first acquires, subsequent ones
+// coalesce (exit silently). Lock owner writes its PID; readers don't read
+// the content. Stale-recovery via mtime: a lock older than ttlMs is taken
+// over (covers crashed/SIGKILLed previous owners).
+function inflightLockPath(markerDir, filePath) {
+  const hash = createHash("sha256").update(filePath).digest("hex").slice(0, 16);
+  return join(markerDir, PAUSE_STATE_DIR, INFLIGHT_DIR, hash);
+}
+
+function tryAcquireInflightLock(markerDir, filePath, ttlMs) {
+  const lockPath = inflightLockPath(markerDir, filePath);
+  try {
+    mkdirSync(dirname(lockPath), { recursive: true });
+  } catch {
+    // mkdir failures fall through — writeFileSync below will report the real error
+  }
+  try {
+    writeFileSync(lockPath, String(process.pid), { flag: "wx" });
+    return { acquired: true, lockPath };
+  } catch (err) {
+    if (!err || err.code !== "EEXIST") {
+      return { acquired: false, lockPath, reason: "error" };
+    }
+  }
+  // Lock exists — check if stale
+  try {
+    const stats = statSync(lockPath);
+    if (Date.now() - stats.mtimeMs <= ttlMs) {
+      return { acquired: false, lockPath, reason: "in-flight" };
+    }
+  } catch {
+    // Lock vanished between EEXIST and stat — retry the create
+  }
+  // Stale (or vanished); take it over
+  try {
+    unlinkSync(lockPath);
+  } catch {
+    // someone else already cleaned up — fine, fall through to retry
+  }
+  try {
+    writeFileSync(lockPath, String(process.pid), { flag: "wx" });
+    return { acquired: true, lockPath, recoveredStale: true };
+  } catch {
+    return { acquired: false, lockPath, reason: "race" };
+  }
+}
+
+function releaseInflightLock(lockPath) {
+  if (!lockPath) return;
+  try {
+    unlinkSync(lockPath);
+  } catch {
+    // already gone — fine
   }
 }
 
@@ -1252,6 +1318,25 @@ async function main() {
     );
     process.exit(0);
   }
+
+  // ADR-087: inflight lock per file path. Cache miss reached → we're about
+  // to spawn codex. If another hook is mid-spawn for the same file, coalesce:
+  // log skipped and exit. TTL = max(codex timeout, 10 min) + 60s buffer so
+  // stale-recovery never steals still-valid locks.
+  const inflightTtlMs = Math.max(config.timeoutMs, INFLIGHT_TTL_MIN_MS) + 60_000;
+  const lockResult = tryAcquireInflightLock(markerDir, filePath, inflightTtlMs);
+  if (!lockResult.acquired) {
+    await appendLog(markerDir, {
+      timestamp: new Date().toISOString(),
+      tool: toolName,
+      file: filePath,
+      verdict: "skipped",
+      reason: `coalesced — another review is in-flight for this file (${lockResult.reason})`,
+    });
+    process.exit(0);
+  }
+  const acquiredLockPath = lockResult.lockPath;
+  process.on("exit", () => releaseInflightLock(acquiredLockPath));
 
   let response;
   let fellBack = false;

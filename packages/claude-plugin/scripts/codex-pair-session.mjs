@@ -1,22 +1,44 @@
 #!/usr/bin/env node
 // SessionStart / SessionEnd hook for the codex-pair app-server broker
-// (ADR-090). Today this is a stub: invocation reads stdin (Claude Code's
-// hook protocol), inspects the event type, and exits 0 silently.
-//
-// When the broker implementation lands (Tier 3 follow-on):
-//   - SessionStart: walk up from cwd to find .codex-pair/context.md.
-//     If found, spawn `codex app-server --listen <transport>` and write
-//     the descriptor to .codex-pair/state/broker.json (atomic via
-//     tmp+rename, per ADR-086). Path resolution routes through
-//     lib/state.mjs so the layout stays consistent with ADR-092.
-//   - SessionEnd: read .codex-pair/state/broker.json. If a broker is
-//     recorded, send it a graceful shutdown request, wait briefly, then
-//     terminateProcessTree on the pid. Unlink the state file and the
-//     transport socket.
+// (ADR-090, milestones implemented per ADR-093). SessionStart spawns
+// the broker + handshake + descriptor write (Milestone 2 PR 2);
+// SessionEnd teardown remains TODO (Milestone 2 PR 3).
 //
 // The hook MUST exit 0 on every path. A broker spawn failure is logged
-// but doesn't break the session — the hook's main per-edit path keeps
-// working with per-edit spawns.
+// silently to broker.log but doesn't break the session — the per-edit
+// path keeps working via per-edit codex spawns (ADR-077).
+
+import { access } from "node:fs/promises";
+import { homedir } from "node:os";
+import { dirname, join, resolve } from "node:path";
+import { bootstrapBroker } from "./lib/broker-lifecycle.mjs";
+import { CONTEXT_FILENAME, PAIR_ROOT_DIR } from "./lib/state.mjs";
+
+const MARKER_FILE = join(PAIR_ROOT_DIR, CONTEXT_FILENAME);
+
+// Walk up from startDir looking for `.codex-pair/context.md`. Returns
+// the marker directory (the directory CONTAINING `.codex-pair/`) or
+// null. Mirrors codex-pair-watch.mjs and codex-pair-log.mjs — duplicated
+// because zero-workspace-imports + the helper is too small to extract
+// (15 LOC × 3 callers).
+async function findMarkerUp(startDir) {
+  const home = homedir();
+  let current = resolve(startDir);
+  for (let depth = 0; depth < 20; depth++) {
+    const candidate = join(current, MARKER_FILE);
+    try {
+      await access(candidate);
+      return current;
+    } catch {
+      // not found here
+    }
+    const parent = dirname(current);
+    if (parent === current) return null;
+    if (current === home) return null;
+    current = parent;
+  }
+  return null;
+}
 
 async function readStdin() {
   return new Promise((resolve) => {
@@ -27,6 +49,24 @@ async function readStdin() {
     process.stdin.on("end", () => resolve(data));
     process.stdin.on("error", () => resolve(""));
   });
+}
+
+async function handleSessionStart() {
+  const cwd = process.cwd();
+  const markerDir = await findMarkerUp(cwd);
+  if (!markerDir) return; // no opt-in marker, nothing to do
+  // bootstrapBroker enforces its own wall-clock budget + exits silently
+  // on every failure path. Either it returns a descriptor (broker is
+  // live) or null (broker was not started). The hook doesn't surface
+  // either outcome — the per-edit hook discovers the broker by reading
+  // the descriptor file at marker resolution time.
+  await bootstrapBroker(markerDir);
+}
+
+async function handleSessionEnd() {
+  // TODO(M2 PR 3): read .codex-pair/state/broker.json, send SIGTERM to
+  // pid, wait briefly, terminateProcessTree if still alive, unlink
+  // descriptor + socket + lock.
 }
 
 async function main() {
@@ -43,15 +83,20 @@ async function main() {
     process.exit(0);
   }
 
-  // Broker is disabled until ASK_CODEX_BROKER=1 ships with a real
-  // implementation. This is a deliberate gating per ADR-090's "land the
-  // ADR + interface; defer implementation" decision.
+  // Broker is disabled until ASK_CODEX_BROKER=1. Production behavior
+  // unchanged: SessionStart/SessionEnd are silent no-ops.
   if (process.env.ASK_CODEX_BROKER !== "1") {
     process.exit(0);
   }
 
-  // TODO(ADR-090 follow-on): spawn/teardown the codex app-server broker
-  // per the design. See lib/broker.mjs for the planned API surface.
+  try {
+    if (event === "SessionStart") await handleSessionStart();
+    else if (event === "SessionEnd") await handleSessionEnd();
+  } catch {
+    // ADR-077 silent-on-error: a failed bootstrap MUST NOT break the
+    // session. bootstrapBroker already catches internally, but defense
+    // in depth.
+  }
   process.exit(0);
 }
 

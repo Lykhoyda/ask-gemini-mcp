@@ -2269,4 +2269,183 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
       /unsupported transport URL scheme/,
     );
   });
+
+  // Milestone 2 PR 2: broker-lifecycle (SessionStart spawn + handshake +
+  // descriptor write). End-to-end against a real `codex app-server` is
+  // Milestone 4; these tests use injectDeps to mock spawn + initialize.
+
+  it("ADR-093 lifecycle: chooseTransport returns unix:// URL with sha256-of-markerDir suffix", async () => {
+    const { chooseTransport } = await import("../../scripts/lib/broker-lifecycle.mjs");
+    const url = chooseTransport("/project");
+    expect(url).toMatch(/^unix:\/\/.+\/\.codex-pair\/state\/codex-pair-broker\.[0-9a-f]{8}\.sock$/);
+    expect(chooseTransport("/project")).toBe(url);
+    expect(chooseTransport("/project2")).not.toBe(url);
+  });
+
+  it("ADR-093 lifecycle: acquireBrokerLock is atomic (first wins, second returns null)", async () => {
+    const { acquireBrokerLock, releaseBrokerLock } = await import("../../scripts/lib/broker-lifecycle.mjs");
+    fs.mkdirSync(path.join(tempDir, ".codex-pair", "state"), { recursive: true });
+    const first = acquireBrokerLock(tempDir);
+    expect(first).not.toBeNull();
+    expect(fs.existsSync(first as string)).toBe(true);
+    expect(acquireBrokerLock(tempDir)).toBeNull();
+    releaseBrokerLock(first);
+    expect(fs.existsSync(first as string)).toBe(false);
+    const third = acquireBrokerLock(tempDir);
+    expect(third).not.toBeNull();
+    releaseBrokerLock(third);
+  });
+
+  it("ADR-093 lifecycle: writeBrokerDescriptor writes atomically via tmp+rename", async () => {
+    const { writeBrokerDescriptor } = await import("../../scripts/lib/broker-lifecycle.mjs");
+    fs.mkdirSync(path.join(tempDir, ".codex-pair", "state"), { recursive: true });
+    const descriptor = {
+      pid: 99999,
+      transportUrl: "unix:///tmp/test.sock",
+      codexVersion: "codex-cli 0.130.0",
+      protocolVersion: "v2",
+      pluginVersion: "0.7.0",
+      startedAt: "2026-05-20T00:00:00.000Z",
+      logPath: "/tmp/broker.log",
+    };
+    const finalPath = await writeBrokerDescriptor(tempDir, descriptor);
+    expect(finalPath).toBe(path.join(tempDir, ".codex-pair", "state", "broker.json"));
+    const read = JSON.parse(fs.readFileSync(finalPath, "utf-8"));
+    expect(read).toEqual(descriptor);
+    const stateDirEntries = fs.readdirSync(path.join(tempDir, ".codex-pair", "state"));
+    expect(stateDirEntries.some((e) => e.includes(".tmp."))).toBe(false);
+  });
+
+  it("ADR-093 lifecycle: bootstrapBroker happy path writes descriptor + closes init connection", async () => {
+    const { bootstrapBroker } = await import("../../scripts/lib/broker-lifecycle.mjs");
+    fs.mkdirSync(path.join(tempDir, ".codex-pair"), { recursive: true });
+    const fakeChild = { pid: 12345, kill: () => true, killed: false, exitCode: null };
+    let connectionClosed = false;
+    const result = await bootstrapBroker(tempDir, {
+      injectDeps: {
+        // biome-ignore lint/suspicious/noExplicitAny: test mock
+        spawnBroker: () => fakeChild as any,
+        pollSocketReachable: async () => true,
+        initializeBroker: async () => ({
+          connection: {
+            close: () => {
+              connectionClosed = true;
+            },
+            // biome-ignore lint/suspicious/noExplicitAny: test mock
+          } as any,
+          // biome-ignore lint/suspicious/noExplicitAny: test mock
+          rpc: {} as any,
+          initializeResult: { codexHome: "/Users/test/.codex" },
+        }),
+        readCodexVersion: () => "codex-cli 0.130.0",
+      },
+    });
+    expect(result).not.toBeNull();
+    expect(result?.pid).toBe(12345);
+    expect(result?.codexVersion).toBe("codex-cli 0.130.0");
+    expect(result?.codexHome).toBe("/Users/test/.codex");
+    expect(result?.protocolVersion).toBe("v2");
+    expect(connectionClosed).toBe(true);
+    expect(fs.existsSync(path.join(tempDir, ".codex-pair", "state", "broker.json"))).toBe(true);
+    expect(fs.existsSync(path.join(tempDir, ".codex-pair", "state", "broker.lock"))).toBe(false);
+  });
+
+  it("ADR-093 lifecycle: bootstrapBroker returns null + terminates child on poll timeout", async () => {
+    const { bootstrapBroker } = await import("../../scripts/lib/broker-lifecycle.mjs");
+    fs.mkdirSync(path.join(tempDir, ".codex-pair"), { recursive: true });
+    let terminated = false;
+    const fakeChild = {
+      pid: 12345,
+      kill: () => {
+        terminated = true;
+        return true;
+      },
+      killed: false,
+      exitCode: null,
+    };
+    const result = await bootstrapBroker(tempDir, {
+      budgetMs: 200,
+      injectDeps: {
+        // biome-ignore lint/suspicious/noExplicitAny: test mock
+        spawnBroker: () => fakeChild as any,
+        pollSocketReachable: async () => false,
+        // biome-ignore lint/suspicious/noExplicitAny: test mock
+        initializeBroker: (async () => ({})) as any,
+        readCodexVersion: () => "x",
+      },
+    });
+    expect(result).toBeNull();
+    expect(fs.existsSync(path.join(tempDir, ".codex-pair", "state", "broker.json"))).toBe(false);
+    expect(fs.existsSync(path.join(tempDir, ".codex-pair", "state", "broker.lock"))).toBe(false);
+    expect(terminated).toBe(true);
+  });
+
+  it("ADR-093 lifecycle: bootstrapBroker returns null + cleans up on initialize rejection", async () => {
+    const { bootstrapBroker } = await import("../../scripts/lib/broker-lifecycle.mjs");
+    fs.mkdirSync(path.join(tempDir, ".codex-pair"), { recursive: true });
+    const fakeChild = { pid: 12345, kill: () => true, killed: false, exitCode: null };
+    const result = await bootstrapBroker(tempDir, {
+      injectDeps: {
+        // biome-ignore lint/suspicious/noExplicitAny: test mock
+        spawnBroker: () => fakeChild as any,
+        pollSocketReachable: async () => true,
+        initializeBroker: async () => {
+          throw new Error("initialize timeout");
+        },
+        readCodexVersion: () => "x",
+      },
+    });
+    expect(result).toBeNull();
+    expect(fs.existsSync(path.join(tempDir, ".codex-pair", "state", "broker.json"))).toBe(false);
+    expect(fs.existsSync(path.join(tempDir, ".codex-pair", "state", "broker.lock"))).toBe(false);
+  });
+
+  it("ADR-093 lifecycle: bootstrapBroker returns null when lock acquisition fails (concurrent SessionStart)", async () => {
+    const { acquireBrokerLock, bootstrapBroker } = await import("../../scripts/lib/broker-lifecycle.mjs");
+    fs.mkdirSync(path.join(tempDir, ".codex-pair", "state"), { recursive: true });
+    const firstLock = acquireBrokerLock(tempDir);
+    expect(firstLock).not.toBeNull();
+    let spawnAttempted = false;
+    const result = await bootstrapBroker(tempDir, {
+      injectDeps: {
+        spawnBroker: () => {
+          spawnAttempted = true;
+          // biome-ignore lint/suspicious/noExplicitAny: test mock
+          return {} as any;
+        },
+        pollSocketReachable: async () => true,
+        // biome-ignore lint/suspicious/noExplicitAny: test mock
+        initializeBroker: (async () => ({})) as any,
+        readCodexVersion: () => "x",
+      },
+    });
+    expect(result).toBeNull();
+    expect(spawnAttempted).toBe(false);
+    fs.rmSync(firstLock as string, { recursive: true, force: true });
+  });
+
+  it("ADR-093 lifecycle: SessionStart hook with ASK_CODEX_BROKER=1 but no marker is a silent no-op", () => {
+    const sessionScript = path.join(PLUGIN_ROOT, "scripts", "codex-pair-session.mjs");
+    const noMarkerDir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-pair-no-marker-"));
+    try {
+      const result = spawnSync("node", [sessionScript], {
+        input: JSON.stringify({ hook_event_name: "SessionStart" }),
+        cwd: noMarkerDir,
+        env: { ...process.env, ASK_CODEX_BROKER: "1", HOME: noMarkerDir },
+        encoding: "utf-8",
+        timeout: 6000,
+      });
+      expect(result.status).toBe(0);
+      expect(result.stderr).toBe("");
+    } finally {
+      fs.rmSync(noMarkerDir, { recursive: true, force: true });
+    }
+  });
+
+  it("ADR-093 structural: codex-pair-session.mjs wires bootstrapBroker from broker-lifecycle", () => {
+    const sessionScript = fs.readFileSync(path.join(PLUGIN_ROOT, "scripts", "codex-pair-session.mjs"), "utf-8");
+    expect(sessionScript).toMatch(/bootstrapBroker/);
+    expect(sessionScript).toMatch(/from\s+["']\.\/lib\/broker-lifecycle\.mjs["']/);
+    expect(sessionScript).toMatch(/findMarkerUp/);
+  });
 });

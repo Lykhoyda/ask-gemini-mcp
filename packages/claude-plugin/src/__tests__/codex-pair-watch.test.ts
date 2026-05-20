@@ -2041,4 +2041,232 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
     expect(result.status).toBe(0);
     expect(result.stderr).toBe("");
   });
+
+  // Milestone 2 PR 1: broker-transport + broker-rpc unit tests. Validates
+  // the hand-rolled RFC 6455 frame codec, the upgrade-handshake validator,
+  // and the JSON-RPC request/response correlation. End-to-end integration
+  // against a real `codex app-server` lives in Milestone 4; these are
+  // protocol-layer correctness pins.
+
+  it("ADR-093 transport: parseTransportUrl handles unix:// and ws:// schemes", async () => {
+    const { parseTransportUrl } = await import("../../scripts/lib/broker-transport.mjs");
+    const unix = parseTransportUrl("unix:///tmp/foo.sock");
+    expect(unix.isUnix).toBe(true);
+    expect(unix.connectOptions.path).toBe("/tmp/foo.sock");
+    const tcp = parseTransportUrl("ws://127.0.0.1:4500");
+    expect(tcp.isUnix).toBe(false);
+    expect(tcp.connectOptions.host).toBe("127.0.0.1");
+    expect(tcp.connectOptions.port).toBe(4500);
+  });
+
+  it("ADR-093 transport: parseTransportUrl rejects unsupported schemes", async () => {
+    const { parseTransportUrl } = await import("../../scripts/lib/broker-transport.mjs");
+    expect(() => parseTransportUrl("http://x.com")).toThrow(/unsupported transport URL scheme/);
+    expect(() => parseTransportUrl("wss://x.com")).toThrow(/unsupported transport URL scheme/);
+    expect(() => parseTransportUrl("unix://")).toThrow(/empty path/);
+    expect(() => parseTransportUrl("ws://host:notanumber")).toThrow(/invalid port/);
+  });
+
+  it("ADR-093 transport: encodeTextFrame produces masked TEXT frame with FIN bit", async () => {
+    const { __testing__ } = await import("../../scripts/lib/broker-transport.mjs");
+    const frame = __testing__.encodeTextFrame("hi");
+    // Byte 0: 0x80 (FIN) | 0x01 (TEXT) = 0x81
+    expect(frame[0]).toBe(0x81);
+    // Byte 1: 0x80 (MASK) | 0x02 (len)
+    expect(frame[1]).toBe(0x82);
+    // Bytes 2..5: 4-byte mask key. Bytes 6..7: masked payload.
+    const mask = frame.slice(2, 6);
+    const payload = frame.slice(6, 8);
+    const unmasked = Buffer.from([payload[0] ^ mask[0], payload[1] ^ mask[1]]);
+    expect(unmasked.toString()).toBe("hi");
+  });
+
+  it("ADR-093 transport: createFrameParser decodes unmasked server frames (RFC 6455 §5.3)", async () => {
+    const { __testing__ } = await import("../../scripts/lib/broker-transport.mjs");
+    const frames: Array<{ opcode: number; payload: Buffer }> = [];
+    const parser = __testing__.createFrameParser(
+      (f: { opcode: number; payload: Buffer }) => frames.push(f),
+      () => {},
+    );
+    // Server frame: TEXT, FIN, unmasked, payload "hi"
+    const serverFrame = Buffer.from([0x81, 0x02, 0x68, 0x69]);
+    parser(serverFrame);
+    expect(frames).toHaveLength(1);
+    expect(frames[0].opcode).toBe(0x1);
+    expect(frames[0].payload.toString()).toBe("hi");
+  });
+
+  it("ADR-093 transport: createFrameParser handles 16-bit length encoding", async () => {
+    const { __testing__ } = await import("../../scripts/lib/broker-transport.mjs");
+    const frames: Array<{ opcode: number; payload: Buffer }> = [];
+    const parser = __testing__.createFrameParser(
+      (f: { opcode: number; payload: Buffer }) => frames.push(f),
+      () => {},
+    );
+    // 200-byte payload triggers 16-bit length
+    const body = Buffer.alloc(200, "a");
+    const header = Buffer.from([0x81, 126, 0x00, 0xc8]); // 0xc8 = 200
+    parser(Buffer.concat([header, body]));
+    expect(frames).toHaveLength(1);
+    expect(frames[0].payload.length).toBe(200);
+  });
+
+  it("ADR-093 transport: validateUpgradeResponse accepts valid 101 with correct Accept hash", async () => {
+    const { __testing__ } = await import("../../scripts/lib/broker-transport.mjs");
+    const sentKey = "dGhlIHNhbXBsZSBub25jZQ==";
+    // From RFC 6455 example: SHA1(key + GUID) base64 = "s3pPLMBiTxaQ9kYGzzhZRbK+xOo="
+    const validResponse = [
+      "HTTP/1.1 101 Switching Protocols",
+      "Upgrade: websocket",
+      "Connection: Upgrade",
+      "Sec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=",
+    ].join("\r\n");
+    expect(() => __testing__.validateUpgradeResponse(validResponse, sentKey)).not.toThrow();
+  });
+
+  it("ADR-093 transport: validateUpgradeResponse rejects bad status + bad Accept hash", async () => {
+    const { __testing__ } = await import("../../scripts/lib/broker-transport.mjs");
+    expect(() => __testing__.validateUpgradeResponse("HTTP/1.1 400 Bad Request", "x")).toThrow(/upgrade rejected/);
+    expect(() =>
+      __testing__.validateUpgradeResponse(
+        "HTTP/1.1 101 Switching Protocols\r\nSec-WebSocket-Accept: WRONG=",
+        "dGhlIHNhbXBsZSBub25jZQ==",
+      ),
+    ).toThrow(/Sec-WebSocket-Accept mismatch/);
+  });
+
+  // Mock-connection helper for broker-rpc tests. Captures `sendText` calls
+  // and exposes a `pushMessage(text)` to simulate inbound frames.
+  function createMockConnection() {
+    const sent: string[] = [];
+    const listeners: Record<string, Array<(arg?: unknown) => void>> = {
+      message: [],
+      close: [],
+      error: [],
+    };
+    return {
+      conn: {
+        sendText: (text: string) => sent.push(text),
+        close: () => {
+          for (const cb of listeners.close) cb();
+        },
+        on: (event: string, cb: (arg?: unknown) => void) => {
+          listeners[event]?.push(cb);
+        },
+        get destroyed() {
+          return false;
+        },
+      },
+      sent,
+      pushMessage(text: string) {
+        for (const cb of listeners.message) cb(text);
+      },
+      pushClose() {
+        for (const cb of listeners.close) cb();
+      },
+      pushError(err: Error) {
+        for (const cb of listeners.error) cb(err);
+      },
+    };
+  }
+
+  it("ADR-093 rpc: request correlates response by id and resolves with result", async () => {
+    const { createRpcClient, __testing__ } = await import("../../scripts/lib/broker-rpc.mjs");
+    __testing__.resetIdCounter();
+    const mock = createMockConnection();
+    // biome-ignore lint/suspicious/noExplicitAny: mock connection shape
+    const rpc = createRpcClient(mock.conn as any, { defaultTimeoutMs: 1000 });
+    const p = rpc.request("model/list", undefined);
+    // The sent envelope should have id=1 (counter reset)
+    expect(mock.sent).toHaveLength(1);
+    const sentEnv = JSON.parse(mock.sent[0]);
+    expect(sentEnv.id).toBe(1);
+    expect(sentEnv.method).toBe("model/list");
+    // Simulate the server response
+    mock.pushMessage(JSON.stringify({ id: 1, result: { models: ["gpt-5.5"] } }));
+    await expect(p).resolves.toEqual({ models: ["gpt-5.5"] });
+  });
+
+  it("ADR-093 rpc: request rejects when server returns an error envelope", async () => {
+    const { createRpcClient, __testing__ } = await import("../../scripts/lib/broker-rpc.mjs");
+    __testing__.resetIdCounter();
+    const mock = createMockConnection();
+    // biome-ignore lint/suspicious/noExplicitAny: mock connection shape
+    const rpc = createRpcClient(mock.conn as any, { defaultTimeoutMs: 1000 });
+    const p = rpc.request("bad/method", undefined);
+    mock.pushMessage(JSON.stringify({ id: 1, error: { code: -32601, message: "Method not found" } }));
+    await expect(p).rejects.toThrow(/Method not found/);
+  });
+
+  it("ADR-093 rpc: request rejects on timeout", async () => {
+    const { createRpcClient, __testing__ } = await import("../../scripts/lib/broker-rpc.mjs");
+    __testing__.resetIdCounter();
+    const mock = createMockConnection();
+    // biome-ignore lint/suspicious/noExplicitAny: mock connection shape
+    const rpc = createRpcClient(mock.conn as any, { defaultTimeoutMs: 50 });
+    const p = rpc.request("hangs", undefined);
+    await expect(p).rejects.toThrow(/timeout after 50ms/);
+  });
+
+  it("ADR-093 rpc: tolerates responses missing the jsonrpc:'2.0' field (ADR-093 finding)", async () => {
+    const { createRpcClient, __testing__ } = await import("../../scripts/lib/broker-rpc.mjs");
+    __testing__.resetIdCounter();
+    const mock = createMockConnection();
+    // biome-ignore lint/suspicious/noExplicitAny: mock connection shape
+    const rpc = createRpcClient(mock.conn as any, { defaultTimeoutMs: 1000 });
+    const p = rpc.request("model/list", undefined);
+    // No jsonrpc field — codex's actual response shape per ADR-093
+    mock.pushMessage(JSON.stringify({ id: 1, result: { models: [] } }));
+    await expect(p).resolves.toEqual({ models: [] });
+  });
+
+  it("ADR-093 rpc: dispatches server-pushed notifications to onNotification", async () => {
+    const { createRpcClient } = await import("../../scripts/lib/broker-rpc.mjs");
+    const mock = createMockConnection();
+    const notifications: Array<{ method: string; params: unknown }> = [];
+    createRpcClient(
+      // biome-ignore lint/suspicious/noExplicitAny: mock connection shape
+      mock.conn as any,
+      { onNotification: (n) => notifications.push({ method: n.method, params: n.params }) },
+    );
+    mock.pushMessage(JSON.stringify({ method: "turn/completed", params: { turnId: "abc" } }));
+    expect(notifications).toEqual([{ method: "turn/completed", params: { turnId: "abc" } }]);
+  });
+
+  it("ADR-093 rpc: close rejects all pending requests", async () => {
+    const { createRpcClient, __testing__ } = await import("../../scripts/lib/broker-rpc.mjs");
+    __testing__.resetIdCounter();
+    const mock = createMockConnection();
+    // biome-ignore lint/suspicious/noExplicitAny: mock connection shape
+    const rpc = createRpcClient(mock.conn as any, { defaultTimeoutMs: 5000 });
+    const p1 = rpc.request("a", undefined);
+    const p2 = rpc.request("b", undefined);
+    mock.pushClose();
+    await expect(p1).rejects.toThrow(/connection closed before response/);
+    await expect(p2).rejects.toThrow(/connection closed before response/);
+  });
+
+  it("ADR-093 broker: probeBrokerHealth returns false on null state (defensive)", async () => {
+    const { probeBrokerHealth } = await import("../../scripts/lib/broker.mjs");
+    expect(await probeBrokerHealth(null)).toBe(false);
+    expect(await probeBrokerHealth({})).toBe(false);
+    expect(await probeBrokerHealth({ transportUrl: 42 })).toBe(false);
+  });
+
+  it("ADR-093 broker: probeBrokerHealth returns false when transport unreachable", async () => {
+    const { probeBrokerHealth } = await import("../../scripts/lib/broker.mjs");
+    // ENOENT on a definitely-not-existing unix socket — never throws,
+    // returns false per ADR-077 silent-on-error contract.
+    const result = await probeBrokerHealth({
+      transportUrl: "unix:///tmp/definitely-not-a-broker-socket-codex-pair-test.sock",
+    });
+    expect(result).toBe(false);
+  });
+
+  it("ADR-093 broker: initializeBroker rejects on bad transport URL", async () => {
+    const { initializeBroker } = await import("../../scripts/lib/broker.mjs");
+    await expect(initializeBroker("nope://invalid", { name: "test", title: "test", version: "0.0.0" })).rejects.toThrow(
+      /unsupported transport URL scheme/,
+    );
+  });
 });

@@ -23,6 +23,8 @@
 //   - Health probe: `model/list` (cheap) or `initialize` with deadline
 
 import { join } from "node:path";
+import { connectWebSocket } from "./broker-transport.mjs";
+import { createRpcClient } from "./broker-rpc.mjs";
 
 // State file under <markerDir>/.codex-pair/state/ (ADR-092).
 export const BROKER_STATE_FILE = "broker.json";
@@ -144,14 +146,85 @@ export function clearStaleBrokerState(_markerDir) {
   // (per the configured policy).
 }
 
-// Health-probe stub. Real implementation (Milestone 3) will open the
-// transport (unix socket or websocket), send `model/list` (cheap, no side
-// effects), wait up to BROKER_HEALTH_TIMEOUT_MS for a response, and
-// return boolean. `model/list` is preferred over `initialize` for the
-// probe because initialize has side effects (allocates a connection
-// context); model/list is idempotent and lighter.
-export async function probeBrokerHealth(_state) {
-  return false;
+// Open a transport connection to a running broker, perform the JSON-RPC
+// `initialize` handshake, and return `{ connection, rpc, initializeResult }`.
+// Caller owns connection lifetime — call `connection.close()` and stop
+// using `rpc` when done. On any failure (transport error, handshake
+// timeout, initialize rejection) this rejects; caller falls back to the
+// per-edit spawn path per ADR-077.
+//
+// `clientInfo` is the InitializeParams.clientInfo object — codex-cli
+// 0.130.0 requires `{ name, title, version }` (brainstorm-verified;
+// ADR-093 protocol note). Callers should pass real plugin identity.
+export async function initializeBroker(transportUrl, clientInfo, options = {}) {
+  const { handshakeTimeoutMs = 5000, initializeTimeoutMs = 5000 } = options;
+  const connection = await connectWebSocket(transportUrl, { handshakeTimeoutMs });
+  const rpc = createRpcClient(connection, { defaultTimeoutMs: initializeTimeoutMs });
+  try {
+    const initializeResult = await rpc.request(
+      JSONRPC_METHODS.INITIALIZE,
+      { clientInfo },
+      { timeoutMs: initializeTimeoutMs },
+    );
+    return { connection, rpc, initializeResult };
+  } catch (err) {
+    try {
+      connection.close(1011, "initialize failed");
+    } catch {
+      // already torn down
+    }
+    throw err;
+  }
+}
+
+// Health probe: open the transport, send `model/list` (idempotent, cheap),
+// wait up to BROKER_HEALTH_TIMEOUT_MS for a response. Returns boolean.
+// Never throws — callers in the hook path treat any failure as "broker
+// unreachable, fall back to per-edit spawn" per ADR-077.
+//
+// `state` is the broker descriptor read from .codex-pair/state/broker.json
+// (shape: `{ transportUrl, pid, codexVersion, protocolVersion, startedAt }`).
+// Health probe uses transportUrl + initializes ad-hoc because the long-
+// lived connection lives in the per-edit hook process, not here.
+//
+// Implementation note: model/list is preferred over `initialize` for the
+// probe because the brainstorm verified that codex's `initialize` is
+// metadata-rich + always-succeeds. `model/list` exercises the actual
+// JSON-RPC plumbing AND validates that the broker can complete a real
+// request — a stricter health signal.
+export async function probeBrokerHealth(state) {
+  if (!state || typeof state.transportUrl !== "string") return false;
+  let connection;
+  let rpc;
+  try {
+    connection = await connectWebSocket(state.transportUrl, {
+      handshakeTimeoutMs: BROKER_HEALTH_TIMEOUT_MS,
+    });
+    rpc = createRpcClient(connection, { defaultTimeoutMs: BROKER_HEALTH_TIMEOUT_MS });
+    // `model/list` requires the connection to have completed `initialize`
+    // first per the codex protocol. The PROBE path opens a fresh
+    // connection (no broker-side state shared with the long-lived hook
+    // connection), so we must initialize here before model/list.
+    await rpc.request(
+      JSONRPC_METHODS.INITIALIZE,
+      { clientInfo: { name: "codex-pair-health-probe", title: "codex-pair health probe", version: "0.0.0" } },
+      { timeoutMs: BROKER_HEALTH_TIMEOUT_MS },
+    );
+    await rpc.request(JSONRPC_METHODS.MODEL_LIST, undefined, {
+      timeoutMs: BROKER_HEALTH_TIMEOUT_MS,
+    });
+    return true;
+  } catch {
+    return false;
+  } finally {
+    if (connection && !connection.destroyed) {
+      try {
+        connection.close(1000, "probe done");
+      } catch {
+        // best-effort
+      }
+    }
+  }
 }
 
 // Submit-review API. The hook calls this when isBrokerEnabled returns

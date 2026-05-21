@@ -3130,14 +3130,23 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
 
   // Tier 3 Milestone 4 (M4) Integration Tests
 
-  it("M4 integration: codex-pair-watch.mjs connects to broker when isBrokerEnabled is true", () => {
+  it("M4 integration: codex-pair-watch.mjs dispatches broker via runCodexWithFallback (single path)", () => {
     const hookSource = fs.readFileSync(path.join(PLUGIN_ROOT, "scripts", "codex-pair-watch.mjs"), "utf-8");
+    // Broker dispatch unified through runCodexWithFallback per /multi-review
+    // hotfix — both reviewers independently caught the duplicate inline
+    // branch in main() that bypassed fallback semantics + initialize handshake.
     expect(hookSource).toMatch(/if\s*\(isBrokerEnabled\(markerDir\)\)/);
-    expect(hookSource).toMatch(/readBrokerState\(markerDir\)/);
-    expect(hookSource).toMatch(/connectWebSocket/);
-    expect(hookSource).toMatch(/createRpcClient/);
+    expect(hookSource).toMatch(/runWithBroker/);
     expect(hookSource).toMatch(/submitReview/);
-    expect(hookSource).toMatch(/connection\.close\(\)/);
+    // main() must call runCodexWithFallback (not a duplicate inline branch).
+    // Pin that runCodexWithFallback is invoked from main()'s try block.
+    expect(hookSource).toMatch(/await runCodexWithFallback\(\{[\s\S]+?fallbackModel/);
+    // Explicit anti-regression on the duplicate-inline-dispatch bug:
+    // main() must NOT directly call connectWebSocket or createRpcClient.
+    // Those calls only live inside runWithBroker (called via runCodexWithFallback).
+    const mainBody = hookSource.match(/async function main\(\)[\s\S]+?\n\}/)?.[0] ?? "";
+    expect(mainBody).not.toMatch(/connectWebSocket\(/);
+    expect(mainBody).not.toMatch(/createRpcClient\(/);
   });
 
   // ─────────────────────────────────────────────────────────────────────

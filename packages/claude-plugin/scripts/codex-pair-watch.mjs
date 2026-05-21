@@ -40,8 +40,6 @@ import { IS_WINDOWS, terminateProcessTree } from "./lib/process.mjs";
 // fire, but isBrokerEnabled returns false fast when ASK_CODEX_BROKER
 // isn't set, so the per-edit fast path is unaffected.
 import { initializeBroker, isBrokerEnabled, readBrokerState, submitReview } from "./lib/broker.mjs";
-import { connectWebSocket } from "./lib/broker-transport.mjs";
-import { createRpcClient } from "./lib/broker-rpc.mjs";
 import { buildReviewPrompt } from "./lib/prompt.mjs";
 import {
   buildVerdictMessage,
@@ -980,43 +978,21 @@ async function main() {
   let response;
   let fellBack = false;
   try {
-    if (isBrokerEnabled(markerDir)) {
-      const state = readBrokerState(markerDir);
-      const connection = await connectWebSocket(state.transportUrl, { timeoutMs: 5000 });
-      let rpc;
-      try {
-        rpc = createRpcClient(connection);
-        const brokerPrompt = buildPrompt({
-          filePath,
-          fileContent: promptContent,
-          toolName,
-          projectContext: "", // Sent via baseInstructions instead
-          partialView,
-        });
-        response = await submitReview({
-          connection,
-          rpc,
-          cwd: markerDir,
-          baseInstructions: projectContext,
-          prompt: brokerPrompt,
-          model: config.model,
-          timeoutMs: config.timeoutMs,
-        });
-      } finally {
-        connection.on("error", () => {}); // Handle any unhandled errors on close
-        connection.close();
-      }
-    } else {
-      const result = await runCodexWithFallback({
-        prompt,
-        timeoutMs: config.timeoutMs,
-        model: config.model,
-        fallbackModel: config.fallbackModel,
-        markerDir,
-      });
-      response = result.response;
-      fellBack = result.fellBack;
-    }
+    // M4 multi-review hotfix: dispatch unified through runCodexWithFallback
+    // for BOTH broker and spawn modes. Previous duplicate inline branch
+    // bypassed runWithBroker's brokerFailure-fallback semantics + missed
+    // initialize handshake + missed quota fallback. Both /multi-review
+    // reviewers (Codex 98% + Claude 98%) caught this independently —
+    // a duplicate dispatch path I auto-completed without realizing.
+    const result = await runCodexWithFallback({
+      prompt,
+      timeoutMs: config.timeoutMs,
+      model: config.model,
+      fallbackModel: config.fallbackModel,
+      markerDir,
+    });
+    response = result.response;
+    fellBack = result.fellBack;
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
     const verdict = verdictFromError(err);

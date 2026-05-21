@@ -107,13 +107,17 @@ export function buildVerdictSchema() {
               type: "string",
               description: "The concern itself — what's wrong + why it matters + how to fix.",
             },
+            title: {
+              type: "string",
+              description: "Optional short title rendered ahead of the file:line line.",
+            },
             file: {
               type: "string",
-              description: "File path (optional). When present, prepended to the rendered concern.",
+              description: "File path (optional). Prepended to the rendered concern.",
             },
-            line: {
-              type: ["integer", "string"],
-              description: "Line number (optional). Rendered as ':<line>' suffix on file.",
+            line_start: {
+              type: "integer",
+              description: "Line number (optional). Multi-review M3 hotfix: parser.mjs reads `line_start`, not `line`. Rendered as ':<n>' suffix on file.",
             },
             recommendation: {
               type: "string",
@@ -370,18 +374,29 @@ export async function submitReview(args) {
   // 4. Wire cancellation. abortSignal abort → turn/interrupt + reject.
   let abortHandler = null;
   let interruptSent = false;
+  // Multi-review M3 hotfix: track completion so a late abort (firing
+  // AFTER completion resolves but BEFORE finally cleans up) doesn't
+  // send a spurious turn/interrupt for an already-done turn.
+  let completed = false;
   const abortPromise =
     abortSignal
       ? new Promise((_, reject) => {
           abortHandler = () => {
+            // Early-return if we already got the completion. Closes the
+            // abort-after-completion race window flagged in multi-review.
+            if (completed) return;
             interruptSent = true;
             // Best-effort interrupt; don't await it on the abort path —
             // we want to reject the user-facing promise immediately.
             rpc
               .request(JSONRPC_METHODS.TURN_INTERRUPT, { threadId, turnId }, { timeoutMs: 2000 })
               .catch(() => {});
+            // Multi-review M3 hotfix: use `verdict` not `code` — the
+            // hook's verdictFromError reads err.verdict. "aborted" is
+            // not in VERDICT_PREFIXES so map to "error".
             const err = new Error("submitReview: aborted");
-            err.code = "aborted";
+            err.verdict = "error";
+            err.aborted = true; // structured marker for callers who care
             reject(err);
           };
           if (abortSignal.aborted) abortHandler();
@@ -395,15 +410,16 @@ export async function submitReview(args) {
     completion = abortPromise
       ? await Promise.race([completionPromise, abortPromise])
       : await completionPromise;
+    completed = true;
   } catch (err) {
     // On timeout (waitFor rejects), send best-effort interrupt so we
-    // don't leak a server-side turn.
-    if (!interruptSent && err && err.message && /timed out/.test(err.message)) {
-      rpc
-        .request(JSONRPC_METHODS.TURN_INTERRUPT, { threadId, turnId }, { timeoutMs: 2000 })
-        .catch(() => {});
+    // don't leak a server-side turn. Multi-review M3 hotfix: use the
+    // structured err.timeout marker from broker-rpc, not regex on message.
+    if (!interruptSent && err && err.timeout === true) {
+      rpc.request(JSONRPC_METHODS.TURN_INTERRUPT, { threadId, turnId }, { timeoutMs: 2000 }).catch(() => {});
       const wrapped = new Error("submitReview: turn timed out");
-      wrapped.code = "timeout";
+      wrapped.verdict = "timeout";
+      wrapped.timeout = true;
       throw wrapped;
     }
     throw err;
@@ -411,28 +427,33 @@ export async function submitReview(args) {
     if (abortHandler && abortSignal) {
       abortSignal.removeEventListener("abort", abortHandler);
     }
+    // If the abort handler already fired but we'd completed, it sent a
+    // spurious interrupt and rejected an unawaited promise. The flag
+    // above prevents that — abortHandler now early-returns if completed.
   }
 
   // 6. Extract the final agentMessage from `turn.items`. Brainstorm
   // confirmed multiple `agentMessage` items can appear (reasoning summaries
   // vs final answer); `findLast` picks the last/final one.
+  // `completed` is read by the abortHandler closure to detect the
+  // abort-after-completion race; biome won't strip it.
   const turn = completion?.params?.turn;
   if (!turn || !Array.isArray(turn.items)) {
     const err = new Error("submitReview: turn/completed missing turn.items");
-    err.code = "parse_failed";
+    err.verdict = "parse_failed";
     throw err;
   }
   if (turn.status === "failed" || turn.status === "interrupted") {
     const err = new Error(
       `submitReview: turn ${turn.status}${turn.error?.message ? ` — ${turn.error.message}` : ""}`,
     );
-    err.code = "error";
+    err.verdict = "error";
     throw err;
   }
   const finalMessage = turn.items.findLast?.((i) => i?.type === "agentMessage");
   if (!finalMessage || typeof finalMessage.text !== "string") {
     const err = new Error("submitReview: turn/completed has no agentMessage item");
-    err.code = "parse_failed";
+    err.verdict = "parse_failed";
     throw err;
   }
   return finalMessage.text;

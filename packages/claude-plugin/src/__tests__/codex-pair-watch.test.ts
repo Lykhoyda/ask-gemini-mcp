@@ -2921,7 +2921,13 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
         return {};
       },
       waitFor: async () => {
-        throw new Error("broker-rpc: waitFor(turn/completed) timed out after 50ms");
+        // Multi-review M3 hotfix: timeout is detected via structured
+        // err.timeout marker, not regex on message. Mock fakes the
+        // marker that the real waitFor attaches.
+        const e = new Error("broker-rpc: waitFor(turn/completed) timed out after 50ms");
+        // biome-ignore lint/suspicious/noExplicitAny: structured marker
+        (e as any).timeout = true;
+        throw e;
       },
     };
     // biome-ignore lint/suspicious/noExplicitAny: test mock
@@ -2941,7 +2947,7 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
       caught = err as Error;
     }
     // biome-ignore lint/suspicious/noExplicitAny: test mock
-    expect((caught as any)?.code).toBe("timeout");
+    expect((caught as any)?.verdict).toBe("timeout");
     expect(interruptCalls).toHaveLength(1);
     expect((interruptCalls[0].params as { threadId: string; turnId: string }).threadId).toBe("T1");
     expect((interruptCalls[0].params as { threadId: string; turnId: string }).turnId).toBe("U1");
@@ -2980,7 +2986,7 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
       caught = err as Error;
     }
     // biome-ignore lint/suspicious/noExplicitAny: test mock
-    expect((caught as any)?.code).toBe("error");
+    expect((caught as any)?.verdict).toBe("error");
     expect(caught?.message).toMatch(/quota/);
   });
 
@@ -3021,5 +3027,104 @@ describe("scripts/codex-pair-watch.mjs — runtime behavior (no codex calls)", (
     expect(p.baseInstructions).toBe("be strict");
     expect(p.approvalPolicy).toBe("never");
     expect(p.sandbox).toBe("read-only");
+  });
+
+  // Multi-review M3 HOTFIX regression tests.
+
+  it("M3 hotfix: submitReview errors set err.verdict (hook reads .verdict, not .code)", async () => {
+    const { submitReview } = await import("../../scripts/lib/broker.mjs");
+    // biome-ignore lint/suspicious/noExplicitAny: test mock
+    const mockRpc: any = {
+      request: async (method: string) => {
+        if (method === "thread/start") return { thread: { id: "T1" } };
+        if (method === "turn/start") return { turn: { id: "U1" } };
+        return {};
+      },
+      waitFor: async () => ({
+        method: "turn/completed",
+        params: { threadId: "T1", turn: { id: "U1", status: "completed", items: [] } },
+      }),
+    };
+    // biome-ignore lint/suspicious/noExplicitAny: test mock
+    const mockConn: any = { close: () => {}, on: () => {}, destroyed: false };
+    let caught: Error | null = null;
+    try {
+      await submitReview({
+        rpc: mockRpc,
+        connection: mockConn,
+        cwd: "/tmp",
+        baseInstructions: "ctx",
+        prompt: "x",
+        model: "gpt-5.5",
+      });
+    } catch (err) {
+      caught = err as Error;
+    }
+    // biome-ignore lint/suspicious/noExplicitAny: structured marker
+    expect((caught as any)?.verdict).toBe("parse_failed");
+    // The legacy `code` field is NOT set (hook reads .verdict only)
+    // biome-ignore lint/suspicious/noExplicitAny: structured marker
+    expect((caught as any)?.code).toBeUndefined();
+  });
+
+  it("M3 hotfix: buildVerdictSchema uses line_start (matches parser.mjs::formatFindingBody)", async () => {
+    const { buildVerdictSchema } = await import("../../scripts/lib/broker.mjs");
+    const schema = buildVerdictSchema();
+    const findingProps = schema.properties.findings.items.properties;
+    expect(findingProps.line_start).toBeDefined();
+    expect(findingProps.line_start.type).toBe("integer");
+    expect(findingProps.line).toBeUndefined();
+  });
+
+  it("M3 hotfix: buildVerdictSchema includes optional title (parser renders it)", async () => {
+    const { buildVerdictSchema } = await import("../../scripts/lib/broker.mjs");
+    const schema = buildVerdictSchema();
+    const findingProps = schema.properties.findings.items.properties;
+    expect(findingProps.title).toBeDefined();
+    expect(findingProps.title.type).toBe("string");
+  });
+
+  it("M3 hotfix: rpc.waitFor timeout attaches err.timeout = true (structured marker)", async () => {
+    const { createRpcClient, __testing__ } = await import("../../scripts/lib/broker-rpc.mjs");
+    __testing__.resetIdCounter();
+    const listeners: Record<string, Array<(arg?: unknown) => void>> = { message: [], close: [], error: [] };
+    const mock = {
+      sendText: () => {},
+      close: () => {},
+      on: (event: string, cb: (arg?: unknown) => void) => listeners[event]?.push(cb),
+      get destroyed() {
+        return false;
+      },
+    };
+    // biome-ignore lint/suspicious/noExplicitAny: mock
+    const rpc = createRpcClient(mock as any, { defaultTimeoutMs: 5000 });
+    let caught: Error | null = null;
+    try {
+      await rpc.waitFor("turn/completed", null, 50);
+    } catch (err) {
+      caught = err as Error;
+    }
+    // biome-ignore lint/suspicious/noExplicitAny: structured marker
+    expect((caught as any)?.timeout).toBe(true);
+  });
+
+  it("M3 hotfix: rpc connection.error rejects pending notification subscribers", async () => {
+    const { createRpcClient } = await import("../../scripts/lib/broker-rpc.mjs");
+    const listeners: Record<string, Array<(arg?: unknown) => void>> = { message: [], close: [], error: [] };
+    const mock = {
+      sendText: () => {},
+      close: () => {},
+      on: (event: string, cb: (arg?: unknown) => void) => listeners[event]?.push(cb),
+      get destroyed() {
+        return false;
+      },
+    };
+    // biome-ignore lint/suspicious/noExplicitAny: mock
+    const rpc = createRpcClient(mock as any, { defaultTimeoutMs: 5000 });
+    const p = rpc.waitFor("turn/completed", null, 10000);
+    // Simulate transport error WITHOUT a subsequent close
+    const transportErr = new Error("ECONNRESET");
+    for (const cb of listeners.error) cb(transportErr);
+    await expect(p).rejects.toThrow(/ECONNRESET/);
   });
 });

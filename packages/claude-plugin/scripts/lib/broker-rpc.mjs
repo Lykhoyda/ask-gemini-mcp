@@ -121,6 +121,16 @@ export function createRpcClient(connection, options = {}) {
       entry.reject(err);
       pending.delete(id);
     }
+    // Multi-review M3 hotfix: also reject notification waiters — some
+    // Node transports emit "error" without a following "close", so the
+    // close-handler cleanup wouldn't run otherwise and waitFor() would
+    // hang until its own timeout. Surface the real transport error
+    // immediately for diagnostics instead of a generic timeout.
+    for (const sub of notificationSubscribers) {
+      clearTimeout(sub.timer);
+      sub.reject(err);
+    }
+    notificationSubscribers.clear();
   });
 
   return {
@@ -166,11 +176,11 @@ export function createRpcClient(connection, options = {}) {
         const sub = { method, predicate, resolve, reject, timer: null };
         sub.timer = setTimeout(() => {
           notificationSubscribers.delete(sub);
-          reject(
-            new Error(
-              `broker-rpc: waitFor(${method}) timed out after ${timeoutMs}ms`,
-            ),
-          );
+          // Multi-review M3 hotfix: attach a structured `.timeout = true`
+          // marker so callers don't have to regex-match the message.
+          const err = new Error(`broker-rpc: waitFor(${method}) timed out after ${timeoutMs}ms`);
+          err.timeout = true;
+          reject(err);
         }, timeoutMs);
         sub.timer.unref?.();
         notificationSubscribers.add(sub);
